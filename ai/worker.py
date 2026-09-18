@@ -1,4 +1,4 @@
-"""Database-backed Phase 4 worker with explicitly mock processing."""
+"""Database-backed worker for the human-reviewed OCR baseline."""
 import logging
 import signal
 import time
@@ -42,7 +42,7 @@ def main() -> None:
                     mark_job_completed(db, job.id, result)
                     logger.info("job_completed", extra={"event": "job_completed", "job_id": str(job.id), "processor": processor.name})
                 except Exception as exc:
-                    mark_job_failure(db, job.id, "MOCK_PROCESSING_ERROR", str(exc))
+                    mark_job_failure(db, job.id, "OCR_PROCESSING_ERROR", str(exc))
                     logger.warning("job_failed", extra={"event": "job_failed", "job_id": str(job.id)})
         except Exception:
             logger.exception("worker_iteration_failed", extra={"event": "worker_iteration_failed"})

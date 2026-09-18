@@ -2,9 +2,9 @@
 
 Internal, single-administrator web system for secure batch processing and human review of electricity-meter images.
 
-## Phase 1 status
+## Current status
 
-The project foundation is in place: Next.js frontend, FastAPI backend, PostgreSQL connection layer, Alembic, separate worker process, Nginx proxy, structured logs, and health checks. Authentication, database entities, uploads, and AI inference are intentionally deferred to later phases.
+The runnable prototype includes the Next.js frontend, FastAPI backend, PostgreSQL, Alembic migrations, authenticated local image storage, a PostgreSQL job queue, separate OCR worker, review workflow, dashboard, Excel export, Nginx proxy, structured logs, and health checks.
 
 ## Start
 
@@ -30,11 +30,11 @@ Phase 3 provides authenticated, one-image-per-request batch uploads. Originals a
 
 ## Processing jobs
 
-Phase 4 provides a PostgreSQL-backed worker queue and a deliberately non-inference `MOCK` processor. See [job documentation](docs/jobs.md).
+The PostgreSQL-backed worker queue safely processes images outside HTTP requests. See [job documentation](docs/jobs.md).
 
 ## AI pipeline
 
-Phase 5 adds modular quality, preprocessing, detector/OCR, validation, and confidence interfaces. The current development pipeline is deliberately marked `MOCK`; see [AI pipeline documentation](docs/ai-pipeline.md).
+The current development model is `meter-ocr-baseline-v1`, built from OpenCV, pretrained RapidOCR ONNX models, and a Tesseract fallback. It always requires human review and must not be described as a production-trained model; see [AI pipeline documentation](docs/ai-pipeline.md).
 
 ## Training data
 
@@ -47,5 +47,9 @@ Phase 6 separates immutable AI output from reviewed final values and records eve
 ## Dashboard and export
 
 Phase 7 provides authenticated dashboard statistics and safe Excel export of confirmed final readings; see [export documentation](docs/export.md).
+
+## Administration and backup
+
+The dashboard includes audited system settings, a checksum-verified model registry, operational AI evaluation, and audit history. See [administration](docs/administration.md) and [backup/restore](docs/backup-restore.md).
 
 PostgreSQL is intentionally not published. Use an internal HTTPS endpoint in production and add HSTS only after TLS is verified. Docker Desktop must be running before building or starting the stack.

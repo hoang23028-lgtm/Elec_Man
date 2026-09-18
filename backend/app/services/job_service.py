@@ -30,7 +30,7 @@ def queue_batch(db: Session, batch_id: UUID, user: User, ip_address: str | None)
     db.add_all([ProcessingJob(image_id=image_id, status=JobStatus.PENDING, max_attempts=settings.max_retry_count, created_at=now, next_retry_at=now) for image_id in image_ids])
     db.execute(update(ImageRecord).where(ImageRecord.batch_id == batch_id).values(status=ImageStatus.QUEUED))
     batch.status = BatchStatus.QUEUED
-    db.add(AuditLog(user_id=user.id, action="START_BATCH", target_type="batch", target_id=str(batch.id), details_json={"job_count": len(image_ids), "processor": "MOCK"}, ip_address=ip_address))
+    db.add(AuditLog(user_id=user.id, action="START_BATCH", target_type="batch", target_id=str(batch.id), details_json={"job_count": len(image_ids), "processor": "OCR_BASELINE"}, ip_address=ip_address))
     db.commit()
     db.refresh(batch)
     return batch

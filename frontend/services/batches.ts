@@ -27,8 +27,8 @@ export async function startBatch(batchId: string, csrfToken: string): Promise<Ba
   return response.json() as Promise<Batch>;
 }
 
-export async function getBatches(): Promise<Batch[]> {
-  const response = await fetch(`${apiBaseUrl}/batches`, { credentials: "include" });
+export async function getBatches(offset = 0, limit = 8): Promise<Batch[]> {
+  const response = await fetch(`${apiBaseUrl}/batches?offset=${offset}&limit=${limit}`, { credentials: "include" });
   if (!response.ok) throw new Error("Unable to load batches.");
   return response.json() as Promise<Batch[]>;
 }

@@ -1,7 +1,7 @@
 # Dashboard Page Overrides
 
 > **PROJECT:** Electricity Meter AI
-> **Generated:** 2026-09-17 23:21:42
+> **Generated:** 2026-09-18 07:56:04
 > **Page Type:** Dashboard / Data View
 
 > ⚠️ **IMPORTANT:** Rules in this file **override** the Master file (`design-system/MASTER.md`).
@@ -15,7 +15,7 @@
 
 - **Max Width:** 1400px or full-width
 - **Grid:** 12-column grid for data flexibility
-- **Sections:** 1. Hero (product + live preview or status), 2. Key metrics/indicators, 3. How it works, 4. CTA (Start trial / Contact)
+- **Sections:** Hero (product + live preview or status) > Key metrics/indicators > How it works > CTA (Start trial / Contact)
 
 ### Spacing Overrides
 
@@ -32,6 +32,7 @@
 ### Component Overrides
 
 - Avoid: Leave UI frozen with no feedback
+- Avoid: Make dragging the only way to reorder resize or select
 
 ---
 
@@ -45,4 +46,5 @@
 
 - Effects: Hover tooltips, chart zoom on click, row highlighting on hover, smooth filter animations, data loading spinners
 - Animation: Use skeleton screens or spinners
+- Accessibility: Add buttons menus or tap-to-move controls and retain keyboard operation
 - CTA Placement: Primary CTA in nav + After metrics

@@ -6,4 +6,6 @@ Each row requires a SHA-256 checksum, a verified customer identifier, and the fu
 
 One image is a labelled seed and evaluation fixture, not a sufficient training set. Before activating a real recognition model, collect a split dataset with a representative range of meter types, lighting, blur, viewpoints, dirt/occlusion, and digit combinations. Keep a held-out test split and publish accuracy/error metrics for customer ID and reading separately.
 
+The deployed `meter-ocr-baseline-v1` is a pretrained OCR bootstrap, not a model fitted on the seed image. It allows operators to upload images immediately, correct OCR suggestions, and create trustworthy labels. Do not describe a successful read of a seed image as training accuracy.
+
 Manual confirmations recorded by the application are the operational source of future labels. Train only from labels that have been reviewed by an authorised person, and keep the model version and evaluation report with every deployed model bundle.

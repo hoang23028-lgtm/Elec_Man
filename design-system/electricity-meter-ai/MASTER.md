@@ -7,8 +7,8 @@
 ---
 
 **Project:** Electricity Meter AI
-**Generated:** 2026-09-17 23:21:42
-**Category:** Analytics Dashboard
+**Generated:** 2026-09-18 07:56:04
+**Category:** General
 **Design Dials:** Motion 2/10 (Subtle) | Density 8/10 (Dense / Dashboard)
 
 ---
@@ -19,18 +19,24 @@
 
 | Role | Hex | CSS Variable |
 |------|-----|--------------|
-| Primary | `#334155` | `--color-primary` |
+| Primary | `#2563EB` | `--color-primary` |
 | On Primary | `#FFFFFF` | `--color-on-primary` |
-| Secondary | `#475569` | `--color-secondary` |
-| Accent/CTA | `#059669` | `--color-accent` |
+| Secondary | `#3B82F6` | `--color-secondary` |
+| On Secondary | `#000000` | `--color-on-secondary` |
+| Accent/CTA | `#EA580C` | `--color-accent` |
+| On Accent/CTA | `#000000` | `--color-on-accent` |
 | Background | `#F8FAFC` | `--color-background` |
-| Foreground | `#0F172A` | `--color-foreground` |
-| Muted | `#F2F3F4` | `--color-muted` |
-| Border | `#E6E8EA` | `--color-border` |
+| Foreground | `#1E293B` | `--color-foreground` |
+| Card | `#FFFFFF` | `--color-card` |
+| Card Foreground | `#1E293B` | `--color-card-foreground` |
+| Muted | `#E9EFF8` | `--color-muted` |
+| Muted Foreground | `#475569` | `--color-muted-foreground` |
+| Border | `#E2E8F0` | `--color-border` |
 | Destructive | `#DC2626` | `--color-destructive` |
-| Ring | `#334155` | `--color-ring` |
+| On Destructive | `#FFFFFF` | `--color-on-destructive` |
+| Ring | `#2563EB` | `--color-ring` |
 
-**Color Notes:** Industrial slate + stock green
+**Color Notes:** Trust blue + orange CTA contrast [Accent adjusted from #F97316]
 
 ### Typography
 
@@ -76,7 +82,7 @@
 ```css
 /* Primary Button */
 .btn-primary {
-  background: #059669;
+  background: #EA580C;
   color: white;
   padding: 12px 24px;
   border-radius: 8px;
@@ -93,8 +99,8 @@
 /* Secondary Button */
 .btn-secondary {
   background: transparent;
-  color: #334155;
-  border: 2px solid #334155;
+  color: #2563EB;
+  border: 2px solid #2563EB;
   padding: 12px 24px;
   border-radius: 8px;
   font-weight: 600;
@@ -133,9 +139,9 @@
 }
 
 .input:focus {
-  border-color: #334155;
+  border-color: #2563EB;
   outline: none;
-  box-shadow: 0 0 0 3px #33415520;
+  box-shadow: 0 0 0 3px #2563EB20;
 }
 ```
 
@@ -161,21 +167,21 @@
 
 ## Style Guidelines
 
-**Style:** Data-Dense Dashboard
+**Style:** Minimalism & Swiss Style
 
-**Keywords:** Multiple charts/widgets, data tables, KPI cards, minimal padding, grid layout, space-efficient, maximum data visibility
+**Keywords:** Clean, simple, spacious, functional, white space, high contrast, geometric, sans-serif, grid-based, essential
 
-**Best For:** Business intelligence dashboards, financial analytics, enterprise reporting, operational dashboards, data warehousing
+**Best For:** Enterprise apps, dashboards, documentation sites, SaaS platforms, professional tools
 
-**Key Effects:** Hover tooltips, chart zoom on click, row highlighting on hover, smooth filter animations, data loading spinners
+**Key Effects:** Subtle hover (200-250ms), smooth transitions, sharp shadows if any, clear type hierarchy, fast loading
 
 ### Page Pattern
 
-**Pattern Name:** Real-Time / Operations Landing
+**Pattern Name:** Hero + Features + CTA
 
-- **Conversion Strategy:** For ops/security/iot products. Demo or sandbox link. Trust signals.
-- **CTA Placement:** Primary CTA in nav + After metrics
-- **Section Order:** 1. Hero (product + live preview or status), 2. Key metrics/indicators, 3. How it works, 4. CTA (Start trial / Contact)
+- **Conversion Strategy:** Deep CTA placement. For CTA label text, verify at least 4.5:1 against the button fill; use 7:1 only when the product explicitly targets AAA normal-text contrast. Keep focus and component boundaries independently visible. Disable hero parallax under reduced motion and render its static final state.
+- **CTA Placement:** Hero (sticky) + Bottom
+- **Section Order:** Hero with headline/image > Value prop > Key features (3-5) > CTA section > Footer
 
 ---
 
@@ -187,7 +193,7 @@
 gsap.from(el, { opacity: 0, y: 12, duration: 0.35, ease: 'power1.out', scrollTrigger: { trigger: el, start: 'top 90%', toggleActions: 'play none none reverse' } });
 ```
 
-**Framework notes:** Requires the ScrollTrigger plugin registered once via gsap.registerPlugin(ScrollTrigger)
+**Framework notes:** Requires the ScrollTrigger plugin registered once via gsap.registerPlugin(ScrollTrigger); Use matchMedia('(prefers-reduced-motion: reduce)') to skip non-essential motion and render the final state immediately
 
 - ✅ Keep the y offset small (8-16px) so it reads as a fade, not a slide
 - ❌ Don't reveal below-the-fold content needed for SEO/crawlers as invisible-by-default without a no-JS fallback
@@ -197,8 +203,6 @@ gsap.from(el, { opacity: 0, y: 12, duration: 0.35, ease: 'power1.out', scrollTri
 
 ## Anti-Patterns (Do NOT Use)
 
-- ❌ Ornate design
-- ❌ No filtering
 
 ### Additional Forbidden Patterns
 

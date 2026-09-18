@@ -17,27 +17,46 @@ def _ip(request: Request) -> str | None:
 
 
 @router.post("/login", response_model=LoginResponse)
-def login(payload: LoginRequest, request: Request, response: Response, db: Session = Depends(get_db)) -> LoginResponse:
+def login(
+    payload: LoginRequest, request: Request, response: Response, db: Session = Depends(get_db)
+) -> LoginResponse:
     key = f"{_ip(request)}:{payload.username.casefold()}"
     if not login_rate_limiter.allowed(key):
         from fastapi import HTTPException
-        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Too many login attempts. Try again later.")
+
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many login attempts. Try again later.",
+        )
     try:
-        session_token, csrf_token, expires_at = authenticate(db, payload.username, payload.password, _ip(request), request.headers.get("user-agent"))
+        session_token, csrf_token, expires_at = authenticate(
+            db, payload.username, payload.password, _ip(request), request.headers.get("user-agent")
+        )
     except Exception:
         login_rate_limiter.record_failure(key)
         raise
     login_rate_limiter.reset(key)
     settings = get_settings()
-    response.set_cookie(key=settings.session_cookie_name, value=session_token, httponly=True, secure=settings.app_env == "production", samesite="strict", max_age=settings.session_ttl_hours * 3600, path="/")
+    response.set_cookie(
+        key=settings.session_cookie_name,
+        value=session_token,
+        httponly=True,
+        secure=settings.app_env == "production",
+        samesite="strict",
+        max_age=settings.session_ttl_hours * 3600,
+        path="/",
+    )
     return LoginResponse(csrf_token=csrf_token, expires_at=expires_at)
 
 
-@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_csrf)])
+@router.post(
+    "/logout", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_csrf)]
+)
 def logout_route(request: Request, response: Response, db: Session = Depends(get_db)) -> Response:
     settings = get_settings()
     logout(db, request.cookies.get(settings.session_cookie_name), _ip(request))
     response.delete_cookie(settings.session_cookie_name, path="/")
+    response.status_code = status.HTTP_204_NO_CONTENT
     return response
 
 

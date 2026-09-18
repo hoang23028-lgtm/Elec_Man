@@ -22,6 +22,9 @@ export function FolderUpload({ csrfToken }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [processingStatus, setProcessingStatus] = useState<string | null>(null);
+  const completed = progress.uploaded + progress.failed;
+  const remaining = Math.max(progress.total - completed, 0);
+  const percentage = progress.total ? Math.round((completed / progress.total) * 100) : 0;
 
   function selectFiles(selected: FileList | null) {
     const valid = Array.from(selected ?? []).filter((file) => allowedExtensions.has(file.name.split(".").pop()?.toLowerCase() ?? ""));
@@ -63,7 +66,7 @@ export function FolderUpload({ csrfToken }: Props) {
       const failures = await transfer(batch.id, files);
       if (!failures.length) {
         const queued = await startBatch(batch.id, csrfToken);
-        setProcessingStatus(`${queued.batch_code} is queued for MOCK processing.`);
+        setProcessingStatus(`${queued.batch_code} is queued for AI OCR processing.`);
         setFiles([]);
         if (inputRef.current) inputRef.current.value = "";
       }
@@ -83,7 +86,7 @@ export function FolderUpload({ csrfToken }: Props) {
     const failures = await transfer(batchId, retryFiles);
     if (!failures.length) {
       const queued = await startBatch(batchId, csrfToken);
-      setProcessingStatus(`${queued.batch_code} is queued for MOCK processing.`);
+      setProcessingStatus(`${queued.batch_code} is queued for AI OCR processing.`);
     }
     setUploading(false);
   }
@@ -93,11 +96,11 @@ export function FolderUpload({ csrfToken }: Props) {
     setError(null);
     try {
       const batch = await startBatch(batchId, csrfToken);
-      setProcessingStatus(`${batch.batch_code} is queued for MOCK processing.`);
+      setProcessingStatus(`${batch.batch_code} is queued for AI OCR processing.`);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Unable to queue this batch.");
     }
   }
 
-  return <section className="panel" aria-labelledby="upload-title"><div className="section-heading"><div><p className="eyebrow">Step 1</p><h2 id="upload-title">Upload meter images</h2></div><span className="badge">MOCK processor</span></div><p className="muted">Choose one folder. Valid images are uploaded once and then queued automatically.</p><input ref={(element) => { inputRef.current = element; element?.setAttribute("webkitdirectory", ""); }} type="file" multiple onChange={(event) => selectFiles(event.target.files)} aria-label="Select image folder" /><p className="progress">{progress.total} selected · {progress.uploaded} uploaded · {progress.failed} failed</p><button type="button" onClick={startUpload} disabled={uploading || !files.length}>{uploading ? "Uploading…" : "Upload and process"}</button>{failedFiles.length > 0 && <button className="secondary" type="button" onClick={retryFailed} disabled={uploading}>Retry {failedFiles.length} failed uploads</button>}{batchId && progress.uploaded === progress.total && !progress.failed && !processingStatus && <button type="button" onClick={queueForProcessing}>Queue processing</button>}{processingStatus && <p className="notice" role="status">{processingStatus}</p>}{error && <p className="error" role="alert">{error}</p>}</section>;
+  return <section className="panel" aria-labelledby="upload-title"><div className="section-heading"><div><p className="eyebrow">Step 1</p><h2 id="upload-title">Upload meter images</h2></div><span className="badge active">OCR baseline</span></div><p className="muted">Choose one folder. Valid images are uploaded with five concurrent requests and queued automatically.</p><input ref={(element) => { inputRef.current = element; element?.setAttribute("webkitdirectory", ""); }} type="file" multiple onChange={(event) => selectFiles(event.target.files)} aria-label="Select image folder" /><div className="progress-block" aria-live="polite"><div className="progress-track" role="progressbar" aria-label="Upload progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percentage}><span style={{ width: `${percentage}%` }} /></div><p className="progress">{progress.total} selected · {progress.uploaded} uploaded · {progress.failed} failed · {remaining} remaining · {percentage}%</p></div><button type="button" onClick={startUpload} disabled={uploading || !files.length}>{uploading ? "Uploading…" : "Upload and process"}</button>{failedFiles.length > 0 && <button className="secondary" type="button" onClick={retryFailed} disabled={uploading}>Retry {failedFiles.length} failed uploads</button>}{batchId && progress.uploaded === progress.total && !progress.failed && !processingStatus && <button type="button" onClick={queueForProcessing}>Queue processing</button>}{processingStatus && <p className="notice" role="status">{processingStatus}</p>}{error && <p className="error" role="alert">{error}</p>}</section>;
 }
