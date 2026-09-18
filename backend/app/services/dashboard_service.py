@@ -1,11 +1,28 @@
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
+
 from app.models.batch import Batch
 from app.models.image import ImageRecord
 from app.models.processing_job import JobStatus, ProcessingJob
 
+
 def statistics(db: Session) -> dict:
-    batches = db.scalar(select(func.count()).select_from(Batch)) or 0
-    images = db.scalar(select(func.count()).select_from(ImageRecord)) or 0
-    jobs = dict(db.execute(select(ProcessingJob.status, func.count()).group_by(ProcessingJob.status)).all())
-    return {"batches": batches, "images": images, "jobs": {status: int(jobs.get(status, 0)) for status in JobStatus}}
+    """Return all dashboard counters with one database round trip."""
+    statement = select(
+        select(func.count(Batch.id)).scalar_subquery().label("batches"),
+        select(func.count(ImageRecord.id)).scalar_subquery().label("images"),
+        *[
+            func.count(ProcessingJob.id)
+            .filter(ProcessingJob.status == job_status)
+            .label(job_status.value.lower())
+            for job_status in JobStatus
+        ],
+    ).select_from(ProcessingJob)
+    row = db.execute(statement).one()
+    return {
+        "batches": int(row.batches),
+        "images": int(row.images),
+        "jobs": {
+            job_status: int(getattr(row, job_status.value.lower())) for job_status in JobStatus
+        },
+    }

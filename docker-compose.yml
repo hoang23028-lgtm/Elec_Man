@@ -21,6 +21,7 @@ services:
       - storage_data:/data
     networks: [internal]
   migrate:
+    image: elec_man-backend:latest
     build:
       context: ./backend
     command: ["alembic", "upgrade", "head"]
@@ -33,6 +34,7 @@ services:
         condition: service_healthy
     networks: [internal]
   backend:
+    image: elec_man-backend:latest
     build:
       context: ./backend
     restart: unless-stopped
@@ -42,6 +44,9 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost}
       DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
+      DATABASE_POOL_SIZE: ${DATABASE_POOL_SIZE:-10}
+      DATABASE_MAX_OVERFLOW: ${DATABASE_MAX_OVERFLOW:-20}
+      DATABASE_POOL_RECYCLE_SECONDS: ${DATABASE_POOL_RECYCLE_SECONDS:-1800}
       STORAGE_ROOT: ${STORAGE_ROOT:-/data/electric-meter-ai}
       MODELS_ROOT: ${MODELS_ROOT:-/models}
       SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-ema_session}
@@ -73,6 +78,9 @@ services:
       APP_ENV: ${APP_ENV:-production}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
+      DATABASE_POOL_SIZE: ${DATABASE_POOL_SIZE:-5}
+      DATABASE_MAX_OVERFLOW: ${DATABASE_MAX_OVERFLOW:-5}
+      DATABASE_POOL_RECYCLE_SECONDS: ${DATABASE_POOL_RECYCLE_SECONDS:-1800}
       STORAGE_ROOT: ${STORAGE_ROOT:-/data/electric-meter-ai}
       MODELS_ROOT: ${MODELS_ROOT:-/models}
       SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET}

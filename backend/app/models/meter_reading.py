@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import DateTime, ForeignKey, String
+from sqlalchemy import DateTime, ForeignKey, Index, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base
@@ -10,7 +10,10 @@ from app.models.mixins import TimestampMixin, UUIDPrimaryKeyMixin
 
 class MeterReading(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "meter_readings"
-    image_id: Mapped[UUID] = mapped_column(ForeignKey("images.id", ondelete="RESTRICT"), unique=True, index=True)
+    __table_args__ = (Index("ix_meter_readings_review_ai", "review_status", "ai_result_id"),)
+    image_id: Mapped[UUID] = mapped_column(
+        ForeignKey("images.id", ondelete="RESTRICT"), unique=True, index=True
+    )
     ai_result_id: Mapped[UUID] = mapped_column(ForeignKey("ai_results.id", ondelete="RESTRICT"))
     final_customer_id: Mapped[str | None] = mapped_column(String(128))
     final_meter_reading: Mapped[str | None] = mapped_column(String(64))

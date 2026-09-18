@@ -24,6 +24,10 @@ def read_lines(image: np.ndarray) -> list[TextLine]:
     if not raw_lines:
         return []
     return [
-        TextLine(tuple((float(point[0]), float(point[1])) for point in box), str(text), float(confidence))
+        TextLine(
+            tuple((float(point[0]), float(point[1])) for point in box),
+            str(text),
+            float(confidence),
+        )
         for box, text, confidence in raw_lines
     ]

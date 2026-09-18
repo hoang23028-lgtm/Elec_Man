@@ -1,4 +1,5 @@
 """Create the one administrator account from environment-supplied credentials."""
+
 import argparse
 import sys
 

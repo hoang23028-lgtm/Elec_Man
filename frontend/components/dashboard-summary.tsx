@@ -1,4 +1,86 @@
 "use client";
 import { useEffect, useState } from "react";
-import { exportConfirmed, getDashboard, type Dashboard } from "@/services/system";
-export function DashboardSummary({ csrfToken }: { csrfToken: string }) { const [data, setData] = useState<Dashboard | null>(null); const [error, setError] = useState<string | null>(null); const [exporting, setExporting] = useState(false); async function load() { try { setData(await getDashboard()); } catch (reason) { setError(reason instanceof Error ? reason.message : "Unable to load dashboard."); } } useEffect(() => { void load(); const timer = window.setInterval(() => { void load(); }, 10000); return () => window.clearInterval(timer); }, []); async function download() { setExporting(true); setError(null); try { window.location.assign(await exportConfirmed(csrfToken)); } catch (reason) { setError(reason instanceof Error ? reason.message : "Unable to create Excel export."); } finally { setExporting(false); } } return <section className="panel"><div className="section-heading"><div><p className="eyebrow">Dashboard</p><h2>System overview</h2></div><button className="secondary" type="button" onClick={() => void load()}>Refresh</button></div>{error && <p className="error" role="alert">{error}</p>}<div className="metrics"><div><strong>{data?.batches ?? "—"}</strong><span>Batches</span></div><div><strong>{data?.images ?? "—"}</strong><span>Images</span></div><div><strong>{data?.jobs.COMPLETED ?? "—"}</strong><span>Completed jobs</span></div><div><strong>{data?.jobs.FAILED ?? "—"}</strong><span>Failed jobs</span></div></div><button type="button" onClick={() => void download()} disabled={exporting}>{exporting ? "Preparing Excel…" : "Export confirmed results to Excel"}</button></section>; }
+import {
+  exportConfirmed,
+  getDashboard,
+  type Dashboard,
+} from "@/services/system";
+export function DashboardSummary({ csrfToken }: { csrfToken: string }) {
+  const [data, setData] = useState<Dashboard | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
+  async function load() {
+    try {
+      setData(await getDashboard());
+    } catch (reason) {
+      setError(
+        reason instanceof Error ? reason.message : "Unable to load dashboard.",
+      );
+    }
+  }
+  useEffect(() => {
+    void load();
+    const timer = window.setInterval(() => {
+      void load();
+    }, 10000);
+    return () => window.clearInterval(timer);
+  }, []);
+  async function download() {
+    setExporting(true);
+    setError(null);
+    try {
+      window.location.assign(await exportConfirmed(csrfToken));
+    } catch (reason) {
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : "Unable to create Excel export.",
+      );
+    } finally {
+      setExporting(false);
+    }
+  }
+  return (
+    <section className="panel">
+      <div className="section-heading">
+        <div>
+          <p className="eyebrow">Dashboard</p>
+          <h2>System overview</h2>
+        </div>
+        <button className="secondary" type="button" onClick={() => void load()}>
+          Refresh
+        </button>
+      </div>
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
+      <div className="metrics">
+        <div>
+          <strong>{data?.batches ?? "—"}</strong>
+          <span>Batches</span>
+        </div>
+        <div>
+          <strong>{data?.images ?? "—"}</strong>
+          <span>Images</span>
+        </div>
+        <div>
+          <strong>{data?.jobs.COMPLETED ?? "—"}</strong>
+          <span>Completed jobs</span>
+        </div>
+        <div>
+          <strong>{data?.jobs.FAILED ?? "—"}</strong>
+          <span>Failed jobs</span>
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={() => void download()}
+        disabled={exporting}
+      >
+        {exporting ? "Preparing Excel…" : "Export confirmed results to Excel"}
+      </button>
+    </section>
+  );
+}

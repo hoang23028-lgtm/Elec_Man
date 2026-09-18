@@ -2,7 +2,7 @@ from datetime import datetime
 from enum import StrEnum
 from uuid import UUID
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -20,9 +20,17 @@ class JobStatus(StrEnum):
 
 class ProcessingJob(UUIDPrimaryKeyMixin, Base):
     __tablename__ = "processing_jobs"
+    __table_args__ = (
+        Index("ix_processing_jobs_claim", "status", "next_retry_at"),
+        Index("ix_processing_jobs_recovery", "status", "started_at"),
+    )
 
-    image_id: Mapped[UUID] = mapped_column(ForeignKey("images.id", ondelete="RESTRICT"), unique=True, index=True)
-    status: Mapped[str] = mapped_column(String(24), index=True, nullable=False, default=JobStatus.PENDING)
+    image_id: Mapped[UUID] = mapped_column(
+        ForeignKey("images.id", ondelete="RESTRICT"), unique=True, index=True
+    )
+    status: Mapped[str] = mapped_column(
+        String(24), index=True, nullable=False, default=JobStatus.PENDING
+    )
     priority: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     attempt_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     max_attempts: Mapped[int] = mapped_column(Integer, nullable=False)

@@ -1,4 +1,4 @@
-from sqlalchemy import select
+from sqlalchemy import func, select, true
 from sqlalchemy.orm import Session
 
 from app.models.ai_result import AiResult
@@ -14,28 +14,37 @@ def _digit_counts(predicted: str | None, expected: str | None) -> tuple[int, int
 
 
 def evaluation_summary(db: Session, model_version: str | None) -> EvaluationSummary:
-    filter_clause = AiResult.model_version == model_version if model_version else True
-    predictions = list(db.scalars(select(AiResult).where(filter_clause)))
+    filter_clause = AiResult.model_version == model_version if model_version else true()
+    total_predictions, review_count, auto_pass_count = db.execute(
+        select(
+            func.count(AiResult.id),
+            func.count(AiResult.id).filter(AiResult.status == "REVIEW"),
+            func.count(AiResult.id).filter(AiResult.status == "OK"),
+        ).where(filter_clause)
+    ).one()
     confirmed = db.execute(
-        select(AiResult, MeterReading)
+        select(
+            AiResult.customer_id_ai,
+            AiResult.meter_reading_ai,
+            MeterReading.final_customer_id,
+            MeterReading.final_meter_reading,
+        )
         .join(MeterReading, MeterReading.ai_result_id == AiResult.id)
         .where(MeterReading.review_status == "CONFIRMED", filter_clause)
     ).all()
     customer_matches = sum(
-        ai.customer_id_ai == reading.final_customer_id for ai, reading in confirmed
+        predicted_customer == final_customer
+        for predicted_customer, _, final_customer, _ in confirmed
     )
     meter_matches = sum(
-        ai.meter_reading_ai == reading.final_meter_reading for ai, reading in confirmed
+        predicted_meter == final_meter for _, predicted_meter, _, final_meter in confirmed
     )
     digit_correct = 0
     digit_total = 0
-    for ai, reading in confirmed:
-        correct, total = _digit_counts(ai.meter_reading_ai, reading.final_meter_reading)
+    for _, predicted_meter, _, final_meter in confirmed:
+        correct, total = _digit_counts(predicted_meter, final_meter)
         digit_correct += correct
         digit_total += total
-    total_predictions = len(predictions)
-    review_count = sum(prediction.status == "REVIEW" for prediction in predictions)
-    auto_pass_count = sum(prediction.status == "OK" for prediction in predictions)
     sample_count = len(confirmed)
     return EvaluationSummary(
         model_version=model_version,

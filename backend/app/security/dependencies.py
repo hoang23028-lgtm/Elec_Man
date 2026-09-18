@@ -1,5 +1,4 @@
 from datetime import UTC, datetime
-from uuid import UUID
 
 from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy import select
@@ -15,15 +14,21 @@ from app.security.tokens import hash_token
 def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
     token = request.cookies.get(get_settings().session_cookie_name)
     if not token:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required.")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required."
+        )
     session = db.scalar(
         select(SessionRecord).where(SessionRecord.session_token_hash == hash_token(token))
     )
     if session is None or session.revoked_at is not None or session.expires_at <= datetime.now(UTC):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session is invalid or expired.")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Session is invalid or expired."
+        )
     user = db.get(User, session.user_id)
     if user is None or not user.is_active:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required.")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required."
+        )
     return user
 
 
@@ -36,6 +41,8 @@ def require_csrf(request: Request, db: Session = Depends(get_db)) -> None:
         select(SessionRecord).where(SessionRecord.session_token_hash == hash_token(token))
     )
     if session is None or session.revoked_at is not None or session.expires_at <= datetime.now(UTC):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session is invalid or expired.")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Session is invalid or expired."
+        )
     if hash_token(csrf_token) != session.csrf_token_hash:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="CSRF validation failed.")

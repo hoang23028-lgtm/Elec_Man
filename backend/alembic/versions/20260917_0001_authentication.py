@@ -4,9 +4,11 @@ Revision ID: 20260917_0001
 Revises:
 Create Date: 2026-09-17
 """
-from alembic import op
+
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
+
+from alembic import op
 
 revision = "20260917_0001"
 down_revision = None
@@ -21,8 +23,12 @@ def upgrade() -> None:
         sa.Column("username", sa.String(64), nullable=False),
         sa.Column("password_hash", sa.String(255), nullable=False),
         sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.true()),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
-        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+        ),
+        sa.Column(
+            "updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+        ),
         sa.Column("last_login_at", sa.DateTime(timezone=True)),
         sa.UniqueConstraint("username"),
     )
@@ -30,7 +36,9 @@ def upgrade() -> None:
     op.create_table(
         "sessions",
         sa.Column("id", sa.Uuid(), primary_key=True),
-        sa.Column("user_id", sa.Uuid(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "user_id", sa.Uuid(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+        ),
         sa.Column("session_token_hash", sa.String(64), nullable=False),
         sa.Column("csrf_token_hash", sa.String(64), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
@@ -51,9 +59,16 @@ def upgrade() -> None:
         sa.Column("action", sa.String(64), nullable=False),
         sa.Column("target_type", sa.String(64)),
         sa.Column("target_id", sa.String(64)),
-        sa.Column("details_json", postgresql.JSONB(astext_type=sa.Text()), nullable=False, server_default=sa.text("'{}'::jsonb")),
+        sa.Column(
+            "details_json",
+            postgresql.JSONB(astext_type=sa.Text()),
+            nullable=False,
+            server_default=sa.text("'{}'::jsonb"),
+        ),
         sa.Column("ip_address", sa.String(64)),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+        ),
     )
     op.create_index("ix_audit_logs_user_id", "audit_logs", ["user_id"])
     op.create_index("ix_audit_logs_action", "audit_logs", ["action"])

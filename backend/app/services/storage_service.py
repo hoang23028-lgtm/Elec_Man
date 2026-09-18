@@ -35,7 +35,7 @@ class StoredUpload:
 
 
 def _bad_upload(message: str) -> HTTPException:
-    return HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=message)
+    return HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=message)
 
 
 def _safe_original_name(filename: str | None) -> str:
@@ -49,7 +49,11 @@ def _validate_signature(sample: bytes, extension: str) -> None:
     if extension == "webp":
         valid = sample.startswith(b"RIFF") and sample[8:12] == b"WEBP"
     else:
-        expected = _FORMATS[{"jpg": "JPEG", "jpeg": "JPEG", "png": "PNG"}.get(extension, "")][2] if extension in {"jpg", "jpeg", "png"} else b""
+        expected = (
+            _FORMATS[{"jpg": "JPEG", "jpeg": "JPEG", "png": "PNG"}.get(extension, "")][2]
+            if extension in {"jpg", "jpeg", "png"}
+            else b""
+        )
         valid = bool(expected) and sample.startswith(expected)
     if not valid:
         raise _bad_upload("File signature does not match a supported image format.")
@@ -79,7 +83,9 @@ async def store_upload(file: UploadFile, batch_id: UUID) -> StoredUpload:
     total_size = 0
     temp_path: Path | None = None
     try:
-        with tempfile.NamedTemporaryFile(dir=destination_dir, prefix=".upload-", delete=False) as temp:
+        with tempfile.NamedTemporaryFile(
+            dir=destination_dir, prefix=".upload-", delete=False
+        ) as temp:
             temp_path = Path(temp.name)
             while chunk := await file.read(1024 * 1024):
                 total_size += len(chunk)
@@ -87,7 +93,10 @@ async def store_upload(file: UploadFile, batch_id: UUID) -> StoredUpload:
                     raise _bad_upload(f"Image exceeds {settings.max_image_size_mb} MB limit.")
                 digest.update(chunk)
                 temp.write(chunk)
-        sample = temp_path.read_bytes()[:16]
+        # Reading only the signature avoids loading a potentially 100 MB upload
+        # into memory before Pillow performs its bounded decode checks.
+        with temp_path.open("rb") as stored_file:
+            sample = stored_file.read(16)
         _validate_signature(sample, extension)
         try:
             warnings.simplefilter("error", Image.DecompressionBombWarning)
@@ -102,21 +111,46 @@ async def store_upload(file: UploadFile, batch_id: UUID) -> StoredUpload:
                     raise _bad_upload("Unsupported decoded image format.")
                 expected_extension, actual_mime, _ = _FORMATS[actual_format]
                 if expected_extension != extension or actual_mime != claimed_mime:
-                    raise _bad_upload("File extension or claimed type does not match decoded image format.")
-                thumbnail_relative = Path("thumbnails") / f"{now:%Y}" / f"{now:%m}" / str(batch_id) / f"{uuid4()}.jpg"
+                    raise _bad_upload(
+                        "File extension or claimed type does not match decoded image format."
+                    )
+                thumbnail_relative = (
+                    Path("thumbnails")
+                    / f"{now:%Y}"
+                    / f"{now:%m}"
+                    / str(batch_id)
+                    / f"{uuid4()}.jpg"
+                )
                 thumbnail_absolute = storage_root / thumbnail_relative
                 thumbnail_absolute.parent.mkdir(parents=True, exist_ok=True)
                 thumbnail = image.convert("RGB")
                 thumbnail.thumbnail((400, 400))
                 thumbnail.save(thumbnail_absolute, "JPEG", quality=82, optimize=True)
-        except (UnidentifiedImageError, OSError, Image.DecompressionBombError, Image.DecompressionBombWarning) as exc:
+        except (
+            UnidentifiedImageError,
+            OSError,
+            Image.DecompressionBombError,
+            Image.DecompressionBombWarning,
+        ) as exc:
             raise _bad_upload("File cannot be safely decoded as an image.") from exc
         stored_filename = f"{uuid4()}.{extension}"
         relative_path = relative_dir / stored_filename
         absolute_path = storage_root / relative_path
         os.replace(temp_path, absolute_path)
         temp_path = None
-        return StoredUpload(original_filename=original_filename, stored_filename=stored_filename, relative_path=relative_path.as_posix(), thumbnail_path=thumbnail_relative.as_posix(), file_size=total_size, mime_type=actual_mime, sha256=digest.hexdigest(), width=width, height=height, absolute_path=absolute_path, thumbnail_absolute_path=thumbnail_absolute)
+        return StoredUpload(
+            original_filename=original_filename,
+            stored_filename=stored_filename,
+            relative_path=relative_path.as_posix(),
+            thumbnail_path=thumbnail_relative.as_posix(),
+            file_size=total_size,
+            mime_type=actual_mime,
+            sha256=digest.hexdigest(),
+            width=width,
+            height=height,
+            absolute_path=absolute_path,
+            thumbnail_absolute_path=thumbnail_absolute,
+        )
     except Exception:
         if temp_path and temp_path.exists():
             temp_path.unlink(missing_ok=True)

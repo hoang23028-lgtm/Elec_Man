@@ -17,6 +17,10 @@ export async function login(input: LoginInput): Promise<LoginResult> {
 }
 
 export async function logout(csrfToken: string): Promise<void> {
-  const response = await fetch(`${apiBaseUrl}/auth/logout`, { method: "POST", credentials: "include", headers: { "X-CSRF-Token": csrfToken } });
+  const response = await fetch(`${apiBaseUrl}/auth/logout`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "X-CSRF-Token": csrfToken },
+  });
   if (!response.ok) throw new Error("Unable to sign out.");
 }

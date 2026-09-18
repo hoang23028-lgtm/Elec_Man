@@ -23,16 +23,27 @@ def read(image: np.ndarray, *, psm: int, whitelist: str | None = None) -> OcrCan
         output_base = Path(directory) / "result"
         if not cv2.imwrite(str(input_path), image):
             return OcrCandidate("", 0.0)
-        command = ["tesseract", str(input_path), str(output_base), "--psm", str(psm), "tsv"]
+        command = [
+            "tesseract",
+            str(input_path),
+            str(output_base),
+            "--psm",
+            str(psm),
+            "tsv",
+        ]
         if whitelist:
             command.extend(["-c", f"tessedit_char_whitelist={whitelist}"])
-        completed = run(command, capture_output=True, text=True, timeout=20, check=False)
+        completed = run(
+            command, capture_output=True, text=True, timeout=20, check=False
+        )
         tsv_path = output_base.with_suffix(".tsv")
         if completed.returncode != 0 or not tsv_path.is_file():
             return OcrCandidate("", 0.0)
         words: list[str] = []
         confidences: list[float] = []
-        for line in tsv_path.read_text(encoding="utf-8", errors="replace").splitlines()[1:]:
+        for line in tsv_path.read_text(encoding="utf-8", errors="replace").splitlines()[
+            1:
+        ]:
             columns = line.split("\t", 11)
             if len(columns) != 12 or not columns[11].strip():
                 continue
@@ -43,7 +54,9 @@ def read(image: np.ndarray, *, psm: int, whitelist: str | None = None) -> OcrCan
                 confidence = -1
             if confidence >= 0:
                 confidences.append(confidence / 100)
-        return OcrCandidate(" ".join(words), sum(confidences) / len(confidences) if confidences else 0.0)
+        return OcrCandidate(
+            " ".join(words), sum(confidences) / len(confidences) if confidences else 0.0
+        )
 
 
 def enhanced_variants(image: np.ndarray) -> list[np.ndarray]:
@@ -52,5 +65,7 @@ def enhanced_variants(image: np.ndarray) -> list[np.ndarray]:
     if scale > 1.0:
         gray = cv2.resize(gray, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
     clahe = cv2.createCLAHE(clipLimit=2.5, tileGridSize=(8, 8)).apply(gray)
-    threshold = cv2.adaptiveThreshold(clahe, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 31, 9)
+    threshold = cv2.adaptiveThreshold(
+        clahe, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 31, 9
+    )
     return [clahe, threshold]

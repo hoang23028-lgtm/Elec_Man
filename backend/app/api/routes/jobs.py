@@ -12,7 +12,14 @@ from app.services.job_service import queue_batch
 router = APIRouter()
 
 
-@router.post("/batches/{batch_id}/start", response_model=BatchResponse, dependencies=[Depends(require_csrf)])
-def start_batch(batch_id: UUID, request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> BatchResponse:
+@router.post(
+    "/batches/{batch_id}/start", response_model=BatchResponse, dependencies=[Depends(require_csrf)]
+)
+def start_batch(
+    batch_id: UUID,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> BatchResponse:
     ip_address = request.client.host if request.client else None
     return queue_batch(db, batch_id, user, ip_address)

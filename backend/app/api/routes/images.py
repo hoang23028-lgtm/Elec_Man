@@ -14,8 +14,12 @@ router = APIRouter()
 
 
 @router.get("/{image_id}/preview")
-def preview_image(image_id: UUID, db: Session = Depends(get_db), _: User = Depends(get_current_user)) -> FileResponse:
+def preview_image(
+    image_id: UUID, db: Session = Depends(get_db), _: User = Depends(get_current_user)
+) -> FileResponse:
     image = db.get(ImageRecord, image_id)
     if image is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Image not found.")
-    return FileResponse(resolve_storage_path(image.relative_path), media_type=image.mime_type, filename="preview")
+    return FileResponse(
+        resolve_storage_path(image.relative_path), media_type=image.mime_type, filename="preview"
+    )

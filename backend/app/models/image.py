@@ -1,7 +1,7 @@
 from enum import StrEnum
 from uuid import UUID
 
-from sqlalchemy import ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import ForeignKey, Index, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base
@@ -21,9 +21,14 @@ class ImageStatus(StrEnum):
 
 class ImageRecord(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "images"
-    __table_args__ = (UniqueConstraint("batch_id", "sha256", name="uq_images_batch_sha256"),)
+    __table_args__ = (
+        UniqueConstraint("batch_id", "sha256", name="uq_images_batch_sha256"),
+        Index("ix_images_batch_status", "batch_id", "status"),
+    )
 
-    batch_id: Mapped[UUID] = mapped_column(ForeignKey("batches.id", ondelete="RESTRICT"), index=True)
+    batch_id: Mapped[UUID] = mapped_column(
+        ForeignKey("batches.id", ondelete="RESTRICT"), index=True
+    )
     original_filename: Mapped[str] = mapped_column(String(255), nullable=False)
     stored_filename: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     relative_path: Mapped[str] = mapped_column(String(500), unique=True, nullable=False)

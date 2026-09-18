@@ -10,10 +10,19 @@ export type AuditRow = {
   created_at: string;
 };
 
-export async function getAuditLogs(offset = 0, limit = 10, action = ""): Promise<AuditRow[]> {
-  const params = new URLSearchParams({ offset: String(offset), limit: String(limit) });
+export async function getAuditLogs(
+  offset = 0,
+  limit = 10,
+  action = "",
+): Promise<AuditRow[]> {
+  const params = new URLSearchParams({
+    offset: String(offset),
+    limit: String(limit),
+  });
   if (action) params.set("action", action);
-  const response = await fetch(`${api}/audit?${params.toString()}`, { credentials: "include" });
+  const response = await fetch(`${api}/audit?${params.toString()}`, {
+    credentials: "include",
+  });
   if (!response.ok) throw new Error("Unable to load audit history.");
   return response.json() as Promise<AuditRow[]>;
 }

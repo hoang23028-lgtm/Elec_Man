@@ -44,17 +44,18 @@ def list_settings(db: Session) -> list[SettingRow]:
 def _validated_value(key: str, value: Any) -> int | float:
     if key not in RULES:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f"Unknown setting: {key}"
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=f"Unknown setting: {key}"
         )
     expected_type, minimum, maximum = RULES[key]
     if isinstance(value, bool) or not isinstance(value, int | float):
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f"Invalid value for {key}"
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=f"Invalid value for {key}"
         )
     converted = expected_type(value)
     if not minimum <= converted <= maximum:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f"Value out of range for {key}"
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"Value out of range for {key}",
         )
     return converted
 
@@ -70,7 +71,7 @@ def update_settings(
         current.update(validated)
         if current["confidence_review_threshold"] > current["confidence_ok_threshold"]:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="Review threshold cannot exceed the OK threshold.",
             )
     changes: dict[str, dict[str, Any]] = {}

@@ -9,7 +9,9 @@ from ai.pipeline.tesseract import enhanced_variants, read
 class CustomerOcr:
     pattern = re.compile(r"(?:MA\s*KH|KH)\s*[:\-]?\s*(K?H?[A-Z0-9]{2,})", re.IGNORECASE)
 
-    def read(self, image: np.ndarray, lines: list[TextLine] | None = None) -> tuple[str | None, float]:
+    def read(
+        self, image: np.ndarray, lines: list[TextLine] | None = None
+    ) -> tuple[str | None, float]:
         best: tuple[str | None, float] = (None, 0.0)
         for line in lines if lines is not None else read_lines(image):
             normalized = re.sub(r"[^A-Z0-9]", "", line.text.upper())
@@ -39,5 +41,7 @@ class CustomerOcr:
     def _normalize(value: str) -> str | None:
         if not value.startswith("KH"):
             value = f"KH{value.lstrip('KH')}"
-        tail = value[2:].translate(str.maketrans({"O": "0", "I": "1", "L": "1", "S": "5", "B": "8"}))
+        tail = value[2:].translate(
+            str.maketrans({"O": "0", "I": "1", "L": "1", "S": "5", "B": "8"})
+        )
         return f"KH{tail}" if len(tail) >= 2 else None

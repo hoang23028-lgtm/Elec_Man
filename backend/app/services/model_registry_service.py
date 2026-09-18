@@ -41,12 +41,12 @@ def _verified_model_path(relative_path: str, claimed_sha256: str) -> Path:
     candidate = (root / relative_path).resolve()
     if not candidate.is_relative_to(root) or not candidate.is_file():
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Model file is unavailable."
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Model file is unavailable."
         )
     digest = sha256(candidate.read_bytes()).hexdigest()
     if digest.casefold() != claimed_sha256.casefold():
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Model checksum does not match.",
         )
     return candidate

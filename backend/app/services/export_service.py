@@ -3,6 +3,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from openpyxl import Workbook
+from openpyxl.cell import WriteOnlyCell
 from openpyxl.styles import Font, PatternFill
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -27,15 +28,18 @@ def _excel_datetime(value: datetime | None) -> datetime | None:
 
 
 def create_final_export(db: Session) -> tuple[str, Path]:
-    rows = db.execute(
+    statement = (
         select(ImageRecord, MeterReading)
         .join(MeterReading, MeterReading.image_id == ImageRecord.id)
         .where(MeterReading.review_status == "CONFIRMED")
         .order_by(ImageRecord.created_at)
-    ).all()
-    workbook = Workbook()
-    sheet = workbook.active
-    sheet.title = "Final readings"
+        .execution_options(yield_per=1000)
+    )
+    workbook = Workbook(write_only=True)
+    sheet = workbook.create_sheet("Final readings")
+    sheet.freeze_panes = "A2"
+    for column, width in {"A": 38, "B": 32, "C": 22, "D": 18, "E": 18, "F": 24}.items():
+        sheet.column_dimensions[column].width = width
     headers = [
         "Image ID",
         "Original filename",
@@ -44,11 +48,13 @@ def create_final_export(db: Session) -> tuple[str, Path]:
         "Review status",
         "Reviewed at",
     ]
-    sheet.append(headers)
-    for cell in sheet[1]:
+    header_cells = [WriteOnlyCell(sheet, value=value) for value in headers]
+    for cell in header_cells:
         cell.font = Font(bold=True, color="FFFFFF")
         cell.fill = PatternFill("solid", fgColor="0B7285")
-    for image, reading in rows:
+    sheet.append(header_cells)
+    row_count = 1
+    for image, reading in db.execute(statement):
         sheet.append(
             [
                 str(image.id),
@@ -59,10 +65,8 @@ def create_final_export(db: Session) -> tuple[str, Path]:
                 _excel_datetime(reading.reviewed_at),
             ]
         )
-    sheet.freeze_panes = "A2"
-    sheet.auto_filter.ref = sheet.dimensions
-    for column, width in {"A": 38, "B": 32, "C": 22, "D": 18, "E": 18, "F": 24}.items():
-        sheet.column_dimensions[column].width = width
+        row_count += 1
+    sheet.auto_filter.ref = f"A1:F{row_count}"
     root = get_settings().storage_root
     directory = root / "exports" / f"{datetime.now(UTC):%Y}" / f"{datetime.now(UTC):%m}"
     directory.mkdir(parents=True, exist_ok=True)
