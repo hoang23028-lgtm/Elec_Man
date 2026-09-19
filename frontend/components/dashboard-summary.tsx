@@ -5,7 +5,7 @@ import {
   getDashboard,
   type Dashboard,
 } from "@/services/system";
-export function DashboardSummary({ csrfToken }: { csrfToken: string }) {
+export function DashboardSummary({ csrfToken }: { csrfToken?: string }) {
   const [data, setData] = useState<Dashboard | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
@@ -26,6 +26,7 @@ export function DashboardSummary({ csrfToken }: { csrfToken: string }) {
     return () => window.clearInterval(timer);
   }, []);
   async function download() {
+    if (!csrfToken) return;
     setExporting(true);
     setError(null);
     try {
@@ -74,13 +75,20 @@ export function DashboardSummary({ csrfToken }: { csrfToken: string }) {
           <span>Failed jobs</span>
         </div>
       </div>
-      <button
-        type="button"
-        onClick={() => void download()}
-        disabled={exporting}
-      >
-        {exporting ? "Preparing Excel…" : "Export confirmed results to Excel"}
-      </button>
+      {csrfToken ? (
+        <button
+          type="button"
+          onClick={() => void download()}
+          disabled={exporting}
+        >
+          {exporting ? "Preparing Excel…" : "Export confirmed results to Excel"}
+        </button>
+      ) : (
+        <p className="read-only-note">
+          Public view · Sign in as an administrator to export confirmed data or
+          access operational records.
+        </p>
+      )}
     </section>
   );
 }

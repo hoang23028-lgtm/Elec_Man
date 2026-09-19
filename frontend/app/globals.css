@@ -37,7 +37,7 @@ body {
   color: var(--color-foreground);
   font-family: "Segoe UI", Arial, sans-serif;
 }
-main {
+.app-main {
   min-height: 100dvh;
   padding: var(--space-2xl);
 }
@@ -45,25 +45,54 @@ main {
   width: min(100%, 87.5rem);
   margin: auto;
 }
-.app-header {
-  margin-bottom: var(--space-2xl);
-  overflow: hidden;
-  border-radius: 0.75rem;
-  background: var(--color-primary);
-  color: var(--color-on-primary);
-  box-shadow: var(--shadow-md);
+.app-navbar {
+  position: sticky;
+  z-index: 10;
+  top: 0;
+  border-bottom: 1px solid var(--color-border);
+  background: rgb(255 255 255 / 0.96);
+  box-shadow: var(--shadow-sm);
+  backdrop-filter: blur(12px);
 }
-.brand-row {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
+.navbar-inner {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
   gap: var(--space-xl);
-  padding: var(--space-2xl);
+  width: min(100%, 90.5rem);
+  min-height: 4.5rem;
+  margin: auto;
+  padding: 0 var(--space-2xl);
 }
-.app-header .muted {
-  color: #dbeafe;
-  max-width: 42rem;
-  margin-bottom: 0;
+.navbar-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-lg);
+  min-width: max-content;
+}
+.brand-mark {
+  display: grid;
+  width: 2.5rem;
+  height: 2.5rem;
+  place-items: center;
+  border-radius: 0.625rem;
+  background: var(--color-primary);
+  color: white;
+}
+.brand-mark .nav-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+.navbar-brand h1 {
+  margin: 0;
+  font-size: 1rem;
+  letter-spacing: -0.025em;
+}
+.navbar-brand span:not(.brand-mark) {
+  display: block;
+  margin-top: var(--space-xs);
+  color: var(--color-muted);
+  font-size: 0.7rem;
 }
 h1,
 h2 {
@@ -90,9 +119,6 @@ p {
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
-.app-header .eyebrow {
-  color: #fff7ed;
-}
 .skip-link {
   position: fixed;
   z-index: 20;
@@ -109,14 +135,13 @@ p {
   transform: translateY(0);
 }
 .app-nav {
-  border-top: 1px solid rgb(255 255 255 / 0.16);
-  background: #1d4ed8;
+  min-width: 0;
 }
 .nav-scroll {
   display: flex;
   gap: var(--space-xs);
   overflow-x: auto;
-  padding: var(--space-md) var(--space-lg);
+  padding: var(--space-md) 0;
   scroll-snap-type: x proximity;
   scrollbar-width: none;
 }
@@ -132,22 +157,21 @@ p {
   min-height: 2.75rem;
   border: 1px solid transparent;
   background: transparent;
-  color: #dbeafe;
+  color: var(--color-muted);
   padding: 0.6rem 0.75rem;
   font-size: 0.83rem;
   scroll-snap-align: center;
   white-space: nowrap;
 }
 .nav-item:hover:not(:disabled) {
-  border-color: rgb(255 255 255 / 0.22);
-  background: rgb(255 255 255 / 0.1);
-  color: white;
+  border-color: #bfdbfe;
+  background: #f8fafc;
+  color: var(--color-primary);
 }
 .nav-item[aria-current="page"] {
-  border-color: rgb(255 255 255 / 0.25);
-  background: white;
+  border-color: #bfdbfe;
+  background: #eff6ff;
   color: #1d4ed8;
-  box-shadow: var(--shadow-sm);
 }
 .nav-item[aria-current="page"]::after {
   position: absolute;
@@ -163,6 +187,27 @@ p {
   width: 1.1rem;
   height: 1.1rem;
   flex: 0 0 auto;
+}
+.navbar-account {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-md);
+}
+.navbar-action {
+  min-width: max-content;
+}
+.admin-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2rem;
+  border-radius: 999px;
+  background: #dcfce7;
+  color: #166534;
+  padding: 0.3rem 0.65rem;
+  font-family: "Cascadia Code", Consolas, monospace;
+  font-size: 0.68rem;
+  font-weight: 700;
 }
 .page-view {
   scroll-margin-top: var(--space-xl);
@@ -193,6 +238,11 @@ p {
   font-size: 0.68rem;
   font-weight: 700;
   white-space: nowrap;
+}
+.page-context.public {
+  border-color: #cbd5e1;
+  background: #f1f5f9;
+  color: #334155;
 }
 .muted {
   color: var(--color-muted);
@@ -231,8 +281,49 @@ p {
   border-color: #cbd5e1;
   box-shadow: var(--shadow-md);
 }
-.login {
-  width: min(100%, 28rem);
+.read-only-note {
+  margin: var(--space-xl) 0 0;
+  border-left: 3px solid #94a3b8;
+  background: #f8fafc;
+  color: var(--color-muted);
+  padding: var(--space-lg);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+.modal-backdrop {
+  position: fixed;
+  z-index: 30;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow-y: auto;
+  background: rgb(15 23 42 / 0.62);
+  padding: var(--space-xl);
+  backdrop-filter: blur(4px);
+}
+.login-modal {
+  width: min(100%, 29rem);
+  border: 1px solid var(--color-border);
+  border-radius: 1rem;
+  background: var(--color-surface);
+  padding: var(--space-2xl);
+  box-shadow: 0 24px 64px rgb(15 23 42 / 0.24);
+}
+.modal-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-xl);
+  margin-bottom: var(--space-lg);
+}
+.modal-close {
+  min-height: 2.4rem;
+  padding: 0.45rem 0.7rem;
+  font-size: 0.8rem;
+}
+.field-error {
+  color: #991b1b;
+  font-size: 0.78rem;
 }
 .section-heading {
   display: flex;
@@ -515,12 +606,32 @@ a {
 .evaluation-metrics strong {
   font-size: 1.1rem;
 }
+@media (max-width: 1100px) {
+  .navbar-inner {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--space-md);
+    padding: var(--space-lg) var(--space-2xl) var(--space-md);
+  }
+  .app-nav {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    margin: 0 calc(var(--space-2xl) * -1) calc(var(--space-md) * -1);
+    border-top: 1px solid var(--color-border);
+  }
+  .nav-scroll {
+    padding-right: var(--space-2xl);
+    padding-left: var(--space-2xl);
+  }
+}
 @media (max-width: 760px) {
-  main {
+  .app-main {
     padding: var(--space-md);
   }
-  .brand-row {
-    padding: var(--space-xl);
+  .navbar-inner {
+    padding: var(--space-lg) var(--space-md) var(--space-md);
+  }
+  .app-nav {
+    margin: 0 calc(var(--space-md) * -1) calc(var(--space-md) * -1);
   }
   .nav-scroll {
     padding-right: var(--space-md);
@@ -565,12 +676,21 @@ a {
   }
 }
 @media (max-width: 480px) {
-  .brand-row {
-    display: block;
+  .navbar-brand span:not(.brand-mark),
+  .admin-status {
+    display: none;
   }
-  .brand-row > button {
-    width: 100%;
-    margin-top: var(--space-xl);
+  .navbar-brand h1 {
+    font-size: 0.85rem;
+  }
+  .brand-mark {
+    width: 2.25rem;
+    height: 2.25rem;
+  }
+  .navbar-action {
+    min-height: 2.5rem;
+    padding: 0.5rem 0.65rem;
+    font-size: 0.78rem;
   }
   .nav-item {
     min-height: 3rem;

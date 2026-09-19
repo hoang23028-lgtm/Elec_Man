@@ -20,8 +20,7 @@ const pages = [
     label: "Dashboard",
     eyebrow: "Overview",
     title: "Operations dashboard",
-    description:
-      "Monitor processing volume, job health, and confirmed exports.",
+    description: "Monitor processing volume and overall job health.",
   },
   {
     id: "operations",
@@ -140,9 +139,12 @@ export default function HomePage() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [csrfToken, setCsrfToken] = useState<string | null>(null);
+  const [loginOpen, setLoginOpen] = useState(false);
   const [activePage, setActivePage] = useState<PageId>("dashboard");
   const navScrollRef = useRef<HTMLDivElement>(null);
   const activeNavItemRef = useRef<HTMLButtonElement>(null);
+  const loginTriggerRef = useRef<HTMLButtonElement>(null);
+  const loginModalRef = useRef<HTMLElement>(null);
   const {
     register,
     handleSubmit,
@@ -152,17 +154,49 @@ export default function HomePage() {
   useEffect(() => {
     function syncPageFromLocation() {
       const requested = window.location.hash.slice(1);
-      setActivePage(isPageId(requested) ? requested : "dashboard");
+      const nextPage = isPageId(requested) ? requested : "dashboard";
+      if (!csrfToken && nextPage !== "dashboard") {
+        setActivePage("dashboard");
+        window.history.replaceState(null, "", "#dashboard");
+        return;
+      }
+      setActivePage(nextPage);
     }
 
     syncPageFromLocation();
     window.addEventListener("hashchange", syncPageFromLocation);
     return () => window.removeEventListener("hashchange", syncPageFromLocation);
-  }, []);
+  }, [csrfToken]);
+
+  useEffect(() => {
+    if (!loginOpen) return;
+    function handleModalKeyboard(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        closeLogin();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const controls = loginModalRef.current?.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), input:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
+      );
+      if (!controls?.length) return;
+      const first = controls[0];
+      const last = controls[controls.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+    window.addEventListener("keydown", handleModalKeyboard);
+    return () => window.removeEventListener("keydown", handleModalKeyboard);
+  }, [loginOpen]);
 
   useEffect(() => {
     const nav = navScrollRef.current;
-    if (!csrfToken || !nav) return;
+    if (!nav) return;
 
     function centerActiveItem() {
       const item = activeNavItemRef.current;
@@ -187,6 +221,7 @@ export default function HomePage() {
       // This value is not a credential. It remains only in React memory for
       // future state-changing requests and is never written to localStorage.
       setCsrfToken(result.csrf_token);
+      setLoginOpen(false);
       setActivePage("dashboard");
       window.history.replaceState(null, "", "#dashboard");
       setMessage(
@@ -202,6 +237,7 @@ export default function HomePage() {
     try {
       await logout(csrfToken);
       setCsrfToken(null);
+      setLoginOpen(false);
       setActivePage("dashboard");
       window.history.replaceState(null, "", window.location.pathname);
       setMessage("Signed out.");
@@ -212,7 +248,13 @@ export default function HomePage() {
     }
   }
 
+  function closeLogin() {
+    setLoginOpen(false);
+    window.requestAnimationFrame(() => loginTriggerRef.current?.focus());
+  }
+
   function navigate(page: PageId) {
+    if (!csrfToken && page !== "dashboard") return;
     setActivePage(page);
     window.history.pushState(null, "", `#${page}`);
     window.requestAnimationFrame(() => {
@@ -220,83 +262,76 @@ export default function HomePage() {
     });
   }
 
-  const currentPage = pages.find((page) => page.id === activePage) ?? pages[0];
+  const displayedPage = csrfToken ? activePage : "dashboard";
+  const currentPage =
+    pages.find((page) => page.id === displayedPage) ?? pages[0];
+  const availablePages = csrfToken ? pages : pages.slice(0, 1);
 
   return (
-    <main>
-      {csrfToken && (
-        <a className="skip-link" href="#main-content">
-          Skip to main content
-        </a>
-      )}
-      <div className="shell">
-        <header className="app-header">
-          <div className="brand-row">
+    <>
+      <a className="skip-link" href="#main-content">
+        Skip to main content
+      </a>
+      <header className="app-navbar">
+        <div className="navbar-inner">
+          <div className="navbar-brand" aria-label="Electricity Meter AI">
+            <span className="brand-mark">
+              <NavigationIcon page="dashboard" />
+            </span>
             <div>
-              <p className="eyebrow">Internal operations</p>
-              <h1 id="page-title">Electricity Meter AI</h1>
-              <p className="muted">Meter intelligence and review workspace</p>
+              <h1>Electricity Meter AI</h1>
+              <span>Meter operations</span>
             </div>
-            {csrfToken && (
+          </div>
+          <nav className="app-nav" aria-label="Primary navigation">
+            <div className="nav-scroll" ref={navScrollRef}>
+              {availablePages.map((page) => (
+                <button
+                  className="nav-item"
+                  type="button"
+                  key={page.id}
+                  ref={displayedPage === page.id ? activeNavItemRef : null}
+                  aria-current={displayedPage === page.id ? "page" : undefined}
+                  onClick={() => navigate(page.id)}
+                >
+                  <NavigationIcon page={page.id} />
+                  <span>{page.label}</span>
+                </button>
+              ))}
+            </div>
+          </nav>
+          <div className="navbar-account">
+            {csrfToken ? (
+              <>
+                <span className="admin-status">Admin</span>
+                <button
+                  className="navbar-action secondary"
+                  type="button"
+                  onClick={() => void signOut()}
+                >
+                  Sign out
+                </button>
+              </>
+            ) : (
               <button
-                className="secondary"
+                className="navbar-action"
                 type="button"
-                onClick={() => void signOut()}
+                ref={loginTriggerRef}
+                onClick={() => {
+                  setError(null);
+                  setLoginOpen(true);
+                }}
               >
-                Sign out
+                Admin sign in
               </button>
             )}
           </div>
-          {csrfToken && (
-            <nav className="app-nav" aria-label="Primary navigation">
-              <div className="nav-scroll" ref={navScrollRef}>
-                {pages.map((page) => (
-                  <button
-                    className="nav-item"
-                    type="button"
-                    key={page.id}
-                    ref={activePage === page.id ? activeNavItemRef : null}
-                    aria-current={activePage === page.id ? "page" : undefined}
-                    onClick={() => navigate(page.id)}
-                  >
-                    <NavigationIcon page={page.id} />
-                    <span>{page.label}</span>
-                  </button>
-                ))}
-              </div>
-            </nav>
-          )}
-        </header>
-        {!csrfToken && (
-          <section className="panel login" aria-labelledby="page-title">
-            <form onSubmit={handleSubmit(submit)} noValidate>
-              <label htmlFor="username">Username</label>
-              <input
-                id="username"
-                autoComplete="username"
-                {...register("username", { required: "Username is required." })}
-              />
-              <span className="error">{errors.username?.message}</span>
-              <label htmlFor="password">Password</label>
-              <input
-                id="password"
-                type="password"
-                autoComplete="current-password"
-                {...register("password", { required: "Password is required." })}
-              />
-              <span className="error">{errors.password?.message}</span>
-              <button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? "Signing in…" : "Sign in"}
-              </button>
-            </form>
-          </section>
-        )}
-        {csrfToken && (
-          <section
-            id="main-content"
-            className="page-view"
-            aria-labelledby="page-view-title"
-          >
+        </div>
+      </header>
+
+      <main id="main-content" className="app-main">
+        <div className="shell">
+          <section className="page-view" aria-labelledby="page-view-title">
             <div className="page-intro">
               <div>
                 <p className="eyebrow">{currentPage.eyebrow}</p>
@@ -305,42 +340,114 @@ export default function HomePage() {
                 </h2>
                 <p className="muted">{currentPage.description}</p>
               </div>
-              <span className="page-context">Authenticated workspace</span>
+              <span
+                className={`page-context ${csrfToken ? "admin" : "public"}`}
+              >
+                {csrfToken ? "Administrator workspace" : "Public · read only"}
+              </span>
             </div>
-            <div className={`workspace page-content ${activePage}-layout`}>
-              {activePage === "dashboard" && (
-                <DashboardSummary csrfToken={csrfToken} />
+            <div className={`workspace page-content ${displayedPage}-layout`}>
+              {displayedPage === "dashboard" && (
+                <DashboardSummary csrfToken={csrfToken ?? undefined} />
               )}
-              {activePage === "operations" && (
+              {csrfToken && displayedPage === "operations" && (
                 <>
                   <FolderUpload csrfToken={csrfToken} />
                   <BatchOverview />
                 </>
               )}
-              {activePage === "human-review" && (
+              {csrfToken && displayedPage === "human-review" && (
                 <ResultReview csrfToken={csrfToken} />
               )}
-              {activePage === "administration" && (
+              {csrfToken && displayedPage === "administration" && (
                 <SystemSettings csrfToken={csrfToken} />
               )}
-              {activePage === "model-lifecycle" && (
+              {csrfToken && displayedPage === "model-lifecycle" && (
                 <ModelOperations csrfToken={csrfToken} />
               )}
-              {activePage === "traceability" && <AuditHistory />}
+              {csrfToken && displayedPage === "traceability" && (
+                <AuditHistory />
+              )}
             </div>
           </section>
-        )}
-        {error && (
-          <p className="error" role="alert">
-            {error}
-          </p>
-        )}
-        {message && (
-          <p className="notice" role="status">
-            {message}
-          </p>
-        )}
-      </div>
-    </main>
+          {error && !loginOpen && (
+            <p className="error" role="alert">
+              {error}
+            </p>
+          )}
+          {message && (
+            <p className="notice" role="status">
+              {message}
+            </p>
+          )}
+        </div>
+      </main>
+
+      {loginOpen && !csrfToken && (
+        <div
+          className="modal-backdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) closeLogin();
+          }}
+        >
+          <section
+            className="login-modal"
+            role="dialog"
+            ref={loginModalRef}
+            aria-modal="true"
+            aria-labelledby="login-title"
+          >
+            <div className="modal-heading">
+              <div>
+                <p className="eyebrow">Restricted access</p>
+                <h2 id="login-title">Administrator sign in</h2>
+              </div>
+              <button
+                className="modal-close secondary"
+                type="button"
+                onClick={closeLogin}
+              >
+                Close
+              </button>
+            </div>
+            <p className="muted">
+              Sign in to manage uploads, reviews, system settings, models, and
+              audit history.
+            </p>
+            <form onSubmit={handleSubmit(submit)} noValidate>
+              <label htmlFor="username">Username</label>
+              <input
+                id="username"
+                autoFocus
+                autoComplete="username"
+                {...register("username", { required: "Username is required." })}
+              />
+              {errors.username?.message && (
+                <span className="field-error">{errors.username.message}</span>
+              )}
+              <label htmlFor="password">Password</label>
+              <input
+                id="password"
+                type="password"
+                autoComplete="current-password"
+                {...register("password", { required: "Password is required." })}
+              />
+              {errors.password?.message && (
+                <span className="field-error">{errors.password.message}</span>
+              )}
+              {error && (
+                <p className="error" role="alert">
+                  {error}
+                </p>
+              )}
+              <button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? "Signing in…" : "Sign in as administrator"}
+              </button>
+            </form>
+          </section>
+        </div>
+      )}
+    </>
   );
 }
