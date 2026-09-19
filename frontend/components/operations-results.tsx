@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 
 import { getResultsPage, reviewResult, type Result } from "@/services/results";
 import { exportConfirmed } from "@/services/system";
@@ -8,6 +8,7 @@ import { usePolling } from "@/hooks/use-polling";
 
 type Draft = { customer: string; reading: string };
 type Props = { csrfToken: string; refreshKey?: number };
+type ImagePreview = { imageId: string; filename: string };
 
 const pageSize = 12;
 
@@ -37,6 +38,9 @@ export function OperationsResults({ csrfToken, refreshKey = 0 }: Props) {
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [imagePreview, setImagePreview] = useState<ImagePreview | null>(null);
+  const previewDialogRef = useRef<HTMLDialogElement>(null);
+  const previewTriggerRef = useRef<HTMLButtonElement | null>(null);
 
   const load = useCallback(
     async (showLoading = true) => {
@@ -85,6 +89,27 @@ export function OperationsResults({ csrfToken, refreshKey = 0 }: Props) {
     void load();
   }, [load, refreshKey]);
   usePolling(() => load(false), 8000);
+
+  useEffect(() => {
+    const dialog = previewDialogRef.current;
+    if (imagePreview && dialog && !dialog.open) dialog.showModal();
+  }, [imagePreview]);
+
+  function openImagePreview(row: Result, trigger: HTMLButtonElement) {
+    previewTriggerRef.current = trigger;
+    setImagePreview({ imageId: row.image_id, filename: row.original_filename });
+  }
+
+  function closeImagePreview() {
+    previewDialogRef.current?.close();
+  }
+
+  function finishImagePreview() {
+    setImagePreview(null);
+    window.requestAnimationFrame(() => {
+      if (previewTriggerRef.current?.isConnected) previewTriggerRef.current.focus();
+    });
+  }
 
   function updateDraft(id: string, field: keyof Draft, value: string) {
     setDrafts((current) => ({
@@ -152,19 +177,18 @@ export function OperationsResults({ csrfToken, refreshKey = 0 }: Props) {
     const busy = busyId === row.image_id;
     return (
       <article className="result-card" key={row.image_id}>
-        <a
+        <button
+          type="button"
           className="result-preview"
-          href={`/api/v1/images/${row.image_id}/preview`}
-          target="_blank"
-          rel="noreferrer"
-          aria-label={`Mở ảnh ${row.original_filename}`}
+          onClick={(event) => openImagePreview(row, event.currentTarget)}
+          aria-label={`Phóng lớn ảnh ${row.original_filename}`}
         >
           <img
             src={`/api/v1/images/${row.image_id}/thumbnail`}
             alt={`Ảnh đồng hồ ${row.original_filename}`}
             loading="lazy"
           />
-        </a>
+        </button>
         <div className="result-card-body">
           <div className="result-card-heading">
             <div>
@@ -328,6 +352,37 @@ export function OperationsResults({ csrfToken, refreshKey = 0 }: Props) {
           </div>
         </section>
       </div>
+      {imagePreview && (
+        <dialog
+          ref={previewDialogRef}
+          className="image-preview-dialog"
+          aria-labelledby="image-preview-title"
+          onClose={finishImagePreview}
+          onClick={(event) => {
+            if (event.target === event.currentTarget) closeImagePreview();
+          }}
+        >
+          <div className="image-preview-toolbar">
+            <div>
+              <p className="eyebrow">Ảnh đồng hồ điện</p>
+              <h3 id="image-preview-title">{imagePreview.filename}</h3>
+            </div>
+            <button
+              type="button"
+              className="secondary image-preview-close"
+              onClick={closeImagePreview}
+            >
+              Đóng
+            </button>
+          </div>
+          <div className="image-preview-canvas">
+            <img
+              src={`/api/v1/images/${imagePreview.imageId}/preview`}
+              alt={`Ảnh đồng hồ ${imagePreview.filename}`}
+            />
+          </div>
+        </dialog>
+      )}
     </section>
   );
 }

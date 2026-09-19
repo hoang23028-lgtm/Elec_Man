@@ -700,12 +700,72 @@ a {
 .result-preview {
   display: block;
   min-height: 12rem;
+  overflow: hidden;
+  border: 0;
+  border-radius: 0;
   background: #e2e8f0;
+  padding: 0;
+  cursor: zoom-in;
+}
+.result-preview:hover:not(:disabled) {
+  background: #cbd5e1;
 }
 .result-preview img {
+  display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+.image-preview-dialog {
+  width: min(92rem, calc(100vw - 2rem));
+  max-width: none;
+  max-height: calc(100vh - 2rem);
+  overflow: hidden;
+  border: 0;
+  border-radius: 1rem;
+  background: var(--color-surface);
+  color: var(--color-foreground);
+  padding: 0;
+  box-shadow: 0 28px 80px rgb(15 23 42 / 0.42);
+}
+.image-preview-dialog::backdrop {
+  background: rgb(15 23 42 / 0.78);
+  backdrop-filter: blur(5px);
+}
+.image-preview-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-xl);
+  padding: var(--space-lg) var(--space-xl);
+}
+.image-preview-toolbar h3 {
+  overflow: hidden;
+  max-width: min(65vw, 64rem);
+  margin: var(--space-xs) 0 0;
+  font-size: 1rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.image-preview-close {
+  flex: 0 0 auto;
+}
+.image-preview-canvas {
+  display: grid;
+  min-height: min(20rem, calc(100vh - 7rem));
+  max-height: calc(100vh - 7rem);
+  overflow: auto;
+  place-items: center;
+  background: #0f172a;
+  padding: var(--space-lg);
+}
+.image-preview-canvas img {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  max-height: calc(100vh - 9rem);
+  object-fit: contain;
 }
 .result-card-body {
   min-width: 0;
