@@ -1,4 +1,6 @@
-import type { Batch } from "@/types/batch";
+import type { Batch, BatchImage } from "@/types/batch";
+
+export type PageData<T> = { items: T[]; total: number };
 
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "/api/v1";
 
@@ -55,10 +57,36 @@ export async function startBatch(
 }
 
 export async function getBatches(offset = 0, limit = 8): Promise<Batch[]> {
+  return (await getBatchesPage(offset, limit)).items;
+}
+
+export async function getBatchesPage(
+  offset = 0,
+  limit = 8,
+): Promise<PageData<Batch>> {
   const response = await fetch(
     `${apiBaseUrl}/batches?offset=${offset}&limit=${limit}`,
     { credentials: "include" },
   );
   if (!response.ok) throw new Error("Không thể tải danh sách lô.");
-  return response.json() as Promise<Batch[]>;
+  return {
+    items: (await response.json()) as Batch[],
+    total: Number(response.headers.get("X-Total-Count") ?? 0),
+  };
+}
+
+export async function getBatchImages(
+  batchId: string,
+  offset = 0,
+  limit = 12,
+): Promise<PageData<BatchImage>> {
+  const response = await fetch(
+    `${apiBaseUrl}/batches/${batchId}/images?offset=${offset}&limit=${limit}`,
+    { credentials: "include" },
+  );
+  if (!response.ok) throw new Error("Không thể tải chi tiết lô dữ liệu.");
+  return {
+    items: (await response.json()) as BatchImage[],
+    total: Number(response.headers.get("X-Total-Count") ?? 0),
+  };
 }

@@ -2,7 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 
-import { getResults, reviewResult, type Result } from "@/services/results";
+import { getResultsPage, reviewResult, type Result } from "@/services/results";
 import { exportConfirmed } from "@/services/system";
 
 type Draft = { customer: string; reading: string };
@@ -24,6 +24,8 @@ function confidenceLabel(value: number): string {
 export function OperationsResults({ csrfToken, refreshKey = 0 }: Props) {
   const [pending, setPending] = useState<Result[]>([]);
   const [confirmed, setConfirmed] = useState<Result[]>([]);
+  const [pendingTotal, setPendingTotal] = useState(0);
+  const [confirmedTotal, setConfirmedTotal] = useState(0);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
@@ -40,24 +42,26 @@ export function OperationsResults({ csrfToken, refreshKey = 0 }: Props) {
       if (showLoading) setLoading(true);
       try {
         const [nextPending, nextConfirmed] = await Promise.all([
-          getResults({
+          getResultsPage({
             imageStatus: "REVIEW_REQUIRED",
             offset: pendingPage * pageSize,
             limit: pageSize,
             search,
           }),
-          getResults({
+          getResultsPage({
             imageStatus: "CONFIRMED",
             offset: confirmedPage * pageSize,
             limit: pageSize,
             search,
           }),
         ]);
-        setPending(nextPending);
-        setConfirmed(nextConfirmed);
+        setPending(nextPending.items);
+        setConfirmed(nextConfirmed.items);
+        setPendingTotal(nextPending.total);
+        setConfirmedTotal(nextConfirmed.total);
         setDrafts((current) => {
           const next = { ...current };
-          for (const row of [...nextPending, ...nextConfirmed]) {
+          for (const row of [...nextPending.items, ...nextConfirmed.items]) {
             if (!next[row.image_id]) next[row.image_id] = initialDraft(row);
           }
           return next;
@@ -271,7 +275,7 @@ export function OperationsResults({ csrfToken, refreshKey = 0 }: Props) {
               <h3 id="needs-review-title">Chờ kiểm duyệt</h3>
             </div>
             <span className="lane-count" aria-label={`${pending.length} kết quả trên trang`}>
-              {pending.length}
+              {pendingTotal}
             </span>
           </div>
           {loading && !pending.length ? (
@@ -283,8 +287,10 @@ export function OperationsResults({ csrfToken, refreshKey = 0 }: Props) {
           )}
           <nav className="pagination" aria-label="Phân trang hàng chờ kiểm duyệt">
             <button className="secondary" type="button" onClick={() => setPendingPage((page) => Math.max(0, page - 1))} disabled={!pendingPage || loading}>Trước</button>
-            <span>Trang {pendingPage + 1}</span>
-            <button className="secondary" type="button" onClick={() => setPendingPage((page) => page + 1)} disabled={pending.length < pageSize || loading}>Sau</button>
+            <span>
+              Trang {pendingPage + 1} / {Math.max(1, Math.ceil(pendingTotal / pageSize))}
+            </span>
+            <button className="secondary" type="button" onClick={() => setPendingPage((page) => page + 1)} disabled={pendingPage + 1 >= Math.max(1, Math.ceil(pendingTotal / pageSize)) || loading}>Sau</button>
           </nav>
         </section>
         <section className="review-lane confirmed-lane" aria-labelledby="confirmed-title">
@@ -294,7 +300,7 @@ export function OperationsResults({ csrfToken, refreshKey = 0 }: Props) {
               <h3 id="confirmed-title">Đã xác nhận</h3>
             </div>
             <span className="lane-count success" aria-label={`${confirmed.length} kết quả trên trang`}>
-              {confirmed.length}
+              {confirmedTotal}
             </span>
           </div>
           {loading && !confirmed.length ? (
@@ -306,8 +312,10 @@ export function OperationsResults({ csrfToken, refreshKey = 0 }: Props) {
           )}
           <nav className="pagination" aria-label="Phân trang kết quả đã xác nhận">
             <button className="secondary" type="button" onClick={() => setConfirmedPage((page) => Math.max(0, page - 1))} disabled={!confirmedPage || loading}>Trước</button>
-            <span>Trang {confirmedPage + 1}</span>
-            <button className="secondary" type="button" onClick={() => setConfirmedPage((page) => page + 1)} disabled={confirmed.length < pageSize || loading}>Sau</button>
+            <span>
+              Trang {confirmedPage + 1} / {Math.max(1, Math.ceil(confirmedTotal / pageSize))}
+            </span>
+            <button className="secondary" type="button" onClick={() => setConfirmedPage((page) => page + 1)} disabled={confirmedPage + 1 >= Math.max(1, Math.ceil(confirmedTotal / pageSize)) || loading}>Sau</button>
           </nav>
           <div className="export-confirmed">
             <div>

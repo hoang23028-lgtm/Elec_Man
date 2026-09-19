@@ -15,6 +15,14 @@ export async function getAuditLogs(
   limit = 10,
   action = "",
 ): Promise<AuditRow[]> {
+  return (await getAuditLogsPage(offset, limit, action)).items;
+}
+
+export async function getAuditLogsPage(
+  offset = 0,
+  limit = 10,
+  action = "",
+): Promise<{ items: AuditRow[]; total: number }> {
   const params = new URLSearchParams({
     offset: String(offset),
     limit: String(limit),
@@ -24,5 +32,8 @@ export async function getAuditLogs(
     credentials: "include",
   });
   if (!response.ok) throw new Error("Không thể tải lịch sử kiểm toán.");
-  return response.json() as Promise<AuditRow[]>;
+  return {
+    items: (await response.json()) as AuditRow[],
+    total: Number(response.headers.get("X-Total-Count") ?? 0),
+  };
 }

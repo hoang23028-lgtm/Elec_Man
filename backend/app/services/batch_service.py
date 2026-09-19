@@ -2,14 +2,17 @@ from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 from fastapi import HTTPException, status
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.models.ai_result import AiResult
 from app.models.audit_log import AuditLog
 from app.models.batch import Batch, BatchStatus
 from app.models.image import ImageRecord
+from app.models.meter_reading import MeterReading
 from app.models.user import User
+from app.schemas.batch import BatchImageResponse
 from app.services.storage_service import StoredUpload, delete_stored_upload
 
 
@@ -110,4 +113,54 @@ def save_uploaded_image(
 def list_batches(db: Session, offset: int, limit: int) -> list[Batch]:
     return list(
         db.scalars(select(Batch).order_by(Batch.created_at.desc()).offset(offset).limit(limit))
+    )
+
+
+def count_batches(db: Session) -> int:
+    return int(db.scalar(select(func.count(Batch.id))) or 0)
+
+
+def list_batch_images(
+    db: Session, batch_id: UUID, offset: int, limit: int
+) -> list[BatchImageResponse]:
+    if db.get(Batch, batch_id) is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Không tìm thấy lô dữ liệu.",
+        )
+    statement = (
+        select(ImageRecord, AiResult, MeterReading)
+        .outerjoin(AiResult, AiResult.image_id == ImageRecord.id)
+        .outerjoin(MeterReading, MeterReading.image_id == ImageRecord.id)
+        .where(ImageRecord.batch_id == batch_id)
+        .order_by(ImageRecord.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+    )
+    return [
+        BatchImageResponse(
+            image_id=image.id,
+            original_filename=image.original_filename,
+            image_status=image.status,
+            width=image.width,
+            height=image.height,
+            file_size=image.file_size,
+            created_at=image.created_at,
+            customer_id_ai=ai_result.customer_id_ai if ai_result else None,
+            meter_reading_ai=ai_result.meter_reading_ai if ai_result else None,
+            final_confidence=ai_result.final_confidence if ai_result else None,
+            review_status=reading.review_status if reading else None,
+            final_customer_id=reading.final_customer_id if reading else None,
+            final_meter_reading=reading.final_meter_reading if reading else None,
+        )
+        for image, ai_result, reading in db.execute(statement)
+    ]
+
+
+def count_batch_images(db: Session, batch_id: UUID) -> int:
+    return int(
+        db.scalar(
+            select(func.count(ImageRecord.id)).where(ImageRecord.batch_id == batch_id)
+        )
+        or 0
     )

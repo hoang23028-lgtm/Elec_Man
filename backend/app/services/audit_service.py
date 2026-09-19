@@ -1,4 +1,4 @@
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models.audit_log import AuditLog
@@ -28,3 +28,10 @@ def list_audit_logs(db: Session, offset: int, limit: int, action: str | None) ->
         )
         for record, username in db.execute(statement)
     ]
+
+
+def count_audit_logs(db: Session, action: str | None) -> int:
+    statement = select(func.count(AuditLog.id))
+    if action:
+        statement = statement.where(AuditLog.action == action)
+    return int(db.scalar(statement) or 0)

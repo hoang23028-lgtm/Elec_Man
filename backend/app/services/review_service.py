@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models.ai_result import AiResult
@@ -62,6 +62,30 @@ def list_results(
         )
         for image, ai_result, reading in db.execute(statement)
     ]
+
+
+def count_results(
+    db: Session,
+    image_status: str | None,
+    search: str | None,
+) -> int:
+    statement = (
+        select(func.count(ImageRecord.id))
+        .join(AiResult, AiResult.image_id == ImageRecord.id)
+        .outerjoin(MeterReading, MeterReading.image_id == ImageRecord.id)
+    )
+    if image_status:
+        statement = statement.where(ImageRecord.status == image_status)
+    if search:
+        term = f"%{search.strip()}%"
+        statement = statement.where(
+            ImageRecord.original_filename.ilike(term)
+            | AiResult.customer_id_ai.ilike(term)
+            | AiResult.meter_reading_ai.ilike(term)
+            | MeterReading.final_customer_id.ilike(term)
+            | MeterReading.final_meter_reading.ilike(term)
+        )
+    return int(db.scalar(statement) or 0)
 
 
 def review_result(

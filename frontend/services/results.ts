@@ -19,6 +19,11 @@ export type ResultQuery = {
   search?: string;
 };
 export async function getResults(query: ResultQuery = {}): Promise<Result[]> {
+  return (await getResultsPage(query)).items;
+}
+export async function getResultsPage(
+  query: ResultQuery = {},
+): Promise<{ items: Result[]; total: number }> {
   const params = new URLSearchParams();
   if (query.offset) params.set("offset", String(query.offset));
   if (query.limit) params.set("limit", String(query.limit));
@@ -27,7 +32,10 @@ export async function getResults(query: ResultQuery = {}): Promise<Result[]> {
   const suffix = params.size ? `?${params.toString()}` : "";
   const r = await fetch(`${api}/results${suffix}`, { credentials: "include" });
   if (!r.ok) throw new Error("Không thể tải kết quả.");
-  return r.json();
+  return {
+    items: (await r.json()) as Result[],
+    total: Number(r.headers.get("X-Total-Count") ?? 0),
+  };
 }
 export async function reviewResult(
   id: string,

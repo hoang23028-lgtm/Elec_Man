@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-import { getAuditLogs, type AuditRow } from "@/services/audit";
+import { getAuditLogsPage, type AuditRow } from "@/services/audit";
 
 const pageSize = 10;
 const actions = [
@@ -54,6 +54,7 @@ function targetIdLabel(value: string | null): string {
 
 export function AuditHistory() {
   const [rows, setRows] = useState<AuditRow[]>([]);
+  const [total, setTotal] = useState(0);
   const [action, setAction] = useState("");
   const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -62,7 +63,9 @@ export function AuditHistory() {
   async function load() {
     setLoading(true);
     try {
-      setRows(await getAuditLogs(page * pageSize, pageSize, action));
+      const result = await getAuditLogsPage(page * pageSize, pageSize, action);
+      setRows(result.items);
+      setTotal(result.total);
       setError(null);
     } catch (reason) {
       setError(
@@ -167,12 +170,14 @@ export function AuditHistory() {
         >
           Trước
         </button>
-        <span>Trang {page + 1}</span>
+        <span>
+          Trang {page + 1} / {Math.max(1, Math.ceil(total / pageSize))}
+        </span>
         <button
           className="secondary"
           type="button"
           onClick={() => setPage((current) => current + 1)}
-          disabled={rows.length < pageSize || loading}
+          disabled={page + 1 >= Math.max(1, Math.ceil(total / pageSize)) || loading}
         >
           Sau
         </button>

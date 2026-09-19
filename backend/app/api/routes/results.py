@@ -1,19 +1,20 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.models.user import User
 from app.schemas.result import ResultRow, ReviewRequest, ReviewResponse
 from app.security.dependencies import get_current_user, require_csrf
-from app.services.review_service import list_results, review_result
+from app.services.review_service import count_results, list_results, review_result
 
 router = APIRouter()
 
 
 @router.get("", response_model=list[ResultRow])
 def get_results(
+    response: Response,
     offset: int = 0,
     limit: int = 50,
     image_status: str | None = None,
@@ -26,6 +27,7 @@ def get_results(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Giá trị phân trang không hợp lệ.",
         )
+    response.headers["X-Total-Count"] = str(count_results(db, image_status, search))
     return list_results(db, offset, limit, image_status, search)
 
 

@@ -7,7 +7,6 @@ import { useForm } from "react-hook-form";
 import { login, logout } from "@/services/auth";
 import type { LoginInput } from "@/types/auth";
 import { FolderUpload } from "@/components/folder-upload";
-import { ResultReview } from "@/components/result-review";
 import { BatchOverview } from "@/components/batch-overview";
 import { DashboardSummary } from "@/components/dashboard-summary";
 import { AuditHistory } from "@/components/audit-history";
@@ -32,12 +31,12 @@ const pages = [
       "Tạo lô dữ liệu, tải ảnh đồng hồ điện và theo dõi tiến trình OCR.",
   },
   {
-    id: "human-review",
-    label: "Kiểm duyệt",
-    eyebrow: "Kiểm soát chất lượng",
-    title: "Kiểm duyệt chỉ số đồng hồ",
+    id: "batches",
+    label: "Các lô dữ liệu",
+    eyebrow: "Lịch sử xử lý",
+    title: "Các lô dữ liệu",
     description:
-      "Kiểm tra kết quả AI, hiệu chỉnh giá trị rồi xác nhận hoặc từ chối.",
+      "Theo dõi từng lô và mở chi tiết hình ảnh, kết quả OCR cùng trạng thái xử lý.",
   },
   {
     id: "administration",
@@ -87,11 +86,10 @@ function NavigationIcon({ page }: { page: PageId }) {
         <path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6" />
       </>
     ),
-    "human-review": (
+    batches: (
       <>
-        <circle cx="9" cy="8" r="4" />
-        <path d="M3 21a6 6 0 0 1 12 0" />
-        <path d="m16 12 2 2 4-4" />
+        <path d="M3 7h7l2 2h9v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z" />
+        <path d="M3 7V5a2 2 0 0 1 2-2h5l2 2h5" />
       </>
     ),
     administration: (
@@ -360,15 +358,14 @@ export default function HomePage() {
                     csrfToken={csrfToken}
                     onQueued={() => setOperationsRefresh((value) => value + 1)}
                   />
-                  <BatchOverview />
                   <OperationsResults
                     csrfToken={csrfToken}
                     refreshKey={operationsRefresh}
                   />
                 </>
               )}
-              {csrfToken && displayedPage === "human-review" && (
-                <ResultReview csrfToken={csrfToken} />
+              {csrfToken && displayedPage === "batches" && (
+                <BatchOverview />
               )}
               {csrfToken && displayedPage === "administration" && (
                 <SystemSettings csrfToken={csrfToken} />

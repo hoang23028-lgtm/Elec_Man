@@ -42,7 +42,7 @@ Nhãn mẫu đã được phê duyệt được ghi trong `training/annotations.
 
 ## Kiểm duyệt
 
-Trang Vận hành hiển thị hàng chờ kiểm duyệt và danh sách đã xác nhận song song. Hệ thống tách biệt đầu ra AI bất biến với giá trị cuối cùng, đồng thời ghi lại mọi xác nhận, từ chối và chỉnh sửa; xem [tài liệu kiểm duyệt](docs/review.md).
+Trang Vận hành hiển thị vùng tải ảnh toàn chiều ngang, sau đó là hàng chờ kiểm duyệt và danh sách đã xác nhận song song. Trang Các lô dữ liệu cho phép mở từng lô để xem danh sách ảnh, trạng thái và kết quả nhận diện. Hệ thống tách biệt đầu ra AI bất biến với giá trị cuối cùng, đồng thời ghi lại mọi xác nhận, từ chối và chỉnh sửa; xem [tài liệu kiểm duyệt](docs/review.md).
 
 ## Bảng điều khiển và xuất dữ liệu
 

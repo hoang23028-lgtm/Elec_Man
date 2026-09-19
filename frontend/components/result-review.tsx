@@ -3,13 +3,14 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 
-import { getResults, reviewResult, type Result } from "@/services/results";
+import { getResultsPage, reviewResult, type Result } from "@/services/results";
 
 type Draft = { customer: string; reading: string };
 const pageSize = 10;
 
 export function ResultReview({ csrfToken }: { csrfToken: string }) {
   const [rows, setRows] = useState<Result[]>([]);
+  const [total, setTotal] = useState(0);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [saving, setSaving] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -23,13 +24,15 @@ export function ResultReview({ csrfToken }: { csrfToken: string }) {
   async function load(showLoading = false) {
     if (showLoading) setLoading(true);
     try {
-      const next = await getResults({
+      const result = await getResultsPage({
         offset: page * pageSize,
         limit: pageSize,
         imageStatus: status,
         search,
       });
+      const next = result.items;
       setRows(next);
+      setTotal(result.total);
       setDrafts((current) =>
         Object.fromEntries(
           next.map((row) => [
@@ -292,12 +295,14 @@ export function ResultReview({ csrfToken }: { csrfToken: string }) {
         >
           Trước
         </button>
-        <span>Trang {page + 1}</span>
+        <span>
+          Trang {page + 1} / {Math.max(1, Math.ceil(total / pageSize))}
+        </span>
         <button
           className="secondary"
           type="button"
           onClick={() => setPage((current) => current + 1)}
-          disabled={rows.length < pageSize || loading}
+          disabled={page + 1 >= Math.max(1, Math.ceil(total / pageSize)) || loading}
         >
           Sau
         </button>

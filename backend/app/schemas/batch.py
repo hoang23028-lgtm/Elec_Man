@@ -17,6 +17,8 @@ class BatchResponse(BaseModel):
     uploaded_images: int
     processed_images: int
     review_count: int
+    ok_count: int
+    ng_count: int
     failed_count: int
     created_at: datetime
 
@@ -26,3 +28,19 @@ class UploadedImageResponse(BaseModel):
     original_filename: str
     status: str
     duplicate: bool = False
+
+
+class BatchImageResponse(BaseModel):
+    image_id: UUID
+    original_filename: str
+    image_status: str
+    width: int
+    height: int
+    file_size: int
+    created_at: datetime
+    customer_id_ai: str | None
+    meter_reading_ai: str | None
+    final_confidence: float | None
+    review_status: str | None
+    final_customer_id: str | None
+    final_meter_reading: str | None
