@@ -36,10 +36,10 @@ def export_final(
 @router.get("/{filename}")
 def download(filename: str, _: User = Depends(get_current_user)) -> FileResponse:
     if Path(filename).name != filename or not filename.endswith(".xlsx"):
-        raise HTTPException(status_code=404, detail="Export not found.")
+        raise HTTPException(status_code=404, detail="Không tìm thấy tệp xuất.")
     matches = list((get_settings().storage_root / "exports").rglob(filename))
     if len(matches) != 1 or not matches[0].is_file():
-        raise HTTPException(status_code=404, detail="Export not found.")
+        raise HTTPException(status_code=404, detail="Không tìm thấy tệp xuất.")
     return FileResponse(
         matches[0],
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

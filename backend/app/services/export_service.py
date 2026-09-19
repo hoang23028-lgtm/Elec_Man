@@ -36,17 +36,17 @@ def create_final_export(db: Session) -> tuple[str, Path]:
         .execution_options(yield_per=1000)
     )
     workbook = Workbook(write_only=True)
-    sheet = workbook.create_sheet("Final readings")
+    sheet = workbook.create_sheet("Chỉ số đã xác nhận")
     sheet.freeze_panes = "A2"
     for column, width in {"A": 38, "B": 32, "C": 22, "D": 18, "E": 18, "F": 24}.items():
         sheet.column_dimensions[column].width = width
     headers = [
-        "Image ID",
-        "Original filename",
-        "Customer ID",
-        "Meter reading",
-        "Review status",
-        "Reviewed at",
+        "Mã hình ảnh",
+        "Tên tệp gốc",
+        "Mã khách hàng",
+        "Chỉ số điện",
+        "Trạng thái kiểm duyệt",
+        "Thời gian kiểm duyệt",
     ]
     header_cells = [WriteOnlyCell(sheet, value=value) for value in headers]
     for cell in header_cells:
@@ -61,7 +61,7 @@ def create_final_export(db: Session) -> tuple[str, Path]:
                 _excel_text(image.original_filename),
                 _excel_text(reading.final_customer_id),
                 _excel_text(reading.final_meter_reading),
-                reading.review_status,
+                "Đã xác nhận",
                 _excel_datetime(reading.reviewed_at),
             ]
         )
@@ -70,7 +70,7 @@ def create_final_export(db: Session) -> tuple[str, Path]:
     root = get_settings().storage_root
     directory = root / "exports" / f"{datetime.now(UTC):%Y}" / f"{datetime.now(UTC):%m}"
     directory.mkdir(parents=True, exist_ok=True)
-    name = f"final-readings-{datetime.now(UTC):%Y%m%dT%H%M%SZ}-{uuid4().hex[:8]}.xlsx"
+    name = f"chi-so-da-xac-nhan-{datetime.now(UTC):%Y%m%dT%H%M%SZ}-{uuid4().hex[:8]}.xlsx"
     path = directory / name
     workbook.save(path)
     return name, path

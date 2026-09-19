@@ -17,49 +17,49 @@ import { SystemSettings } from "@/components/system-settings";
 const pages = [
   {
     id: "dashboard",
-    label: "Dashboard",
-    eyebrow: "Overview",
-    title: "Operations dashboard",
-    description: "Monitor processing volume and overall job health.",
+    label: "Tổng quan",
+    eyebrow: "Tổng quan",
+    title: "Bảng điều khiển vận hành",
+    description: "Theo dõi khối lượng xử lý và tình trạng chung của hệ thống.",
   },
   {
     id: "operations",
-    label: "Operations",
-    eyebrow: "Image processing",
-    title: "Upload and batch operations",
+    label: "Vận hành",
+    eyebrow: "Xử lý hình ảnh",
+    title: "Tải ảnh và vận hành lô dữ liệu",
     description:
-      "Create batches, upload meter images, and monitor OCR progress.",
+      "Tạo lô dữ liệu, tải ảnh đồng hồ điện và theo dõi tiến trình OCR.",
   },
   {
     id: "human-review",
-    label: "Human review",
-    eyebrow: "Quality control",
-    title: "Review meter readings",
+    label: "Kiểm duyệt",
+    eyebrow: "Kiểm soát chất lượng",
+    title: "Kiểm duyệt chỉ số đồng hồ",
     description:
-      "Inspect AI suggestions, correct values, then confirm or reject them.",
+      "Kiểm tra kết quả AI, hiệu chỉnh giá trị rồi xác nhận hoặc từ chối.",
   },
   {
     id: "administration",
-    label: "Administration",
-    eyebrow: "System policy",
-    title: "Administration",
+    label: "Quản trị",
+    eyebrow: "Chính sách hệ thống",
+    title: "Quản trị hệ thống",
     description:
-      "Manage operational thresholds, limits, retention, and worker behavior.",
+      "Quản lý ngưỡng vận hành, giới hạn, thời gian lưu trữ và tiến trình xử lý.",
   },
   {
     id: "model-lifecycle",
-    label: "Model lifecycle",
-    eyebrow: "AI governance",
-    title: "Model lifecycle",
+    label: "Vòng đời mô hình",
+    eyebrow: "Quản trị AI",
+    title: "Vòng đời mô hình",
     description:
-      "Evaluate, register, verify, and activate controlled model bundles.",
+      "Đánh giá, đăng ký, xác minh và kích hoạt các gói mô hình được kiểm soát.",
   },
   {
     id: "traceability",
-    label: "Traceability",
-    eyebrow: "Audit trail",
-    title: "Traceability",
-    description: "Review security and operational events across the system.",
+    label: "Truy vết",
+    eyebrow: "Nhật ký kiểm toán",
+    title: "Truy vết hoạt động",
+    description: "Xem lại các sự kiện bảo mật và vận hành trong toàn hệ thống.",
   },
 ] as const;
 
@@ -225,10 +225,12 @@ export default function HomePage() {
       setActivePage("dashboard");
       window.history.replaceState(null, "", "#dashboard");
       setMessage(
-        "Signed in. Upload images, monitor batches, then review each reading.",
+        "Đăng nhập thành công. Hãy tải ảnh, theo dõi lô dữ liệu và kiểm duyệt từng chỉ số.",
       );
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Unable to sign in.");
+      setError(
+        reason instanceof Error ? reason.message : "Không thể đăng nhập.",
+      );
     }
   }
 
@@ -240,10 +242,10 @@ export default function HomePage() {
       setLoginOpen(false);
       setActivePage("dashboard");
       window.history.replaceState(null, "", window.location.pathname);
-      setMessage("Signed out.");
+      setMessage("Đã đăng xuất.");
     } catch (reason) {
       setError(
-        reason instanceof Error ? reason.message : "Unable to sign out.",
+        reason instanceof Error ? reason.message : "Không thể đăng xuất.",
       );
     }
   }
@@ -270,20 +272,20 @@ export default function HomePage() {
   return (
     <>
       <a className="skip-link" href="#main-content">
-        Skip to main content
+        Chuyển đến nội dung chính
       </a>
       <header className="app-navbar">
         <div className="navbar-inner">
-          <div className="navbar-brand" aria-label="Electricity Meter AI">
+          <div className="navbar-brand" aria-label="AI Quản lý đồng hồ điện">
             <span className="brand-mark">
               <NavigationIcon page="dashboard" />
             </span>
             <div>
-              <h1>Electricity Meter AI</h1>
-              <span>Meter operations</span>
+              <h1>AI Đồng hồ điện</h1>
+              <span>Trung tâm vận hành</span>
             </div>
           </div>
-          <nav className="app-nav" aria-label="Primary navigation">
+          <nav className="app-nav" aria-label="Điều hướng chính">
             <div className="nav-scroll" ref={navScrollRef}>
               {availablePages.map((page) => (
                 <button
@@ -303,13 +305,13 @@ export default function HomePage() {
           <div className="navbar-account">
             {csrfToken ? (
               <>
-                <span className="admin-status">Admin</span>
+                <span className="admin-status">Quản trị viên</span>
                 <button
                   className="navbar-action secondary"
                   type="button"
                   onClick={() => void signOut()}
                 >
-                  Sign out
+                  Đăng xuất
                 </button>
               </>
             ) : (
@@ -322,7 +324,7 @@ export default function HomePage() {
                   setLoginOpen(true);
                 }}
               >
-                Admin sign in
+                Đăng nhập quản trị
               </button>
             )}
           </div>
@@ -343,7 +345,7 @@ export default function HomePage() {
               <span
                 className={`page-context ${csrfToken ? "admin" : "public"}`}
               >
-                {csrfToken ? "Administrator workspace" : "Public · read only"}
+                {csrfToken ? "Không gian quản trị" : "Công khai · chỉ xem"}
               </span>
             </div>
             <div className={`workspace page-content ${displayedPage}-layout`}>
@@ -400,38 +402,42 @@ export default function HomePage() {
           >
             <div className="modal-heading">
               <div>
-                <p className="eyebrow">Restricted access</p>
-                <h2 id="login-title">Administrator sign in</h2>
+                <p className="eyebrow">Khu vực hạn chế</p>
+                <h2 id="login-title">Đăng nhập quản trị</h2>
               </div>
               <button
                 className="modal-close secondary"
                 type="button"
                 onClick={closeLogin}
               >
-                Close
+                Đóng
               </button>
             </div>
             <p className="muted">
-              Sign in to manage uploads, reviews, system settings, models, and
-              audit history.
+              Đăng nhập để quản lý tải ảnh, kiểm duyệt, cấu hình hệ thống, mô
+              hình và nhật ký kiểm toán.
             </p>
             <form onSubmit={handleSubmit(submit)} noValidate>
-              <label htmlFor="username">Username</label>
+              <label htmlFor="username">Tên đăng nhập</label>
               <input
                 id="username"
                 autoFocus
                 autoComplete="username"
-                {...register("username", { required: "Username is required." })}
+                {...register("username", {
+                  required: "Vui lòng nhập tên đăng nhập.",
+                })}
               />
               {errors.username?.message && (
                 <span className="field-error">{errors.username.message}</span>
               )}
-              <label htmlFor="password">Password</label>
+              <label htmlFor="password">Mật khẩu</label>
               <input
                 id="password"
                 type="password"
                 autoComplete="current-password"
-                {...register("password", { required: "Password is required." })}
+                {...register("password", {
+                  required: "Vui lòng nhập mật khẩu.",
+                })}
               />
               {errors.password?.message && (
                 <span className="field-error">{errors.password.message}</span>
@@ -442,7 +448,7 @@ export default function HomePage() {
                 </p>
               )}
               <button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? "Signing in…" : "Sign in as administrator"}
+                {isSubmitting ? "Đang đăng nhập…" : "Đăng nhập quản trị"}
               </button>
             </form>
           </section>

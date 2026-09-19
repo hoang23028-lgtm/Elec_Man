@@ -19,6 +19,7 @@ def readiness(db: Session = Depends(get_db)) -> HealthResponse:
         db.execute(text("SELECT 1"))
     except Exception as exc:
         raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database is unavailable."
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Cơ sở dữ liệu không khả dụng.",
         ) from exc
     return HealthResponse(status="ok", service="backend", database="ok")

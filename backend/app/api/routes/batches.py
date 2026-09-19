@@ -43,7 +43,8 @@ def list_batches_route(
         from fastapi import HTTPException
 
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Invalid pagination values."
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Giá trị phân trang không hợp lệ.",
         )
     return list_batches(db, offset, limit)
 

@@ -7,7 +7,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
-    app_name: str = "Electricity Meter AI Management System"
+    app_name: str = "Hệ thống AI quản lý đồng hồ điện"
     app_env: str = Field(default="development", pattern="^(development|test|production)$")
     log_level: str = Field(default="INFO", pattern="^(DEBUG|INFO|WARNING|ERROR)$")
     database_url: str
@@ -33,7 +33,8 @@ class Settings(BaseSettings):
             len(self.session_secret) < 32 or self.session_secret.startswith("replace-with-")
         ):
             raise ValueError(
-                "SESSION_SECRET must be a unique value of at least 32 characters in production."
+                "SESSION_SECRET phải là giá trị duy nhất gồm ít nhất 32 ký tự "
+                "trong môi trường production."
             )
         return self
 

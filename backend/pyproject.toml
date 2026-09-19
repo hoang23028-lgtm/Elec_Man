@@ -1,7 +1,7 @@
 [project]
 name = "electric-meter-ai-backend"
 version = "0.1.0"
-description = "Backend API for the Electricity Meter AI Management System"
+description = "API backend cho hệ thống AI quản lý đồng hồ điện"
 requires-python = ">=3.12"
 dependencies = [
   "alembic>=1.14,<2.0",

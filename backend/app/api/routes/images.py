@@ -19,7 +19,7 @@ def preview_image(
 ) -> FileResponse:
     image = db.get(ImageRecord, image_id)
     if image is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Image not found.")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy ảnh.")
     return FileResponse(
         resolve_storage_path(image.relative_path), media_type=image.mime_type, filename="preview"
     )

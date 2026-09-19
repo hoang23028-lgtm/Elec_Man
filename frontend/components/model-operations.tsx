@@ -22,7 +22,12 @@ const emptyInput: ModelInput = {
   metrics: {},
 };
 const percent = (value: number | null) =>
-  value === null ? "Not available" : `${Math.round(value * 1000) / 10}%`;
+  value === null ? "Chưa có dữ liệu" : `${Math.round(value * 1000) / 10}%`;
+const statusLabels: Record<string, string> = {
+  TESTING: "Đang thử nghiệm",
+  ACTIVE: "Đang hoạt động",
+  ARCHIVED: "Đã lưu trữ",
+};
 
 export function ModelOperations({ csrfToken }: { csrfToken: string }) {
   const [models, setModels] = useState<ModelRecord[]>([]);
@@ -46,7 +51,7 @@ export function ModelOperations({ csrfToken }: { csrfToken: string }) {
       setError(
         reason instanceof Error
           ? reason.message
-          : "Unable to load model operations.",
+          : "Không thể tải dữ liệu vòng đời mô hình.",
       );
     }
   }
@@ -65,13 +70,15 @@ export function ModelOperations({ csrfToken }: { csrfToken: string }) {
       await registerModel({ ...input, metrics }, csrfToken);
       setInput(emptyInput);
       setMetricsJson("{}");
-      setNotice("Model bundle verified and registered in TESTING status.");
+      setNotice(
+        "Gói mô hình đã được xác minh và đăng ký ở trạng thái thử nghiệm.",
+      );
       await load();
     } catch (reason) {
       setError(
         reason instanceof Error
           ? reason.message
-          : "Unable to register model. Check the metrics JSON.",
+          : "Không thể đăng ký mô hình. Hãy kiểm tra JSON chỉ số.",
       );
     } finally {
       setSaving(false);
@@ -81,7 +88,7 @@ export function ModelOperations({ csrfToken }: { csrfToken: string }) {
   async function activate(record: ModelRecord) {
     if (
       !window.confirm(
-        `Activate ${record.model_name} ${record.version}? The worker must be restarted to load a new runtime bundle.`,
+        `Kích hoạt ${record.model_name} ${record.version}? Tiến trình xử lý phải được khởi động lại để nạp gói chạy mới.`,
       )
     )
       return;
@@ -90,12 +97,14 @@ export function ModelOperations({ csrfToken }: { csrfToken: string }) {
     try {
       await activateModel(record.id, csrfToken);
       setNotice(
-        "Registry activation saved. Restart the worker only after its adapter is configured for this bundle.",
+        "Đã lưu trạng thái kích hoạt. Chỉ khởi động lại tiến trình xử lý sau khi bộ chuyển đổi được cấu hình cho gói này.",
       );
       await load();
     } catch (reason) {
       setError(
-        reason instanceof Error ? reason.message : "Unable to activate model.",
+        reason instanceof Error
+          ? reason.message
+          : "Không thể kích hoạt mô hình.",
       );
     } finally {
       setSaving(false);
@@ -106,10 +115,10 @@ export function ModelOperations({ csrfToken }: { csrfToken: string }) {
     <section className="panel full-span" aria-labelledby="models-title">
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Model lifecycle</p>
-          <h2 id="models-title">Registry and evaluation</h2>
+          <p className="eyebrow">Vòng đời mô hình</p>
+          <h2 id="models-title">Kho mô hình và đánh giá</h2>
         </div>
-        <span className="badge active">Human approval required</span>
+        <span className="badge active">Cần phê duyệt thủ công</span>
       </div>
       {error && (
         <p className="error" role="alert">
@@ -124,42 +133,42 @@ export function ModelOperations({ csrfToken }: { csrfToken: string }) {
       <div className="metrics evaluation-metrics">
         <div>
           <strong>{evaluation?.confirmed_samples ?? "—"}</strong>
-          <span>Confirmed samples</span>
+          <span>Mẫu đã xác nhận</span>
         </div>
         <div>
           <strong>
             {percent(evaluation?.customer_exact_accuracy ?? null)}
           </strong>
-          <span>Customer exact</span>
+          <span>Đúng mã khách hàng</span>
         </div>
         <div>
           <strong>{percent(evaluation?.meter_exact_accuracy ?? null)}</strong>
-          <span>Reading exact</span>
+          <span>Đúng chỉ số điện</span>
         </div>
         <div>
           <strong>{percent(evaluation?.meter_digit_accuracy ?? null)}</strong>
-          <span>Digit accuracy</span>
+          <span>Độ chính xác chữ số</span>
         </div>
       </div>
       <p className="muted">
-        Metrics use only human-confirmed production samples. They are not a
-        held-out test-set accuracy claim.
+        Các chỉ số chỉ sử dụng mẫu thực tế đã được con người xác nhận, không đại
+        diện cho độ chính xác trên tập kiểm thử độc lập.
       </p>
       {models.length === 0 ? (
         <p className="muted">
-          No deployable model bundle has been registered. The current OCR
-          baseline is bundled with the worker and remains review-only.
+          Chưa có gói mô hình có thể triển khai nào được đăng ký. OCR cơ sở hiện
+          được đóng gói cùng tiến trình xử lý và mọi kết quả vẫn cần kiểm duyệt.
         </p>
       ) : (
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>Model</th>
-                <th>Type</th>
-                <th>Version</th>
-                <th>Status</th>
-                <th>Action</th>
+                <th>Mô hình</th>
+                <th>Loại</th>
+                <th>Phiên bản</th>
+                <th>Trạng thái</th>
+                <th>Hành động</th>
               </tr>
             </thead>
             <tbody>
@@ -175,7 +184,7 @@ export function ModelOperations({ csrfToken }: { csrfToken: string }) {
                     <span
                       className={`badge ${record.status === "ACTIVE" ? "active" : ""}`}
                     >
-                      {record.status}
+                      {statusLabels[record.status] ?? record.status}
                     </span>
                   </td>
                   <td>
@@ -184,7 +193,7 @@ export function ModelOperations({ csrfToken }: { csrfToken: string }) {
                       onClick={() => void activate(record)}
                       disabled={saving || record.status === "ACTIVE"}
                     >
-                      Activate
+                      Kích hoạt
                     </button>
                   </td>
                 </tr>
@@ -194,11 +203,11 @@ export function ModelOperations({ csrfToken }: { csrfToken: string }) {
         </div>
       )}
       <details className="registration">
-        <summary>Register a verified model bundle</summary>
+        <summary>Đăng ký gói mô hình đã xác minh</summary>
         <form className="settings-form" onSubmit={submit}>
           <div className="settings-grid">
             <div className="setting-field">
-              <label htmlFor="model-name">Model name</label>
+              <label htmlFor="model-name">Tên mô hình</label>
               <input
                 id="model-name"
                 value={input.model_name}
@@ -212,7 +221,7 @@ export function ModelOperations({ csrfToken }: { csrfToken: string }) {
               />
             </div>
             <div className="setting-field">
-              <label htmlFor="model-type">Model type</label>
+              <label htmlFor="model-type">Loại mô hình</label>
               <input
                 id="model-type"
                 value={input.model_type}
@@ -226,7 +235,7 @@ export function ModelOperations({ csrfToken }: { csrfToken: string }) {
               />
             </div>
             <div className="setting-field">
-              <label htmlFor="model-version">Version</label>
+              <label htmlFor="model-version">Phiên bản</label>
               <input
                 id="model-version"
                 value={input.version}
@@ -242,7 +251,7 @@ export function ModelOperations({ csrfToken }: { csrfToken: string }) {
             </div>
             <div className="setting-field">
               <label htmlFor="model-file">
-                Relative file path under MODELS_ROOT
+                Đường dẫn tương đối trong MODELS_ROOT
               </label>
               <input
                 id="model-file"
@@ -274,7 +283,7 @@ export function ModelOperations({ csrfToken }: { csrfToken: string }) {
               />
             </div>
             <div className="setting-field">
-              <label htmlFor="model-metrics">Metrics JSON</label>
+              <label htmlFor="model-metrics">JSON chỉ số đánh giá</label>
               <input
                 id="model-metrics"
                 value={metricsJson}
@@ -284,7 +293,7 @@ export function ModelOperations({ csrfToken }: { csrfToken: string }) {
             </div>
           </div>
           <button type="submit" disabled={saving}>
-            {saving ? "Verifying…" : "Verify and register"}
+            {saving ? "Đang xác minh…" : "Xác minh và đăng ký"}
           </button>
         </form>
       </details>

@@ -16,24 +16,27 @@ from app.models.user import User
 def queue_batch(db: Session, batch_id: UUID, user: User, ip_address: str | None) -> Batch:
     batch = db.get(Batch, batch_id)
     if batch is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Batch not found.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy lô dữ liệu."
+        )
     if batch.status not in {BatchStatus.UPLOADING, BatchStatus.READY}:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Batch cannot be queued in its current state.",
+            detail="Không thể đưa lô dữ liệu vào hàng đợi ở trạng thái hiện tại.",
         )
     image_ids = list(db.scalars(select(ImageRecord.id).where(ImageRecord.batch_id == batch_id)))
     if not image_ids:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="Batch has no uploaded images.",
+            detail="Lô dữ liệu chưa có ảnh được tải lên.",
         )
     existing = db.scalar(
         select(ProcessingJob.id).join(ImageRecord).where(ImageRecord.batch_id == batch_id).limit(1)
     )
     if existing:
         raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail="Batch already has processing jobs."
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Lô dữ liệu đã có tác vụ xử lý.",
         )
     now = datetime.now(UTC)
     settings = get_settings()
@@ -86,7 +89,7 @@ def recover_stuck_jobs(db: Session) -> int:
     affected_batches: set[UUID] = set()
     for job in stuck_jobs:
         job.error_code = "WORKER_RECOVERY"
-        job.error_message = "Recovered after worker heartbeat timeout."
+        job.error_message = "Đã khôi phục sau khi tiến trình xử lý mất tín hiệu quá thời hạn."
         job.worker_id = None
         job.started_at = None
         if job.attempt_count >= job.max_attempts:

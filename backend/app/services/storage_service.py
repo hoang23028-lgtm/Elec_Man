@@ -41,7 +41,7 @@ def _bad_upload(message: str) -> HTTPException:
 def _safe_original_name(filename: str | None) -> str:
     name = Path(filename or "upload").name.strip()
     if not name or name in {".", ".."} or any(ord(char) < 32 for char in name):
-        raise _bad_upload("Invalid filename.")
+        raise _bad_upload("Tên tệp không hợp lệ.")
     return name[:255]
 
 
@@ -56,7 +56,7 @@ def _validate_signature(sample: bytes, extension: str) -> None:
         )
         valid = bool(expected) and sample.startswith(expected)
     if not valid:
-        raise _bad_upload("File signature does not match a supported image format.")
+        raise _bad_upload("Dấu hiệu tệp không khớp với định dạng ảnh được hỗ trợ.")
 
 
 async def store_upload(file: UploadFile, batch_id: UUID) -> StoredUpload:
@@ -66,10 +66,10 @@ async def store_upload(file: UploadFile, batch_id: UUID) -> StoredUpload:
     if extension == "jpeg":
         extension = "jpg"
     if extension not in {"jpg", "png", "webp"}:
-        raise _bad_upload("Only JPEG, PNG, and WEBP images are allowed.")
+        raise _bad_upload("Chỉ chấp nhận ảnh JPEG, PNG và WEBP.")
     claimed_mime = (file.content_type or "").lower()
     if claimed_mime not in {"image/jpeg", "image/png", "image/webp"}:
-        raise _bad_upload("Unsupported claimed content type.")
+        raise _bad_upload("Kiểu nội dung khai báo không được hỗ trợ.")
 
     now = datetime.now(UTC)
     relative_dir = Path("original") / f"{now:%Y}" / f"{now:%m}" / str(batch_id)
@@ -90,7 +90,7 @@ async def store_upload(file: UploadFile, batch_id: UUID) -> StoredUpload:
             while chunk := await file.read(1024 * 1024):
                 total_size += len(chunk)
                 if total_size > max_bytes:
-                    raise _bad_upload(f"Image exceeds {settings.max_image_size_mb} MB limit.")
+                    raise _bad_upload(f"Ảnh vượt quá giới hạn {settings.max_image_size_mb} MB.")
                 digest.update(chunk)
                 temp.write(chunk)
         # Reading only the signature avoids loading a potentially 100 MB upload
@@ -106,13 +106,13 @@ async def store_upload(file: UploadFile, batch_id: UUID) -> StoredUpload:
             with Image.open(temp_path) as image:
                 width, height = image.size
                 if width * height > settings.max_image_pixels:
-                    raise _bad_upload("Image dimensions exceed the configured pixel limit.")
+                    raise _bad_upload("Kích thước ảnh vượt quá giới hạn điểm ảnh đã cấu hình.")
                 if actual_format not in _FORMATS:
-                    raise _bad_upload("Unsupported decoded image format.")
+                    raise _bad_upload("Định dạng ảnh sau khi giải mã không được hỗ trợ.")
                 expected_extension, actual_mime, _ = _FORMATS[actual_format]
                 if expected_extension != extension or actual_mime != claimed_mime:
                     raise _bad_upload(
-                        "File extension or claimed type does not match decoded image format."
+                        "Phần mở rộng hoặc kiểu tệp khai báo không khớp với định dạng ảnh thực tế."
                     )
                 thumbnail_relative = (
                     Path("thumbnails")
@@ -132,7 +132,7 @@ async def store_upload(file: UploadFile, batch_id: UUID) -> StoredUpload:
             Image.DecompressionBombError,
             Image.DecompressionBombWarning,
         ) as exc:
-            raise _bad_upload("File cannot be safely decoded as an image.") from exc
+            raise _bad_upload("Không thể giải mã tệp thành ảnh một cách an toàn.") from exc
         stored_filename = f"{uuid4()}.{extension}"
         relative_path = relative_dir / stored_filename
         absolute_path = storage_root / relative_path
@@ -168,5 +168,5 @@ def resolve_storage_path(relative_path: str) -> Path:
     root = get_settings().storage_root.resolve()
     target = (root / relative_path).resolve()
     if not target.is_relative_to(root) or not target.is_file():
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Image not found.")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy ảnh.")
     return target

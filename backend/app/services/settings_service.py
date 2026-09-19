@@ -44,18 +44,20 @@ def list_settings(db: Session) -> list[SettingRow]:
 def _validated_value(key: str, value: Any) -> int | float:
     if key not in RULES:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=f"Unknown setting: {key}"
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"Cấu hình không xác định: {key}",
         )
     expected_type, minimum, maximum = RULES[key]
     if isinstance(value, bool) or not isinstance(value, int | float):
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=f"Invalid value for {key}"
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"Giá trị không hợp lệ cho {key}",
         )
     converted = expected_type(value)
     if not minimum <= converted <= maximum:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=f"Value out of range for {key}",
+            detail=f"Giá trị nằm ngoài phạm vi cho phép của {key}",
         )
     return converted
 
@@ -72,14 +74,15 @@ def update_settings(
         if current["confidence_review_threshold"] > current["confidence_ok_threshold"]:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail="Review threshold cannot exceed the OK threshold.",
+                detail="Ngưỡng cần kiểm duyệt không được lớn hơn ngưỡng đạt yêu cầu.",
             )
     changes: dict[str, dict[str, Any]] = {}
     for key, value in validated.items():
         record = db.get(SystemSetting, key)
         if record is None:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail=f"Setting not found: {key}"
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Không tìm thấy cấu hình: {key}",
             )
         changes[key] = {"old": record.value_json, "new": value}
         record.value_json = value

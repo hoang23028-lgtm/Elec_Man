@@ -15,8 +15,38 @@ const actions = [
   "CONFIRM_RESULT",
   "REJECT_RESULT",
   "EXPORT_EXCEL",
+  "CHANGE_SETTING",
+  "REGISTER_MODEL",
+  "ACTIVATE_MODEL",
   "LOGOUT",
 ];
+const actionLabels: Record<string, string> = {
+  LOGIN_SUCCESS: "Đăng nhập thành công",
+  LOGIN_FAILED: "Đăng nhập thất bại",
+  CREATE_BATCH: "Tạo lô dữ liệu",
+  UPLOAD_IMAGE: "Tải ảnh lên",
+  START_BATCH: "Bắt đầu xử lý lô",
+  CONFIRM_RESULT: "Xác nhận kết quả",
+  REJECT_RESULT: "Từ chối kết quả",
+  EXPORT_EXCEL: "Xuất tệp Excel",
+  CHANGE_SETTING: "Thay đổi cấu hình",
+  REGISTER_MODEL: "Đăng ký mô hình",
+  ACTIVATE_MODEL: "Kích hoạt mô hình",
+  LOGOUT: "Đăng xuất",
+};
+const targetLabels: Record<string, string> = {
+  user: "Người dùng",
+  batch: "Lô dữ liệu",
+  image: "Hình ảnh",
+  model: "Mô hình",
+  system_settings: "Cấu hình hệ thống",
+};
+
+function targetIdLabel(value: string | null): string {
+  if (!value) return "";
+  const bulkMatch = value.match(/^bulk:(\d+) settings$/);
+  return bulkMatch ? `Thay đổi hàng loạt: ${bulkMatch[1]} cấu hình` : value;
+}
 
 export function AuditHistory() {
   const [rows, setRows] = useState<AuditRow[]>([]);
@@ -34,7 +64,7 @@ export function AuditHistory() {
       setError(
         reason instanceof Error
           ? reason.message
-          : "Unable to load audit history.",
+          : "Không thể tải lịch sử kiểm toán.",
       );
     } finally {
       setLoading(false);
@@ -49,8 +79,8 @@ export function AuditHistory() {
     <section className="panel full-span" aria-labelledby="audit-title">
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Traceability</p>
-          <h2 id="audit-title">Audit history</h2>
+          <p className="eyebrow">Truy vết</p>
+          <h2 id="audit-title">Lịch sử kiểm toán</h2>
         </div>
         <button
           className="secondary"
@@ -58,11 +88,11 @@ export function AuditHistory() {
           onClick={() => void load()}
           disabled={loading}
         >
-          Refresh
+          Làm mới
         </button>
       </div>
       <div className="audit-filter">
-        <label htmlFor="audit-action">Action</label>
+        <label htmlFor="audit-action">Hành động</label>
         <select
           id="audit-action"
           value={action}
@@ -73,7 +103,7 @@ export function AuditHistory() {
         >
           {actions.map((item) => (
             <option key={item || "ALL"} value={item}>
-              {item || "All actions"}
+              {item ? (actionLabels[item] ?? item) : "Tất cả hành động"}
             </option>
           ))}
         </select>
@@ -85,33 +115,37 @@ export function AuditHistory() {
       )}
       {loading ? (
         <p className="muted" role="status">
-          Loading audit history…
+          Đang tải lịch sử kiểm toán…
         </p>
       ) : rows.length === 0 ? (
-        <p className="muted">No audit events match this filter.</p>
+        <p className="muted">Không có sự kiện nào phù hợp với bộ lọc.</p>
       ) : (
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>Time</th>
-                <th>Action</th>
-                <th>User</th>
-                <th>Target</th>
-                <th>IP address</th>
+                <th>Thời gian</th>
+                <th>Hành động</th>
+                <th>Người dùng</th>
+                <th>Đối tượng</th>
+                <th>Địa chỉ IP</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((row) => (
                 <tr key={row.id}>
-                  <td>{new Date(row.created_at).toLocaleString()}</td>
+                  <td>{new Date(row.created_at).toLocaleString("vi-VN")}</td>
                   <td>
-                    <span className="badge">{row.action}</span>
+                    <span className="badge">
+                      {actionLabels[row.action] ?? row.action}
+                    </span>
                   </td>
-                  <td>{row.username ?? "System"}</td>
+                  <td>{row.username ?? "Hệ thống"}</td>
                   <td>
-                    {row.target_type ?? "—"}
-                    <small>{row.target_id ?? ""}</small>
+                    {row.target_type
+                      ? (targetLabels[row.target_type] ?? row.target_type)
+                      : "—"}
+                    <small>{targetIdLabel(row.target_id)}</small>
                   </td>
                   <td>{row.ip_address ?? "—"}</td>
                 </tr>
@@ -120,23 +154,23 @@ export function AuditHistory() {
           </table>
         </div>
       )}
-      <nav className="pagination" aria-label="Audit history pages">
+      <nav className="pagination" aria-label="Phân trang lịch sử kiểm toán">
         <button
           className="secondary"
           type="button"
           onClick={() => setPage((current) => Math.max(0, current - 1))}
           disabled={page === 0 || loading}
         >
-          Previous
+          Trước
         </button>
-        <span>Page {page + 1}</span>
+        <span>Trang {page + 1}</span>
         <button
           className="secondary"
           type="button"
           onClick={() => setPage((current) => current + 1)}
           disabled={rows.length < pageSize || loading}
         >
-          Next
+          Sau
         </button>
       </nav>
     </section>

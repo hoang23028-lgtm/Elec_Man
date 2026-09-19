@@ -11,7 +11,7 @@ New-Item -ItemType Directory -Path $staging | Out-Null
 try {
     Copy-Item -LiteralPath $source -Destination (Join-Path $staging "model-file")
     docker run --rm -v "${ProjectName}_model_data:/models" -v "${staging}:/staging:ro" alpine:3.21 sh -c "mkdir -p \"/models/$(Split-Path $RelativeDestination -Parent)\" && cp /staging/model-file \"/models/$RelativeDestination\""
-    if ($LASTEXITCODE -ne 0) { throw "Model installation failed." }
+    if ($LASTEXITCODE -ne 0) { throw "Cài đặt mô hình thất bại." }
     (Get-FileHash -Algorithm SHA256 -LiteralPath $source).Hash.ToLowerInvariant()
 } finally {
     Remove-Item -LiteralPath $staging -Recurse -Force

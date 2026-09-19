@@ -1,5 +1,5 @@
-# Deployment foundation
+# Nền tảng triển khai
 
-Copy `.env.example` to `.env`; set a strong PostgreSQL password and update the password in `DATABASE_URL` to match. Start with `docker compose up --build`. Confirm the liveness and readiness endpoints through Nginx.
+Sao chép `.env.example` thành `.env`; đặt mật khẩu PostgreSQL mạnh và cập nhật mật khẩu trong `DATABASE_URL` cho khớp. Khởi động bằng `docker compose up --build`. Xác nhận các endpoint kiểm tra hoạt động và sẵn sàng thông qua Nginx.
 
-For production, terminate HTTPS with a trusted internal certificate and configure HSTS only after all access is HTTPS. Do not publish PostgreSQL ports. Persistent volumes retain database, storage, model, and log data.
+Trong production, kết thúc HTTPS bằng chứng chỉ nội bộ đáng tin cậy và chỉ cấu hình HSTS sau khi mọi truy cập đã dùng HTTPS. Không công khai cổng PostgreSQL. Các volume lâu dài giữ dữ liệu cơ sở dữ liệu, vùng lưu trữ, mô hình và nhật ký.

@@ -1,3 +1,3 @@
-# Testing
+# Kiểm thử
 
-Phase 1 includes a backend liveness test. Run it in a Python 3.12+ environment after installing backend development dependencies. Further tests are added incrementally; production AI models will not be required for unit tests.
+Dự án gồm kiểm thử trạng thái backend, dashboard công khai, cấu hình quản trị, xuất Excel và các quy tắc bảo mật liên quan. Chạy kiểm thử trong môi trường Python 3.12 trở lên sau khi cài dependency phát triển của backend bằng `pytest backend/tests`. Mô hình AI production không phải dependency của unit test.

@@ -12,23 +12,23 @@ from app.security.passwords import hash_password
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Create the initial system administrator.")
+    parser = argparse.ArgumentParser(description="Tạo tài khoản quản trị viên đầu tiên.")
     parser.add_argument("--username", required=True)
     args = parser.parse_args()
     password = get_settings().admin_initial_password
     if password is None or len(password) < 12:
-        print("ADMIN_INITIAL_PASSWORD must be set to at least 12 characters.", file=sys.stderr)
+        print("ADMIN_INITIAL_PASSWORD phải có ít nhất 12 ký tự.", file=sys.stderr)
         return 2
     if not args.username.isidentifier() or not 3 <= len(args.username) <= 64:
-        print("Username must contain 3-64 letters, digits, or underscores.", file=sys.stderr)
+        print("Tên đăng nhập phải gồm 3-64 chữ cái, chữ số hoặc dấu gạch dưới.", file=sys.stderr)
         return 2
     with SessionLocal() as db:
         if db.scalar(select(User.id).limit(1)) is not None:
-            print("Administrator already exists; refusing to create another.", file=sys.stderr)
+            print("Quản trị viên đã tồn tại; không tạo thêm tài khoản.", file=sys.stderr)
             return 1
         db.add(User(username=args.username, password_hash=hash_password(password), is_active=True))
         db.commit()
-    print("Administrator initialized. Remove ADMIN_INITIAL_PASSWORD from the environment now.")
+    print("Đã khởi tạo quản trị viên. Hãy xóa ADMIN_INITIAL_PASSWORD khỏi môi trường.")
     return 0
 
 

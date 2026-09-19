@@ -1,5 +1,5 @@
-# Architecture
+# Kiến trúc
 
-This is a simple single-server deployment. Nginx routes same-origin browser traffic to Next.js and FastAPI. FastAPI communicates with PostgreSQL and local volume-backed storage. A separate worker will claim PostgreSQL jobs in Phase 4. PostgreSQL is private to the Docker network; Nginx is the only published service.
+Đây là mô hình triển khai đơn giản trên một máy chủ. Nginx định tuyến lưu lượng trình duyệt cùng nguồn đến Next.js và FastAPI. FastAPI giao tiếp với PostgreSQL và vùng lưu trữ cục bộ gắn volume. Một tiến trình xử lý riêng nhận tác vụ từ PostgreSQL. PostgreSQL chỉ khả dụng trong mạng Docker; Nginx là dịch vụ duy nhất công khai cổng.
 
-AI dependencies and model loading are intentionally absent from Phase 1, preserving a narrow future worker/pipeline boundary.
+Các dependency AI và việc nạp mô hình được cô lập trong tiến trình xử lý nhằm duy trì ranh giới rõ ràng giữa API và quy trình AI.

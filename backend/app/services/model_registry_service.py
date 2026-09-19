@@ -41,13 +41,14 @@ def _verified_model_path(relative_path: str, claimed_sha256: str) -> Path:
     candidate = (root / relative_path).resolve()
     if not candidate.is_relative_to(root) or not candidate.is_file():
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Model file is unavailable."
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Tệp mô hình không khả dụng.",
         )
     digest = sha256(candidate.read_bytes()).hexdigest()
     if digest.casefold() != claimed_sha256.casefold():
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="Model checksum does not match.",
+            detail="Mã kiểm tra của mô hình không khớp.",
         )
     return candidate
 
@@ -82,7 +83,8 @@ def register_model(
     except IntegrityError as exc:
         db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail="Model name and version already exist."
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Tên và phiên bản mô hình đã tồn tại.",
         ) from exc
     db.refresh(record)
     return _row(record)
@@ -91,7 +93,7 @@ def register_model(
 def activate_model(db: Session, model_id: object, user: User, ip_address: str | None) -> ModelRow:
     record = db.get(ModelRecord, model_id)
     if record is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Model not found.")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy mô hình.")
     _verified_model_path(record.file_path, record.sha256)
     db.execute(
         update(ModelRecord)

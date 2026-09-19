@@ -14,7 +14,7 @@ async function request(
   });
   if (!response.ok) {
     const body: { detail?: string } = await response.json().catch(() => ({}));
-    throw new Error(body.detail ?? "Request failed.");
+    throw new Error(body.detail ?? "Yêu cầu thất bại.");
   }
   return response;
 }
@@ -59,6 +59,6 @@ export async function getBatches(offset = 0, limit = 8): Promise<Batch[]> {
     `${apiBaseUrl}/batches?offset=${offset}&limit=${limit}`,
     { credentials: "include" },
   );
-  if (!response.ok) throw new Error("Unable to load batches.");
+  if (!response.ok) throw new Error("Không thể tải danh sách lô.");
   return response.json() as Promise<Batch[]>;
 }

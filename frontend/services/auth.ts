@@ -11,7 +11,7 @@ export async function login(input: LoginInput): Promise<LoginResult> {
   });
   if (!response.ok) {
     const body: { detail?: string } = await response.json().catch(() => ({}));
-    throw new Error(body.detail ?? "Unable to sign in.");
+    throw new Error(body.detail ?? "Không thể đăng nhập.");
   }
   return response.json() as Promise<LoginResult>;
 }
@@ -22,5 +22,5 @@ export async function logout(csrfToken: string): Promise<void> {
     credentials: "include",
     headers: { "X-CSRF-Token": csrfToken },
   });
-  if (!response.ok) throw new Error("Unable to sign out.");
+  if (!response.ok) throw new Error("Không thể đăng xuất.");
 }

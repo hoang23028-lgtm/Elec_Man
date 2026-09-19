@@ -20,7 +20,8 @@ def get_audit_logs(
 ) -> list[AuditRow]:
     if offset < 0 or not 1 <= limit <= 100:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Invalid pagination values."
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Giá trị phân trang không hợp lệ.",
         )
     normalized_action = action.strip().upper()[:64] if action else None
     return list_audit_logs(db, offset, limit, normalized_action)

@@ -14,7 +14,9 @@ export function DashboardSummary({ csrfToken }: { csrfToken?: string }) {
       setData(await getDashboard());
     } catch (reason) {
       setError(
-        reason instanceof Error ? reason.message : "Unable to load dashboard.",
+        reason instanceof Error
+          ? reason.message
+          : "Không thể tải bảng điều khiển.",
       );
     }
   }
@@ -33,9 +35,7 @@ export function DashboardSummary({ csrfToken }: { csrfToken?: string }) {
       window.location.assign(await exportConfirmed(csrfToken));
     } catch (reason) {
       setError(
-        reason instanceof Error
-          ? reason.message
-          : "Unable to create Excel export.",
+        reason instanceof Error ? reason.message : "Không thể tạo tệp Excel.",
       );
     } finally {
       setExporting(false);
@@ -45,11 +45,11 @@ export function DashboardSummary({ csrfToken }: { csrfToken?: string }) {
     <section className="panel">
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Dashboard</p>
-          <h2>System overview</h2>
+          <p className="eyebrow">Bảng điều khiển</p>
+          <h2>Tổng quan hệ thống</h2>
         </div>
         <button className="secondary" type="button" onClick={() => void load()}>
-          Refresh
+          Làm mới
         </button>
       </div>
       {error && (
@@ -60,19 +60,19 @@ export function DashboardSummary({ csrfToken }: { csrfToken?: string }) {
       <div className="metrics">
         <div>
           <strong>{data?.batches ?? "—"}</strong>
-          <span>Batches</span>
+          <span>Lô dữ liệu</span>
         </div>
         <div>
           <strong>{data?.images ?? "—"}</strong>
-          <span>Images</span>
+          <span>Hình ảnh</span>
         </div>
         <div>
           <strong>{data?.jobs.COMPLETED ?? "—"}</strong>
-          <span>Completed jobs</span>
+          <span>Tác vụ hoàn tất</span>
         </div>
         <div>
           <strong>{data?.jobs.FAILED ?? "—"}</strong>
-          <span>Failed jobs</span>
+          <span>Tác vụ thất bại</span>
         </div>
       </div>
       {csrfToken ? (
@@ -81,12 +81,14 @@ export function DashboardSummary({ csrfToken }: { csrfToken?: string }) {
           onClick={() => void download()}
           disabled={exporting}
         >
-          {exporting ? "Preparing Excel…" : "Export confirmed results to Excel"}
+          {exporting
+            ? "Đang chuẩn bị tệp Excel…"
+            : "Xuất kết quả đã xác nhận ra Excel"}
         </button>
       ) : (
         <p className="read-only-note">
-          Public view · Sign in as an administrator to export confirmed data or
-          access operational records.
+          Chế độ công khai · Đăng nhập quản trị để xuất dữ liệu đã xác nhận hoặc
+          truy cập hồ sơ vận hành.
         </p>
       )}
     </section>

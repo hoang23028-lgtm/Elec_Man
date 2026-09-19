@@ -1,3 +1,3 @@
-# Review workflow
+# Quy trình kiểm duyệt
 
-AI output is immutable in `ai_results`. A reviewer writes final values only to `meter_readings`; every changed field becomes a `manual_corrections` row and each confirmation/rejection is audited. Corrected values never overwrite AI values.
+Đầu ra AI là bất biến trong `ai_results`. Người kiểm duyệt chỉ ghi giá trị cuối cùng vào `meter_readings`; mỗi trường bị thay đổi tạo một bản ghi `manual_corrections` và mọi thao tác xác nhận/từ chối đều được kiểm toán. Giá trị đã sửa không bao giờ ghi đè giá trị AI.

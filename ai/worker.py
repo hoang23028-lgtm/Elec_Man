@@ -76,7 +76,7 @@ def main() -> None:
 
             job_id, image_id, image_path = job_info
             if not image_path.is_file():
-                raise FileNotFoundError("Image file is unavailable.")
+                raise FileNotFoundError("Tệp hình ảnh không khả dụng.")
             result = processor.process(image_path)
             with SessionLocal() as db:
                 store_immutable_ai_result(db, image_id, result)

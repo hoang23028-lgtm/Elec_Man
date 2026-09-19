@@ -28,7 +28,7 @@ class DevelopmentPipeline:
         started = perf_counter()
         source = cv2.imread(str(image_path), cv2.IMREAD_COLOR)
         if source is None:
-            raise ValueError("OpenCV could not decode the image.")
+            raise ValueError("OpenCV không thể giải mã hình ảnh.")
         quality = assess_image_quality(source)
         prepared = prepare_for_detection(source)
         detection = self.detector.detect(prepared)

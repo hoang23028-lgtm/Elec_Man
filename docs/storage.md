@@ -1,5 +1,5 @@
-# Image storage and uploads
+# Lưu trữ và tải ảnh
 
-Images are stored as server-generated UUID filenames below `STORAGE_ROOT`; the original filename is metadata only. The storage volume is not web-served. Preview access always goes through an authenticated API endpoint.
+Ảnh được lưu bằng tên UUID do máy chủ tạo bên dưới `STORAGE_ROOT`; tên tệp gốc chỉ là metadata. Volume lưu trữ không được phục vụ trực tiếp qua web. Việc xem trước luôn đi qua endpoint API đã xác thực.
 
-Each upload is one controlled HTTP request. The backend checks extension, supplied MIME type, file signature, safe Pillow decoding, decoded format, dimensions, pixel count, and configured size. It calculates SHA-256 while streaming to disk and rejects exact duplicates in the same batch. Thumbnails are generated separately; originals are never modified.
+Mỗi lần tải lên là một yêu cầu HTTP được kiểm soát. Backend kiểm tra phần mở rộng, MIME do trình duyệt cung cấp, chữ ký tệp, khả năng giải mã an toàn bằng Pillow, định dạng sau giải mã, kích thước, số điểm ảnh và dung lượng đã cấu hình. Hệ thống tính SHA-256 trong lúc truyền xuống đĩa và từ chối ảnh trùng hoàn toàn trong cùng lô. Ảnh thu nhỏ được tạo riêng; ảnh gốc không bao giờ bị chỉnh sửa.

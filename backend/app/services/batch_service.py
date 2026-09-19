@@ -19,7 +19,8 @@ def create_batch(
     folder_name = original_folder_name.strip().replace("\\", "/").split("/")[-1][:255]
     if not folder_name or folder_name in {".", ".."}:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Invalid folder name."
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Tên thư mục không hợp lệ.",
         )
     identifier = uuid4()
     code = f"BATCH-{datetime.now(UTC):%Y%m%d}-{identifier.hex[:6].upper()}"
@@ -51,7 +52,9 @@ def save_uploaded_image(
     batch = db.get(Batch, batch_id)
     if batch is None:
         delete_stored_upload(upload)
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Batch not found.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy lô dữ liệu."
+        )
     image = ImageRecord(
         batch_id=batch_id,
         original_filename=upload.original_filename,
@@ -73,7 +76,8 @@ def save_uploaded_image(
         db.rollback()
         delete_stored_upload(upload)
         raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail="Batch no longer accepts uploads."
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Lô dữ liệu này không còn nhận tệp tải lên.",
         )
     db.add(image)
     db.add(
@@ -93,7 +97,8 @@ def save_uploaded_image(
         db.rollback()
         delete_stored_upload(upload)
         raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail="Exact duplicate image in this batch."
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Ảnh này đã tồn tại trong lô dữ liệu.",
         ) from exc
     except Exception:
         db.rollback()

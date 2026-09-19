@@ -41,7 +41,7 @@ export type Evaluation = {
 async function checked(response: Response): Promise<Response> {
   if (response.ok) return response;
   const body: { detail?: string } = await response.json().catch(() => ({}));
-  throw new Error(body.detail ?? "Administration request failed.");
+  throw new Error(body.detail ?? "Yêu cầu quản trị thất bại.");
 }
 
 export async function getSettings(): Promise<Setting[]> {

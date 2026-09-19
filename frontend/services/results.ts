@@ -25,7 +25,7 @@ export async function getResults(query: ResultQuery = {}): Promise<Result[]> {
   if (query.search) params.set("search", query.search);
   const suffix = params.size ? `?${params.toString()}` : "";
   const r = await fetch(`${api}/results${suffix}`, { credentials: "include" });
-  if (!r.ok) throw new Error("Unable to load results.");
+  if (!r.ok) throw new Error("Không thể tải kết quả.");
   return r.json();
 }
 export async function reviewResult(
@@ -47,6 +47,6 @@ export async function reviewResult(
   });
   if (!r.ok) {
     const b: { detail?: string } = await r.json().catch(() => ({}));
-    throw new Error(b.detail ?? "Review failed.");
+    throw new Error(b.detail ?? "Kiểm duyệt thất bại.");
   }
 }

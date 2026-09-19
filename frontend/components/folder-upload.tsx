@@ -42,9 +42,7 @@ export function FolderUpload({ csrfToken }: Props) {
     setBatchId(null);
     setProgress({ total: valid.length, uploaded: 0, failed: 0 });
     setError(
-      valid.length
-        ? null
-        : "Select a folder containing JPEG, PNG, or WEBP images.",
+      valid.length ? null : "Hãy chọn thư mục chứa ảnh JPEG, PNG hoặc WEBP.",
     );
     setProcessingStatus(null);
   }
@@ -91,14 +89,14 @@ export function FolderUpload({ csrfToken }: Props) {
       if (!failures.length) {
         const queued = await startBatch(batch.id, csrfToken);
         setProcessingStatus(
-          `${queued.batch_code} is queued for AI OCR processing.`,
+          `${queued.batch_code} đã được đưa vào hàng đợi xử lý OCR bằng AI.`,
         );
         setFiles([]);
         if (inputRef.current) inputRef.current.value = "";
       }
     } catch (reason) {
       setError(
-        reason instanceof Error ? reason.message : "Unable to create batch.",
+        reason instanceof Error ? reason.message : "Không thể tạo lô dữ liệu.",
       );
     } finally {
       setUploading(false);
@@ -115,7 +113,7 @@ export function FolderUpload({ csrfToken }: Props) {
     if (!failures.length) {
       const queued = await startBatch(batchId, csrfToken);
       setProcessingStatus(
-        `${queued.batch_code} is queued for AI OCR processing.`,
+        `${queued.batch_code} đã được đưa vào hàng đợi xử lý OCR bằng AI.`,
       );
     }
     setUploading(false);
@@ -127,13 +125,13 @@ export function FolderUpload({ csrfToken }: Props) {
     try {
       const batch = await startBatch(batchId, csrfToken);
       setProcessingStatus(
-        `${batch.batch_code} is queued for AI OCR processing.`,
+        `${batch.batch_code} đã được đưa vào hàng đợi xử lý OCR bằng AI.`,
       );
     } catch (reason) {
       setError(
         reason instanceof Error
           ? reason.message
-          : "Unable to queue this batch.",
+          : "Không thể đưa lô này vào hàng đợi.",
       );
     }
   }
@@ -142,14 +140,14 @@ export function FolderUpload({ csrfToken }: Props) {
     <section className="panel" aria-labelledby="upload-title">
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Step 1</p>
-          <h2 id="upload-title">Upload meter images</h2>
+          <p className="eyebrow">Bước 1</p>
+          <h2 id="upload-title">Tải ảnh đồng hồ điện</h2>
         </div>
-        <span className="badge active">OCR baseline</span>
+        <span className="badge active">OCR cơ sở</span>
       </div>
       <p className="muted">
-        Choose one folder. Valid images are uploaded with five concurrent
-        requests and queued automatically.
+        Chọn một thư mục. Các ảnh hợp lệ sẽ được tải lên qua năm luồng đồng thời
+        và tự động đưa vào hàng đợi.
       </p>
       <input
         ref={(element) => {
@@ -159,13 +157,13 @@ export function FolderUpload({ csrfToken }: Props) {
         type="file"
         multiple
         onChange={(event) => selectFiles(event.target.files)}
-        aria-label="Select image folder"
+        aria-label="Chọn thư mục ảnh"
       />
       <div className="progress-block" aria-live="polite">
         <div
           className="progress-track"
           role="progressbar"
-          aria-label="Upload progress"
+          aria-label="Tiến độ tải lên"
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={percentage}
@@ -173,8 +171,8 @@ export function FolderUpload({ csrfToken }: Props) {
           <span style={{ width: `${percentage}%` }} />
         </div>
         <p className="progress">
-          {progress.total} selected · {progress.uploaded} uploaded ·{" "}
-          {progress.failed} failed · {remaining} remaining · {percentage}%
+          Đã chọn {progress.total} · Đã tải {progress.uploaded} · Lỗi{" "}
+          {progress.failed} · Còn lại {remaining} · {percentage}%
         </p>
       </div>
       <button
@@ -182,7 +180,7 @@ export function FolderUpload({ csrfToken }: Props) {
         onClick={startUpload}
         disabled={uploading || !files.length}
       >
-        {uploading ? "Uploading…" : "Upload and process"}
+        {uploading ? "Đang tải lên…" : "Tải lên và xử lý"}
       </button>
       {failedFiles.length > 0 && (
         <button
@@ -191,7 +189,7 @@ export function FolderUpload({ csrfToken }: Props) {
           onClick={retryFailed}
           disabled={uploading}
         >
-          Retry {failedFiles.length} failed uploads
+          Thử tải lại {failedFiles.length} tệp bị lỗi
         </button>
       )}
       {batchId &&
@@ -199,7 +197,7 @@ export function FolderUpload({ csrfToken }: Props) {
         !progress.failed &&
         !processingStatus && (
           <button type="button" onClick={queueForProcessing}>
-            Queue processing
+            Đưa vào hàng đợi xử lý
           </button>
         )}
       {processingStatus && (

@@ -67,13 +67,13 @@ def review_result(
     image = db.get(ImageRecord, image_id)
     ai_result = db.scalar(select(AiResult).where(AiResult.image_id == image_id))
     if image is None or ai_result is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Result not found.")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy kết quả.")
     if payload.action == "CONFIRM" and (
         not payload.final_customer_id or not payload.final_meter_reading
     ):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="Confirmed results require both final values.",
+            detail="Kết quả xác nhận phải có đủ hai giá trị cuối cùng.",
         )
 
     reading = db.scalar(select(MeterReading).where(MeterReading.image_id == image_id))

@@ -1,11 +1,11 @@
-# Training data
+# Dữ liệu huấn luyện
 
-`training/annotations.jsonl` is the versioned label manifest for approved training samples. Images are not committed: meter photos may contain personal or operational data and must remain in protected object storage.
+`training/annotations.jsonl` là tệp nhãn có quản lý phiên bản dành cho các mẫu huấn luyện đã phê duyệt. Ảnh không được commit vì ảnh đồng hồ có thể chứa dữ liệu cá nhân hoặc vận hành và phải nằm trong vùng lưu trữ được bảo vệ.
 
-Each row requires a SHA-256 checksum, a verified customer identifier, and the full meter reading. The seed record currently represents `ảnh.jpg` with `KH003` and `05068.4 kWh`; its red final wheel is the decimal-tenths digit.
+Mỗi dòng yêu cầu checksum SHA-256, mã khách hàng đã xác minh và toàn bộ chỉ số điện. Bản ghi mẫu hiện đại diện cho `ảnh.jpg` với `KH003` và `05068.4 kWh`; bánh số cuối màu đỏ là chữ số hàng phần mười.
 
-One image is a labelled seed and evaluation fixture, not a sufficient training set. Before activating a real recognition model, collect a split dataset with a representative range of meter types, lighting, blur, viewpoints, dirt/occlusion, and digit combinations. Keep a held-out test split and publish accuracy/error metrics for customer ID and reading separately.
+Một ảnh chỉ là mẫu gán nhãn ban đầu và dữ liệu kiểm thử thủ công, không phải tập huấn luyện đủ lớn. Trước khi kích hoạt mô hình nhận dạng thực tế, hãy thu thập tập dữ liệu được chia tách với nhiều loại đồng hồ, ánh sáng, độ mờ, góc chụp, bụi bẩn/che khuất và tổ hợp chữ số đại diện. Giữ riêng tập kiểm thử độc lập và công bố chỉ số chính xác/lỗi cho mã khách hàng và chỉ số điện.
 
-The deployed `meter-ocr-baseline-v1` is a pretrained OCR bootstrap, not a model fitted on the seed image. It allows operators to upload images immediately, correct OCR suggestions, and create trustworthy labels. Do not describe a successful read of a seed image as training accuracy.
+`meter-ocr-baseline-v1` đang triển khai là bộ OCR dựng sẵn, không phải mô hình được huấn luyện bằng ảnh mẫu. Nó cho phép người vận hành tải ảnh ngay, sửa kết quả OCR và tạo nhãn đáng tin cậy. Không mô tả một lần đọc đúng ảnh mẫu là độ chính xác huấn luyện.
 
-Manual confirmations recorded by the application are the operational source of future labels. Train only from labels that have been reviewed by an authorised person, and keep the model version and evaluation report with every deployed model bundle.
+Các xác nhận thủ công do ứng dụng ghi lại là nguồn nhãn vận hành trong tương lai. Chỉ huấn luyện từ nhãn đã được người có thẩm quyền kiểm duyệt, đồng thời lưu phiên bản mô hình và báo cáo đánh giá cùng mọi gói mô hình triển khai.

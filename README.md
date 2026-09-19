@@ -1,55 +1,55 @@
-# Electricity Meter AI Management System
+# Hệ thống AI quản lý đồng hồ điện
 
-Internal, single-administrator web system for secure batch processing and human review of electricity-meter images.
+Hệ thống web nội bộ dành cho một quản trị viên, hỗ trợ xử lý ảnh đồng hồ điện theo lô một cách an toàn và kiểm duyệt kết quả thủ công.
 
-## Current status
+## Trạng thái hiện tại
 
-The runnable prototype includes the Next.js frontend, FastAPI backend, PostgreSQL, Alembic migrations, authenticated local image storage, a PostgreSQL job queue, separate OCR worker, review workflow, dashboard, Excel export, Nginx proxy, structured logs, and health checks.
+Nguyên mẫu có thể chạy gồm giao diện Next.js, backend FastAPI, PostgreSQL, migration Alembic, lưu trữ ảnh cục bộ có xác thực, hàng đợi tác vụ PostgreSQL, tiến trình OCR riêng, quy trình kiểm duyệt, bảng điều khiển, xuất Excel, proxy Nginx, nhật ký có cấu trúc và kiểm tra trạng thái dịch vụ.
 
-## Start
+## Khởi động
 
-Copy `.env.example` to `.env`, replace `POSTGRES_PASSWORD` and the password in `DATABASE_URL` with the same strong secret, then run:
+Sao chép `.env.example` thành `.env`, thay `POSTGRES_PASSWORD` và mật khẩu trong `DATABASE_URL` bằng cùng một mật khẩu mạnh, sau đó chạy:
 
 ```powershell
 docker compose up --build
 ```
 
-Open `http://localhost/`. Backend liveness is `/api/v1/health/live`; readiness is `/api/v1/health/ready`.
+Mở `http://localhost/`. Endpoint kiểm tra hoạt động của backend là `/api/v1/health/live`; endpoint kiểm tra sẵn sàng là `/api/v1/health/ready`.
 
-## Migrations and testing
+## Migration và kiểm thử
 
-Alembic wiring is ready; schema migrations begin in Phase 2. Run migrations with `docker compose exec backend alembic upgrade head`. Python tests require a Python 3.12+ environment with backend development dependencies, then run `pytest backend/tests`.
+Chạy migration bằng `docker compose exec backend alembic upgrade head`. Kiểm thử Python yêu cầu Python 3.12 trở lên cùng các dependency phát triển của backend, sau đó chạy `pytest backend/tests`.
 
-## Administrator initialization
+## Khởi tạo quản trị viên
 
-After applying migrations, set `ADMIN_INITIAL_PASSWORD` temporarily and run `python -m app.scripts.init_admin --username <username>` inside the backend container. See [security documentation](docs/security.md). There is intentionally no registration endpoint or default administrator password.
+Sau khi áp dụng migration, đặt tạm thời `ADMIN_INITIAL_PASSWORD` rồi chạy `python -m app.scripts.init_admin --username <ten_dang_nhap>` trong container backend. Xem [tài liệu bảo mật](docs/security.md). Hệ thống chủ động không cung cấp endpoint đăng ký hoặc mật khẩu quản trị mặc định.
 
-## Uploads
+## Tải ảnh
 
-Phase 3 provides authenticated, one-image-per-request batch uploads. Originals are stored locally with UUID names and are available only through authenticated previews. See [storage documentation](docs/storage.md).
+Hệ thống hỗ trợ tải ảnh theo lô đã xác thực, mỗi yêu cầu tải một ảnh. Ảnh gốc được lưu cục bộ bằng tên UUID và chỉ có thể xem qua endpoint đã xác thực. Xem [tài liệu lưu trữ](docs/storage.md).
 
-## Processing jobs
+## Tác vụ xử lý
 
-The PostgreSQL-backed worker queue safely processes images outside HTTP requests. See [job documentation](docs/jobs.md).
+Hàng đợi dựa trên PostgreSQL xử lý ảnh bên ngoài yêu cầu HTTP. Xem [tài liệu tác vụ](docs/jobs.md).
 
-## AI pipeline
+## Quy trình AI
 
-The current development model is `meter-ocr-baseline-v1`, built from OpenCV, pretrained RapidOCR ONNX models, and a Tesseract fallback. It always requires human review and must not be described as a production-trained model; see [AI pipeline documentation](docs/ai-pipeline.md).
+Mô hình phát triển hiện tại là `meter-ocr-baseline-v1`, sử dụng OpenCV, mô hình ONNX dựng sẵn của RapidOCR và Tesseract làm phương án dự phòng. Mọi kết quả đều phải được kiểm duyệt thủ công và không được mô tả đây là mô hình sản xuất đã huấn luyện; xem [tài liệu quy trình AI](docs/ai-pipeline.md).
 
-## Training data
+## Dữ liệu huấn luyện
 
-Approved seed labels are recorded without source images in `training/annotations.jsonl`. The first labelled sample is documented in [training guidance](docs/training.md). A single labelled image is not enough to train or validate a real recognition model.
+Nhãn mẫu đã được phê duyệt được ghi trong `training/annotations.jsonl` mà không lưu ảnh nguồn. Mẫu được gán nhãn đầu tiên được mô tả trong [hướng dẫn huấn luyện](docs/training.md). Một ảnh đã gán nhãn không đủ để huấn luyện hoặc xác thực mô hình nhận dạng thực tế.
 
-## Review
+## Kiểm duyệt
 
-Phase 6 separates immutable AI output from reviewed final values and records every correction; see [review documentation](docs/review.md).
+Hệ thống tách biệt đầu ra AI bất biến với giá trị cuối cùng đã kiểm duyệt và ghi lại mọi chỉnh sửa; xem [tài liệu kiểm duyệt](docs/review.md).
 
-## Dashboard and export
+## Bảng điều khiển và xuất dữ liệu
 
-Phase 7 provides authenticated dashboard statistics and safe Excel export of confirmed final readings; see [export documentation](docs/export.md).
+Bảng điều khiển cung cấp số liệu tổng hợp công khai ở chế độ chỉ xem. Quản trị viên có thể xuất chỉ số cuối cùng đã xác nhận ra Excel; xem [tài liệu xuất dữ liệu](docs/export.md).
 
-## Administration and backup
+## Quản trị và sao lưu
 
-The dashboard includes audited system settings, a checksum-verified model registry, operational AI evaluation, and audit history. See [administration](docs/administration.md) and [backup/restore](docs/backup-restore.md).
+Hệ thống gồm cấu hình có kiểm toán, kho mô hình được xác minh checksum, đánh giá AI vận hành và lịch sử kiểm toán. Xem [tài liệu quản trị](docs/administration.md) và [sao lưu/khôi phục](docs/backup-restore.md).
 
-PostgreSQL is intentionally not published. Use an internal HTTPS endpoint in production and add HSTS only after TLS is verified. Docker Desktop must be running before building or starting the stack.
+PostgreSQL chủ động không mở cổng ra ngoài. Trong môi trường sản xuất, hãy dùng endpoint HTTPS nội bộ và chỉ bật HSTS sau khi TLS được xác minh. Docker Desktop phải đang chạy trước khi build hoặc khởi động hệ thống.

@@ -7,6 +7,17 @@ import type { Batch } from "@/types/batch";
 
 const activeStatuses = new Set(["UPLOADING", "QUEUED", "PROCESSING"]);
 const pageSize = 8;
+const statusLabels: Record<string, string> = {
+  CREATED: "Đã tạo",
+  UPLOADING: "Đang tải lên",
+  READY: "Sẵn sàng",
+  QUEUED: "Đang chờ xử lý",
+  PROCESSING: "Đang xử lý",
+  COMPLETED: "Hoàn tất",
+  PARTIAL_FAILED: "Hoàn tất một phần",
+  FAILED: "Thất bại",
+  CANCELLED: "Đã hủy",
+};
 
 export function BatchOverview() {
   const [batches, setBatches] = useState<Batch[]>([]);
@@ -21,7 +32,9 @@ export function BatchOverview() {
       setError(null);
     } catch (reason) {
       setError(
-        reason instanceof Error ? reason.message : "Unable to load batches.",
+        reason instanceof Error
+          ? reason.message
+          : "Không thể tải danh sách lô.",
       );
     } finally {
       setLoading(false);
@@ -43,11 +56,11 @@ export function BatchOverview() {
     <section className="panel" aria-labelledby="batch-title">
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Operations</p>
-          <h2 id="batch-title">Batches</h2>
+          <p className="eyebrow">Vận hành</p>
+          <h2 id="batch-title">Các lô dữ liệu</h2>
         </div>
         <span className={active ? "badge active" : "badge"}>
-          {active ? `${active} in progress` : "All caught up"}
+          {active ? `${active} lô đang xử lý` : "Đã xử lý xong"}
         </span>
       </div>
       {error && (
@@ -57,19 +70,19 @@ export function BatchOverview() {
       )}
       {loading ? (
         <p className="muted" role="status">
-          Loading batches…
+          Đang tải danh sách lô…
         </p>
       ) : batches.length === 0 ? (
-        <p className="muted">No batches on this page.</p>
+        <p className="muted">Trang này chưa có lô dữ liệu nào.</p>
       ) : (
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>Batch</th>
-                <th>Status</th>
-                <th>Progress</th>
-                <th>Review</th>
+                <th>Lô dữ liệu</th>
+                <th>Trạng thái</th>
+                <th>Tiến độ</th>
+                <th>Kiểm duyệt</th>
               </tr>
             </thead>
             <tbody>
@@ -80,13 +93,15 @@ export function BatchOverview() {
                     <small>{batch.batch_code}</small>
                   </td>
                   <td>
-                    <span className="badge">{batch.status}</span>
+                    <span className="badge">
+                      {statusLabels[batch.status] ?? batch.status}
+                    </span>
                   </td>
                   <td>
-                    {batch.processed_images}/{batch.total_images} processed
+                    Đã xử lý {batch.processed_images}/{batch.total_images}
                   </td>
                   <td>
-                    {batch.review_count} review · {batch.failed_count} failed
+                    {batch.review_count} cần duyệt · {batch.failed_count} lỗi
                   </td>
                 </tr>
               ))}
@@ -94,23 +109,23 @@ export function BatchOverview() {
           </table>
         </div>
       )}
-      <nav className="pagination" aria-label="Batch pages">
+      <nav className="pagination" aria-label="Phân trang danh sách lô">
         <button
           className="secondary"
           type="button"
           onClick={() => setPage((current) => Math.max(0, current - 1))}
           disabled={page === 0 || loading}
         >
-          Previous
+          Trước
         </button>
-        <span>Page {page + 1}</span>
+        <span>Trang {page + 1}</span>
         <button
           className="secondary"
           type="button"
           onClick={() => setPage((current) => current + 1)}
           disabled={batches.length < pageSize || loading}
         >
-          Next
+          Sau
         </button>
       </nav>
     </section>

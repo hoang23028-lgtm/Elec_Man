@@ -10,12 +10,26 @@ import {
 } from "@/services/administration";
 
 const labels: Record<string, string> = {
-  confidence_ok_threshold: "OK confidence threshold",
-  confidence_review_threshold: "Review confidence threshold",
-  max_upload_size_mb: "Maximum upload size (MB)",
-  max_retry_count: "Maximum retry count",
-  data_retention_days: "Data retention planning (days)",
-  worker_poll_interval_seconds: "Worker polling interval (seconds)",
+  confidence_ok_threshold: "Ngưỡng tin cậy đạt yêu cầu",
+  confidence_review_threshold: "Ngưỡng tin cậy cần kiểm duyệt",
+  max_upload_size_mb: "Dung lượng tải lên tối đa (MB)",
+  max_retry_count: "Số lần thử lại tối đa",
+  data_retention_days: "Thời gian lưu trữ dữ liệu (ngày)",
+  worker_poll_interval_seconds: "Chu kỳ kiểm tra của tiến trình xử lý (giây)",
+};
+const descriptions: Record<string, string> = {
+  confidence_ok_threshold:
+    "Độ tin cậy tối thiểu để mô hình sản xuất đề xuất tự động chấp nhận.",
+  confidence_review_threshold:
+    "Ngưỡng độ tin cậy dùng để ưu tiên kết quả cần kiểm duyệt thủ công.",
+  max_upload_size_mb:
+    "Giới hạn dung lượng tải lên trong vận hành; cấu hình môi trường có hiệu lực sau khi khởi động lại.",
+  max_retry_count:
+    "Số lần xử lý lại tối đa áp dụng cho tiến trình xử lý mới triển khai.",
+  data_retention_days:
+    "Thời gian dự kiến lưu trữ dữ liệu; hệ thống chưa bật xóa tự động.",
+  worker_poll_interval_seconds:
+    "Chu kỳ kiểm tra mong muốn, được áp dụng sau khi khởi động lại tiến trình xử lý.",
 };
 
 export function SystemSettings({ csrfToken }: { csrfToken: string }) {
@@ -35,7 +49,7 @@ export function SystemSettings({ csrfToken }: { csrfToken: string }) {
       setError(null);
     } catch (reason) {
       setError(
-        reason instanceof Error ? reason.message : "Unable to load settings.",
+        reason instanceof Error ? reason.message : "Không thể tải cấu hình.",
       );
     }
   }
@@ -53,17 +67,17 @@ export function SystemSettings({ csrfToken }: { csrfToken: string }) {
       Object.entries(drafts).map(([key, value]) => [key, Number(value)]),
     );
     if (Object.values(values).some((value) => !Number.isFinite(value))) {
-      setError("Every setting must be a valid number.");
+      setError("Mọi cấu hình phải là một số hợp lệ.");
       setSaving(false);
       return;
     }
     try {
       const rows = await saveSettings(values, csrfToken);
       setSettings(rows);
-      setNotice("Settings saved and recorded in the audit history.");
+      setNotice("Cấu hình đã được lưu và ghi vào lịch sử kiểm toán.");
     } catch (reason) {
       setError(
-        reason instanceof Error ? reason.message : "Unable to save settings.",
+        reason instanceof Error ? reason.message : "Không thể lưu cấu hình.",
       );
     } finally {
       setSaving(false);
@@ -74,14 +88,14 @@ export function SystemSettings({ csrfToken }: { csrfToken: string }) {
     <section className="panel full-span" aria-labelledby="settings-title">
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Administration</p>
-          <h2 id="settings-title">System settings</h2>
+          <p className="eyebrow">Quản trị</p>
+          <h2 id="settings-title">Cấu hình hệ thống</h2>
         </div>
-        <span className="badge">Audited changes</span>
+        <span className="badge">Mọi thay đổi đều được ghi nhận</span>
       </div>
       <p className="muted">
-        Operational policy values are stored centrally. Deployment-level limits
-        take effect after the related service is restarted.
+        Các chính sách vận hành được lưu tập trung. Giới hạn ở cấp triển khai sẽ
+        có hiệu lực sau khi dịch vụ liên quan được khởi động lại.
       </p>
       {error && (
         <p className="error" role="alert">
@@ -95,7 +109,7 @@ export function SystemSettings({ csrfToken }: { csrfToken: string }) {
       )}
       {settings.length === 0 && !error ? (
         <p className="muted" role="status">
-          Loading settings…
+          Đang tải cấu hình…
         </p>
       ) : (
         <form className="settings-form" onSubmit={submit}>
@@ -124,12 +138,14 @@ export function SystemSettings({ csrfToken }: { csrfToken: string }) {
                   }
                   required
                 />
-                <small>{setting.description}</small>
+                <small>
+                  {descriptions[setting.key] ?? setting.description}
+                </small>
               </div>
             ))}
           </div>
           <button type="submit" disabled={saving}>
-            {saving ? "Saving settings…" : "Save settings"}
+            {saving ? "Đang lưu cấu hình…" : "Lưu cấu hình"}
           </button>
         </form>
       )}

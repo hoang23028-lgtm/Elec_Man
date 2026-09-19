@@ -26,7 +26,7 @@ def login(
 
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Too many login attempts. Try again later.",
+            detail="Có quá nhiều lần đăng nhập. Vui lòng thử lại sau.",
         )
     try:
         session_token, csrf_token, expires_at = authenticate(

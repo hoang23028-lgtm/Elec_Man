@@ -23,7 +23,8 @@ def get_results(
 ) -> list[ResultRow]:
     if offset < 0 or not 1 <= limit <= 100:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Invalid pagination values."
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Giá trị phân trang không hợp lệ.",
         )
     return list_results(db, offset, limit, image_status, search)
 

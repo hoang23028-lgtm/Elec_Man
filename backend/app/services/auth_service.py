@@ -33,7 +33,8 @@ def authenticate(
         _audit(db, "LOGIN_FAILED", ip_address)
         db.commit()
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid username or password."
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Tên đăng nhập hoặc mật khẩu không đúng.",
         )
     now = datetime.now(UTC)
     expires_at = now + timedelta(hours=get_settings().session_ttl_hours)

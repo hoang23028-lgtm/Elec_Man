@@ -40,7 +40,7 @@ services:
     restart: unless-stopped
     environment:
       APP_ENV: ${APP_ENV:-production}
-      APP_NAME: ${APP_NAME:-Electricity Meter AI Management System}
+      APP_NAME: ${APP_NAME:-Hệ thống AI quản lý đồng hồ điện}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost}
       DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}

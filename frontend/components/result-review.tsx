@@ -44,7 +44,7 @@ export function ResultReview({ csrfToken }: { csrfToken: string }) {
       setError(null);
     } catch (reason) {
       setError(
-        reason instanceof Error ? reason.message : "Unable to load results.",
+        reason instanceof Error ? reason.message : "Không thể tải kết quả.",
       );
     } finally {
       setLoading(false);
@@ -78,12 +78,12 @@ export function ResultReview({ csrfToken }: { csrfToken: string }) {
       action === "CONFIRM" &&
       (!draft.customer.trim() || !draft.reading.trim())
     ) {
-      setError("Enter both customer ID and meter reading before confirming.");
+      setError("Hãy nhập mã khách hàng và chỉ số điện trước khi xác nhận.");
       return;
     }
     if (
       action === "REJECT" &&
-      !window.confirm(`Reject the AI result for ${row.original_filename}?`)
+      !window.confirm(`Từ chối kết quả AI của ảnh ${row.original_filename}?`)
     )
       return;
     setSaving(row.image_id);
@@ -99,12 +99,14 @@ export function ResultReview({ csrfToken }: { csrfToken: string }) {
       );
       setNotice(
         action === "CONFIRM"
-          ? "Result confirmed and saved."
-          : "Result rejected and recorded.",
+          ? "Kết quả đã được xác nhận và lưu."
+          : "Kết quả đã bị từ chối và được ghi nhận.",
       );
       await load();
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Review failed.");
+      setError(
+        reason instanceof Error ? reason.message : "Kiểm duyệt thất bại.",
+      );
     } finally {
       setSaving(null);
     }
@@ -114,8 +116,8 @@ export function ResultReview({ csrfToken }: { csrfToken: string }) {
     <section className="panel" aria-labelledby="review-title">
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Human review</p>
-          <h2 id="review-title">Meter readings</h2>
+          <p className="eyebrow">Kiểm duyệt thủ công</p>
+          <h2 id="review-title">Chỉ số đồng hồ điện</h2>
         </div>
         <button
           className="secondary"
@@ -123,29 +125,29 @@ export function ResultReview({ csrfToken }: { csrfToken: string }) {
           onClick={() => void load(true)}
           disabled={loading}
         >
-          Refresh
+          Làm mới
         </button>
       </div>
       <p className="muted">
-        Search and filter AI suggestions, correct uncertain values, then confirm
-        or reject each result.
+        Tìm kiếm và lọc kết quả AI, sửa các giá trị chưa chắc chắn rồi xác nhận
+        hoặc từ chối từng kết quả.
       </p>
       <div className="table-tools">
         <form className="search-form" role="search" onSubmit={applySearch}>
-          <label htmlFor="result-search">Search results</label>
+          <label htmlFor="result-search">Tìm kiếm kết quả</label>
           <div className="inline-controls">
             <input
               id="result-search"
               type="search"
               value={searchInput}
               onChange={(event) => setSearchInput(event.target.value)}
-              placeholder="Filename, customer ID, reading"
+              placeholder="Tên tệp, mã khách hàng, chỉ số điện"
             />
-            <button type="submit">Search</button>
+            <button type="submit">Tìm kiếm</button>
           </div>
         </form>
         <div>
-          <label htmlFor="result-status">Image status</label>
+          <label htmlFor="result-status">Trạng thái ảnh</label>
           <select
             id="result-status"
             value={status}
@@ -154,10 +156,10 @@ export function ResultReview({ csrfToken }: { csrfToken: string }) {
               setStatus(event.target.value);
             }}
           >
-            <option value="">All statuses</option>
-            <option value="REVIEW_REQUIRED">Needs review</option>
-            <option value="CONFIRMED">Confirmed</option>
-            <option value="REJECTED">Rejected</option>
+            <option value="">Tất cả trạng thái</option>
+            <option value="REVIEW_REQUIRED">Cần kiểm duyệt</option>
+            <option value="CONFIRMED">Đã xác nhận</option>
+            <option value="REJECTED">Đã từ chối</option>
           </select>
         </div>
       </div>
@@ -173,21 +175,21 @@ export function ResultReview({ csrfToken }: { csrfToken: string }) {
       )}
       {loading ? (
         <p className="muted" role="status">
-          Loading meter readings…
+          Đang tải chỉ số đồng hồ…
         </p>
       ) : rows.length === 0 ? (
-        <p className="muted">No results match the current filters.</p>
+        <p className="muted">Không có kết quả phù hợp với bộ lọc hiện tại.</p>
       ) : (
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>Image</th>
-                <th>Customer ID</th>
-                <th>Meter reading</th>
-                <th>Confidence</th>
-                <th>State</th>
-                <th>Decision</th>
+                <th>Hình ảnh</th>
+                <th>Mã khách hàng</th>
+                <th>Chỉ số điện</th>
+                <th>Độ tin cậy</th>
+                <th>Trạng thái</th>
+                <th>Quyết định</th>
               </tr>
             </thead>
             <tbody>
@@ -199,10 +201,10 @@ export function ResultReview({ csrfToken }: { csrfToken: string }) {
                 const busy = saving === row.image_id;
                 const state =
                   row.review_status === "CONFIRMED"
-                    ? "Confirmed"
+                    ? "Đã xác nhận"
                     : row.review_status === "REJECTED"
-                      ? "Rejected"
-                      : "Needs review";
+                      ? "Đã từ chối"
+                      : "Cần kiểm duyệt";
                 const confidence = Math.round(row.final_confidence * 100);
                 return (
                   <tr key={row.image_id}>
@@ -214,11 +216,11 @@ export function ResultReview({ csrfToken }: { csrfToken: string }) {
                       >
                         {row.original_filename}
                       </a>
-                      <small>AI suggestion · click to preview</small>
+                      <small>Đề xuất của AI · nhấp để xem ảnh</small>
                     </td>
                     <td>
                       <input
-                        aria-label={`Customer ID for ${row.original_filename}`}
+                        aria-label={`Mã khách hàng của ${row.original_filename}`}
                         value={draft.customer}
                         onChange={(event) =>
                           updateDraft(
@@ -227,14 +229,14 @@ export function ResultReview({ csrfToken }: { csrfToken: string }) {
                             event.target.value,
                           )
                         }
-                        placeholder="e.g. KH004"
+                        placeholder="Ví dụ: KH004"
                         disabled={busy}
                       />
                     </td>
                     <td>
                       <input
                         inputMode="decimal"
-                        aria-label={`Meter reading for ${row.original_filename}`}
+                        aria-label={`Chỉ số điện của ${row.original_filename}`}
                         value={draft.reading}
                         onChange={(event) =>
                           updateDraft(
@@ -243,7 +245,7 @@ export function ResultReview({ csrfToken }: { csrfToken: string }) {
                             event.target.value,
                           )
                         }
-                        placeholder="e.g. 63751.3"
+                        placeholder="Ví dụ: 63751.3"
                         disabled={busy}
                       />
                     </td>
@@ -263,7 +265,7 @@ export function ResultReview({ csrfToken }: { csrfToken: string }) {
                         onClick={() => void act(row, "CONFIRM")}
                         disabled={busy}
                       >
-                        {busy ? "Saving…" : "Confirm"}
+                        {busy ? "Đang lưu…" : "Xác nhận"}
                       </button>
                       <button
                         className="danger"
@@ -271,7 +273,7 @@ export function ResultReview({ csrfToken }: { csrfToken: string }) {
                         onClick={() => void act(row, "REJECT")}
                         disabled={busy}
                       >
-                        {busy ? "Saving…" : "Reject"}
+                        {busy ? "Đang lưu…" : "Từ chối"}
                       </button>
                     </td>
                   </tr>
@@ -281,23 +283,23 @@ export function ResultReview({ csrfToken }: { csrfToken: string }) {
           </table>
         </div>
       )}
-      <nav className="pagination" aria-label="Meter reading pages">
+      <nav className="pagination" aria-label="Phân trang chỉ số đồng hồ">
         <button
           className="secondary"
           type="button"
           onClick={() => setPage((current) => Math.max(0, current - 1))}
           disabled={page === 0 || loading}
         >
-          Previous
+          Trước
         </button>
-        <span>Page {page + 1}</span>
+        <span>Trang {page + 1}</span>
         <button
           className="secondary"
           type="button"
           onClick={() => setPage((current) => current + 1)}
           disabled={rows.length < pageSize || loading}
         >
-          Next
+          Sau
         </button>
       </nav>
     </section>

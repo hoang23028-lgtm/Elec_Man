@@ -6,7 +6,7 @@ export type Dashboard = {
 };
 export async function getDashboard(): Promise<Dashboard> {
   const response = await fetch(`${api}/dashboard`, { credentials: "include" });
-  if (!response.ok) throw new Error("Unable to load dashboard.");
+  if (!response.ok) throw new Error("Không thể tải bảng điều khiển.");
   return response.json();
 }
 export async function exportConfirmed(csrfToken: string): Promise<string> {
@@ -15,7 +15,7 @@ export async function exportConfirmed(csrfToken: string): Promise<string> {
     credentials: "include",
     headers: { "X-CSRF-Token": csrfToken },
   });
-  if (!response.ok) throw new Error("Unable to create Excel export.");
+  if (!response.ok) throw new Error("Không thể tạo tệp Excel.");
   const body = (await response.json()) as { download_url: string };
   return body.download_url;
 }

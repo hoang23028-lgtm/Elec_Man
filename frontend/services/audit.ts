@@ -23,6 +23,6 @@ export async function getAuditLogs(
   const response = await fetch(`${api}/audit?${params.toString()}`, {
     credentials: "include",
   });
-  if (!response.ok) throw new Error("Unable to load audit history.");
+  if (!response.ok) throw new Error("Không thể tải lịch sử kiểm toán.");
   return response.json() as Promise<AuditRow[]>;
 }
