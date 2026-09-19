@@ -612,6 +612,12 @@ td {
   text-align: left;
   vertical-align: middle;
 }
+.row-number {
+  width: 3.75rem;
+  min-width: 3.75rem;
+  text-align: center;
+  white-space: nowrap;
+}
 tr:last-child td {
   border-bottom: 0;
 }

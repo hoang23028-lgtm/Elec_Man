@@ -52,9 +52,18 @@ def create_final_export(db: Session) -> tuple[str, Path]:
     workbook = Workbook(write_only=True)
     sheet = workbook.create_sheet("Chỉ số đã xác nhận")
     sheet.freeze_panes = "A2"
-    for column, width in {"A": 38, "B": 32, "C": 22, "D": 18, "E": 18, "F": 24}.items():
+    for column, width in {
+        "A": 8,
+        "B": 38,
+        "C": 32,
+        "D": 22,
+        "E": 18,
+        "F": 18,
+        "G": 24,
+    }.items():
         sheet.column_dimensions[column].width = width
     headers = [
+        "STT",
         "Mã hình ảnh",
         "Tên tệp gốc",
         "Mã khách hàng",
@@ -68,9 +77,10 @@ def create_final_export(db: Session) -> tuple[str, Path]:
         cell.fill = PatternFill("solid", fgColor="0B7285")
     sheet.append(header_cells)
     row_count = 1
-    for image, reading in db.execute(statement):
+    for sequence, (image, reading) in enumerate(db.execute(statement), start=1):
         sheet.append(
             [
+                sequence,
                 str(image.id),
                 _excel_text(image.original_filename),
                 _excel_text(reading.final_customer_id),
@@ -80,7 +90,7 @@ def create_final_export(db: Session) -> tuple[str, Path]:
             ]
         )
         row_count += 1
-    sheet.auto_filter.ref = f"A1:F{row_count}"
+    sheet.auto_filter.ref = f"A1:G{row_count}"
     root = get_settings().storage_root
     directory = root / "exports" / f"{datetime.now(UTC):%Y}" / f"{datetime.now(UTC):%m}"
     directory.mkdir(parents=True, exist_ok=True)

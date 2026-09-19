@@ -131,6 +131,7 @@ export function AuditHistory() {
           <table>
             <thead>
               <tr>
+                <th className="row-number">STT</th>
                 <th>Thời gian</th>
                 <th>Hành động</th>
                 <th>Người dùng</th>
@@ -139,8 +140,9 @@ export function AuditHistory() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => (
+              {rows.map((row, index) => (
                 <tr key={row.id}>
+                  <td className="row-number">{page * pageSize + index + 1}</td>
                   <td>{new Date(row.created_at).toLocaleString("vi-VN")}</td>
                   <td>
                     <span className="badge">

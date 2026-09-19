@@ -164,6 +164,7 @@ export function ModelOperations({ csrfToken }: { csrfToken: string }) {
           <table>
             <thead>
               <tr>
+                <th className="row-number">STT</th>
                 <th>Mô hình</th>
                 <th>Loại</th>
                 <th>Phiên bản</th>
@@ -172,8 +173,9 @@ export function ModelOperations({ csrfToken }: { csrfToken: string }) {
               </tr>
             </thead>
             <tbody>
-              {models.map((record) => (
+              {models.map((record, index) => (
                 <tr key={record.id}>
+                  <td className="row-number">{index + 1}</td>
                   <td>
                     {record.model_name}
                     <small>{record.file_path}</small>

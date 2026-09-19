@@ -222,6 +222,7 @@ export function DashboardSummary({ csrfToken }: { csrfToken?: string }) {
         <table>
           <thead>
             <tr>
+              <th className="row-number">STT</th>
               <th>Kỳ ghi nhận</th>
               <th>Mã khách hàng</th>
               <th>Chỉ số trước</th>
@@ -231,8 +232,9 @@ export function DashboardSummary({ csrfToken }: { csrfToken?: string }) {
             </tr>
           </thead>
           <tbody>
-            {billing?.records.map((record) => (
+            {billing?.records.map((record, index) => (
               <tr key={record.reading_id}>
+                <td className="row-number">{page * pageSize + index + 1}</td>
                 <td>{dateFormatter.format(new Date(record.reading_at))}</td>
                 <td><strong>{record.customer_id}</strong></td>
                 <td>{record.previous_reading ?? "—"}</td>
@@ -253,7 +255,7 @@ export function DashboardSummary({ csrfToken }: { csrfToken?: string }) {
             ))}
             {!loading && !billing?.records.length && (
               <tr>
-                <td colSpan={6} className="empty-state">
+                <td colSpan={7} className="empty-state">
                   Không có dữ liệu phù hợp với bộ lọc.
                 </td>
               </tr>

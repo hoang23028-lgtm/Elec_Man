@@ -171,6 +171,7 @@ export function BatchOverview() {
           <table>
             <thead>
               <tr>
+                <th className="row-number">STT</th>
                 <th>Lô dữ liệu</th>
                 <th>Trạng thái</th>
                 <th>Tiến độ</th>
@@ -180,11 +181,12 @@ export function BatchOverview() {
               </tr>
             </thead>
             <tbody>
-              {batches.map((batch) => (
+              {batches.map((batch, index) => (
                 <tr
                   key={batch.id}
                   className={selected?.id === batch.id ? "selected-row" : undefined}
                 >
+                  <td className="row-number">{page * batchPageSize + index + 1}</td>
                   <td>
                     <strong>{batch.original_folder_name}</strong>
                     <small>{batch.batch_code}</small>
@@ -272,6 +274,7 @@ export function BatchOverview() {
               <table>
                 <thead>
                   <tr>
+                    <th className="row-number">STT</th>
                     <th>Hình ảnh</th>
                     <th>Trạng thái</th>
                     <th>Mã khách hàng</th>
@@ -281,8 +284,11 @@ export function BatchOverview() {
                   </tr>
                 </thead>
                 <tbody>
-                  {images.map((image) => (
+                  {images.map((image, index) => (
                     <tr key={image.image_id}>
+                      <td className="row-number">
+                        {imagePage * imagePageSize + index + 1}
+                      </td>
                       <td>
                         <div className="batch-image-cell">
                           <a
