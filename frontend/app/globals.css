@@ -484,6 +484,115 @@ button.danger:hover:not(:disabled) {
   color: var(--color-muted);
   font-size: 0.75rem;
 }
+.dashboard-heading .muted {
+  max-width: 52rem;
+  margin: var(--space-md) 0 0;
+}
+.dashboard-divider {
+  height: 1px;
+  margin: var(--space-2xl) 0;
+  background: var(--color-border);
+}
+.dashboard-section-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-xl);
+}
+.dashboard-section-heading h3 {
+  margin: 0;
+  font-family: "Cascadia Code", Consolas, monospace;
+  font-size: 1rem;
+  letter-spacing: -0.03em;
+}
+.dashboard-section-heading.compact {
+  align-items: center;
+}
+.billing-metrics {
+  margin-bottom: var(--space-2xl);
+}
+.billing-metrics div {
+  border-left-color: #16a34a;
+}
+.billing-metrics strong {
+  font-size: clamp(1rem, 2vw, 1.35rem);
+}
+.dashboard-filters {
+  display: grid;
+  grid-template-columns: minmax(12rem, 2fr) minmax(8rem, 1fr) minmax(8rem, 1fr) auto;
+  align-items: end;
+  gap: var(--space-lg);
+  border: 1px solid var(--color-border);
+  border-radius: 0.625rem;
+  background: #f8fafc;
+  padding: var(--space-xl);
+}
+.dashboard-filters label {
+  min-width: 0;
+}
+.dashboard-filters input,
+.dashboard-filters select {
+  margin-top: var(--space-sm);
+}
+.dashboard-filter-actions {
+  display: flex;
+  gap: var(--space-md);
+}
+.dashboard-filter-actions button {
+  min-width: max-content;
+}
+.billing-trend {
+  margin-top: var(--space-2xl);
+  border: 1px solid var(--color-border);
+  border-radius: 0.625rem;
+  padding: var(--space-xl);
+}
+.trend-list {
+  display: grid;
+  gap: var(--space-lg);
+  margin-top: var(--space-xl);
+}
+.trend-row {
+  display: grid;
+  grid-template-columns: 8rem minmax(5rem, 1fr) 5rem;
+  align-items: center;
+  gap: var(--space-lg);
+  font-size: 0.8rem;
+}
+.trend-row > span {
+  color: var(--color-muted);
+}
+.trend-row strong {
+  text-align: right;
+}
+.trend-track {
+  height: 0.625rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--color-muted-surface);
+}
+.trend-track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--color-primary);
+}
+.billing-table-heading {
+  align-items: center;
+  margin-top: var(--space-2xl);
+}
+.dashboard-billing-table {
+  margin-top: var(--space-lg);
+}
+.dashboard-billing-table table {
+  min-width: 58rem;
+}
+.billing-disclaimer {
+  margin: var(--space-xl) 0 0;
+  color: var(--color-muted);
+  font-size: 0.78rem;
+  line-height: 1.55;
+}
 .table-wrap {
   overflow-x: auto;
   margin-top: var(--space-xl);
@@ -956,6 +1065,12 @@ a {
   .inline-controls {
     grid-template-columns: 1fr;
   }
+  .dashboard-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .dashboard-filter-actions {
+    grid-column: 1 / -1;
+  }
   .pagination {
     justify-content: space-between;
   }
@@ -999,6 +1114,21 @@ a {
   }
   .result-preview {
     max-height: 12rem;
+  }
+  .dashboard-filters {
+    grid-template-columns: 1fr;
+  }
+  .dashboard-filter-actions {
+    grid-column: auto;
+    flex-direction: column;
+  }
+  .dashboard-section-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .trend-row {
+    grid-template-columns: 6.5rem minmax(3rem, 1fr) 3.5rem;
+    gap: var(--space-md);
   }
 }
 @media (prefers-reduced-motion: reduce) {

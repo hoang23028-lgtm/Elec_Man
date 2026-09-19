@@ -16,6 +16,7 @@ const labels: Record<string, string> = {
   max_retry_count: "Số lần thử lại tối đa",
   data_retention_days: "Thời gian lưu trữ dữ liệu (ngày)",
   worker_poll_interval_seconds: "Chu kỳ kiểm tra của tiến trình xử lý (giây)",
+  electricity_unit_price_vnd: "Đơn giá điện tạm tính (VNĐ/kWh)",
 };
 const descriptions: Record<string, string> = {
   confidence_ok_threshold:
@@ -30,6 +31,8 @@ const descriptions: Record<string, string> = {
     "Thời gian dự kiến lưu trữ dữ liệu; hệ thống chưa bật xóa tự động.",
   worker_poll_interval_seconds:
     "Chu kỳ kiểm tra mong muốn, được áp dụng sau khi khởi động lại tiến trình xử lý.",
+  electricity_unit_price_vnd:
+    "Đơn giá bình quân dùng trên Dashboard để tạm tính; không thay thế hóa đơn chính thức.",
 };
 
 export function SystemSettings({ csrfToken }: { csrfToken: string }) {

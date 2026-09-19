@@ -16,6 +16,7 @@ RULES: dict[str, tuple[type, float, float]] = {
     "max_retry_count": (int, 1, 10),
     "data_retention_days": (int, 1, 3650),
     "worker_poll_interval_seconds": (float, 0.1, 60.0),
+    "electricity_unit_price_vnd": (int, 1, 1_000_000),
 }
 
 

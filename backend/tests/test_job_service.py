@@ -21,3 +21,13 @@ def test_auto_confirm_requires_both_extracted_values() -> None:
     }
 
     assert should_auto_confirm(result, 0.9) is False
+
+
+def test_auto_confirm_requires_numeric_meter_reading() -> None:
+    result = {
+        "customer_id_ai": "KH004",
+        "meter_reading_ai": "không đọc được",
+        "final_confidence": 0.99,
+    }
+
+    assert should_auto_confirm(result, 0.9) is False
