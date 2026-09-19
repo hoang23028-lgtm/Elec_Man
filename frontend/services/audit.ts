@@ -1,4 +1,4 @@
-const api = process.env.NEXT_PUBLIC_API_BASE_URL ?? "/api/v1";
+import { paginatedJson } from "@/services/http";
 
 export type AuditRow = {
   id: string;
@@ -10,14 +10,6 @@ export type AuditRow = {
   created_at: string;
 };
 
-export async function getAuditLogs(
-  offset = 0,
-  limit = 10,
-  action = "",
-): Promise<AuditRow[]> {
-  return (await getAuditLogsPage(offset, limit, action)).items;
-}
-
 export async function getAuditLogsPage(
   offset = 0,
   limit = 10,
@@ -28,12 +20,8 @@ export async function getAuditLogsPage(
     limit: String(limit),
   });
   if (action) params.set("action", action);
-  const response = await fetch(`${api}/audit?${params.toString()}`, {
-    credentials: "include",
-  });
-  if (!response.ok) throw new Error("Không thể tải lịch sử kiểm toán.");
-  return {
-    items: (await response.json()) as AuditRow[],
-    total: Number(response.headers.get("X-Total-Count") ?? 0),
-  };
+  return paginatedJson<AuditRow>(
+    `/audit?${params.toString()}`,
+    "Không thể tải lịch sử kiểm toán.",
+  );
 }

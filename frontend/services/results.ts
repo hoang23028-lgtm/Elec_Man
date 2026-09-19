@@ -1,4 +1,4 @@
-const api = process.env.NEXT_PUBLIC_API_BASE_URL ?? "/api/v1";
+import { apiFetch, paginatedJson } from "@/services/http";
 export type Result = {
   image_id: string;
   original_filename: string;
@@ -18,9 +18,6 @@ export type ResultQuery = {
   imageStatus?: string;
   search?: string;
 };
-export async function getResults(query: ResultQuery = {}): Promise<Result[]> {
-  return (await getResultsPage(query)).items;
-}
 export async function getResultsPage(
   query: ResultQuery = {},
 ): Promise<{ items: Result[]; total: number }> {
@@ -30,12 +27,7 @@ export async function getResultsPage(
   if (query.imageStatus) params.set("image_status", query.imageStatus);
   if (query.search) params.set("search", query.search);
   const suffix = params.size ? `?${params.toString()}` : "";
-  const r = await fetch(`${api}/results${suffix}`, { credentials: "include" });
-  if (!r.ok) throw new Error("Không thể tải kết quả.");
-  return {
-    items: (await r.json()) as Result[],
-    total: Number(r.headers.get("X-Total-Count") ?? 0),
-  };
+  return paginatedJson<Result>(`/results${suffix}`, "Không thể tải kết quả.");
 }
 export async function reviewResult(
   id: string,
@@ -44,18 +36,13 @@ export async function reviewResult(
   customer: string,
   reading: string,
 ): Promise<void> {
-  const r = await fetch(`${api}/results/${id}/review`, {
+  await apiFetch(`/results/${id}/review`, {
     method: "PUT",
-    credentials: "include",
     headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
     body: JSON.stringify({
       action,
       final_customer_id: customer || null,
       final_meter_reading: reading || null,
     }),
-  });
-  if (!r.ok) {
-    const b: { detail?: string } = await r.json().catch(() => ({}));
-    throw new Error(b.detail ?? "Kiểm duyệt thất bại.");
-  }
+  }, "Kiểm duyệt thất bại.");
 }

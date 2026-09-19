@@ -1,12 +1,14 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { getDashboard, type Dashboard } from "@/services/system";
+import { usePolling } from "@/hooks/use-polling";
 export function DashboardSummary({ csrfToken }: { csrfToken?: string }) {
   const [data, setData] = useState<Dashboard | null>(null);
   const [error, setError] = useState<string | null>(null);
-  async function load() {
+  const load = useCallback(async () => {
     try {
       setData(await getDashboard());
+      setError(null);
     } catch (reason) {
       setError(
         reason instanceof Error
@@ -14,14 +16,11 @@ export function DashboardSummary({ csrfToken }: { csrfToken?: string }) {
           : "Không thể tải bảng điều khiển.",
       );
     }
-  }
+  }, []);
   useEffect(() => {
     void load();
-    const timer = window.setInterval(() => {
-      void load();
-    }, 10000);
-    return () => window.clearInterval(timer);
-  }, []);
+  }, [load]);
+  usePolling(load, 30000);
   return (
     <section className="panel">
       <div className="section-heading">

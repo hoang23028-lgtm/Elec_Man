@@ -4,6 +4,7 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 
 import { getResultsPage, reviewResult, type Result } from "@/services/results";
 import { exportConfirmed } from "@/services/system";
+import { usePolling } from "@/hooks/use-polling";
 
 type Draft = { customer: string; reading: string };
 type Props = { csrfToken: string; refreshKey?: number };
@@ -82,9 +83,8 @@ export function OperationsResults({ csrfToken, refreshKey = 0 }: Props) {
 
   useEffect(() => {
     void load();
-    const timer = window.setInterval(() => void load(false), 5000);
-    return () => window.clearInterval(timer);
   }, [load, refreshKey]);
+  usePolling(() => load(false), 8000);
 
   function updateDraft(id: string, field: keyof Draft, value: string) {
     setDrafts((current) => ({
@@ -160,7 +160,7 @@ export function OperationsResults({ csrfToken, refreshKey = 0 }: Props) {
           aria-label={`Mở ảnh ${row.original_filename}`}
         >
           <img
-            src={`/api/v1/images/${row.image_id}/preview`}
+            src={`/api/v1/images/${row.image_id}/thumbnail`}
             alt={`Ảnh đồng hồ ${row.original_filename}`}
             loading="lazy"
           />

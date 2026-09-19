@@ -58,13 +58,8 @@ def authenticate(
     return raw_session, raw_csrf, expires_at
 
 
-def logout(db: Session, session_token: str | None, ip_address: str | None) -> None:
-    if not session_token:
-        return
-    session = db.scalar(
-        select(SessionRecord).where(SessionRecord.session_token_hash == hash_token(session_token))
-    )
-    if session is None or session.revoked_at is not None:
+def logout(db: Session, session: SessionRecord, ip_address: str | None) -> None:
+    if session.revoked_at is not None:
         return
     session.revoked_at = datetime.now(UTC)
     _audit(db, "LOGOUT", ip_address, session.user_id)

@@ -1,13 +1,14 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, Request, Response
 from sqlalchemy.orm import Session
 
+from app.api.pagination import validate_pagination
 from app.core.database import get_db
 from app.models.user import User
 from app.schemas.result import ResultRow, ReviewRequest, ReviewResponse
 from app.security.dependencies import get_current_user, require_csrf
-from app.services.review_service import count_results, list_results, review_result
+from app.services.review_service import list_results, review_result
 
 router = APIRouter()
 
@@ -22,13 +23,10 @@ def get_results(
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ) -> list[ResultRow]:
-    if offset < 0 or not 1 <= limit <= 100:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="Giá trị phân trang không hợp lệ.",
-        )
-    response.headers["X-Total-Count"] = str(count_results(db, image_status, search))
-    return list_results(db, offset, limit, image_status, search)
+    validate_pagination(offset, limit)
+    rows, total = list_results(db, offset, limit, image_status, search)
+    response.headers["X-Total-Count"] = str(total)
+    return rows
 
 
 @router.put(

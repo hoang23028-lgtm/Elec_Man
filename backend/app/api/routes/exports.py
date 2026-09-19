@@ -1,15 +1,12 @@
-from pathlib import Path
-
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
-from app.core.config import get_settings
 from app.core.database import get_db
 from app.models.audit_log import AuditLog
 from app.models.user import User
 from app.security.dependencies import get_current_user, require_csrf
-from app.services.export_service import create_final_export
+from app.services.export_service import create_final_export, resolve_export_path
 
 router = APIRouter()
 
@@ -35,13 +32,11 @@ def export_final(
 
 @router.get("/{filename}")
 def download(filename: str, _: User = Depends(get_current_user)) -> FileResponse:
-    if Path(filename).name != filename or not filename.endswith(".xlsx"):
-        raise HTTPException(status_code=404, detail="Không tìm thấy tệp xuất.")
-    matches = list((get_settings().storage_root / "exports").rglob(filename))
-    if len(matches) != 1 or not matches[0].is_file():
+    path = resolve_export_path(filename)
+    if path is None:
         raise HTTPException(status_code=404, detail="Không tìm thấy tệp xuất.")
     return FileResponse(
-        matches[0],
+        path,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         filename=filename,
     )

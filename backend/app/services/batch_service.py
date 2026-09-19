@@ -110,26 +110,29 @@ def save_uploaded_image(
     return image
 
 
-def list_batches(db: Session, offset: int, limit: int) -> list[Batch]:
-    return list(
-        db.scalars(select(Batch).order_by(Batch.created_at.desc()).offset(offset).limit(limit))
-    )
-
-
-def count_batches(db: Session) -> int:
-    return int(db.scalar(select(func.count(Batch.id))) or 0)
+def list_batches(db: Session, offset: int, limit: int) -> tuple[list[Batch], int]:
+    rows = db.execute(
+        select(Batch, func.count(Batch.id).over().label("total_count"))
+        .order_by(Batch.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+    ).all()
+    total = int(rows[0].total_count) if rows else 0
+    if not rows and offset:
+        total = int(db.scalar(select(func.count(Batch.id))) or 0)
+    return [batch for batch, _ in rows], total
 
 
 def list_batch_images(
     db: Session, batch_id: UUID, offset: int, limit: int
-) -> list[BatchImageResponse]:
-    if db.get(Batch, batch_id) is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Không tìm thấy lô dữ liệu.",
-        )
+) -> tuple[list[BatchImageResponse], int]:
     statement = (
-        select(ImageRecord, AiResult, MeterReading)
+        select(
+            ImageRecord,
+            AiResult,
+            MeterReading,
+            func.count(ImageRecord.id).over().label("total_count"),
+        )
         .outerjoin(AiResult, AiResult.image_id == ImageRecord.id)
         .outerjoin(MeterReading, MeterReading.image_id == ImageRecord.id)
         .where(ImageRecord.batch_id == batch_id)
@@ -137,7 +140,23 @@ def list_batch_images(
         .offset(offset)
         .limit(limit)
     )
-    return [
+    rows = db.execute(statement).all()
+    total = int(rows[0].total_count) if rows else 0
+    if not rows:
+        total = int(
+            db.scalar(
+                select(func.count(ImageRecord.id)).where(
+                    ImageRecord.batch_id == batch_id
+                )
+            )
+            or 0
+        )
+        if not total and db.get(Batch, batch_id) is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Không tìm thấy lô dữ liệu.",
+            )
+    items = [
         BatchImageResponse(
             image_id=image.id,
             original_filename=image.original_filename,
@@ -153,14 +172,6 @@ def list_batch_images(
             final_customer_id=reading.final_customer_id if reading else None,
             final_meter_reading=reading.final_meter_reading if reading else None,
         )
-        for image, ai_result, reading in db.execute(statement)
+        for image, ai_result, reading, _ in rows
     ]
-
-
-def count_batch_images(db: Session, batch_id: UUID) -> int:
-    return int(
-        db.scalar(
-            select(func.count(ImageRecord.id)).where(ImageRecord.batch_id == batch_id)
-        )
-        or 0
-    )
+    return items, total

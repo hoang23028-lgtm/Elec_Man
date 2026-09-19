@@ -198,25 +198,30 @@ def refresh_batch_counters(db: Session, batch_id: UUID) -> None:
 
 
 def mark_job_completed(db: Session, job_id: UUID, result_json: dict) -> None:
-    job = db.get(ProcessingJob, job_id)
-    if job is None or job.status != JobStatus.PROCESSING:
+    record = db.execute(
+        select(ProcessingJob, ImageRecord)
+        .join(ImageRecord, ImageRecord.id == ProcessingJob.image_id)
+        .where(ProcessingJob.id == job_id)
+    ).one_or_none()
+    if record is None or record[0].status != JobStatus.PROCESSING:
         return
+    job, image = record
     job.status = JobStatus.COMPLETED
     job.completed_at = datetime.now(UTC)
     job.result_json = result_json
-    image = db.get(ImageRecord, job.image_id)
-    if image is None:
-        return
     threshold = get_auto_confirm_threshold(db)
     if should_auto_confirm(result_json, threshold):
         image.status = ImageStatus.CONFIRMED
-        ai_result = db.scalar(select(AiResult).where(AiResult.image_id == image.id))
+        result_record = db.execute(
+            select(AiResult, MeterReading)
+            .outerjoin(MeterReading, MeterReading.image_id == AiResult.image_id)
+            .where(AiResult.image_id == image.id)
+        ).one_or_none()
+        ai_result = result_record[0] if result_record else None
         if ai_result is None:
             image.status = ImageStatus.REVIEW_REQUIRED
         else:
-            reading = db.scalar(
-                select(MeterReading).where(MeterReading.image_id == image.id)
-            )
+            reading = result_record[1]
             if reading is None:
                 reading = MeterReading(image_id=image.id, ai_result_id=ai_result.id)
                 db.add(reading)
@@ -247,15 +252,17 @@ def mark_job_completed(db: Session, job_id: UUID, result_json: dict) -> None:
 
 
 def mark_job_failure(db: Session, job_id: UUID, error_code: str, error_message: str) -> None:
-    job = db.get(ProcessingJob, job_id)
-    if job is None or job.status != JobStatus.PROCESSING:
+    record = db.execute(
+        select(ProcessingJob, ImageRecord)
+        .join(ImageRecord, ImageRecord.id == ProcessingJob.image_id)
+        .where(ProcessingJob.id == job_id)
+    ).one_or_none()
+    if record is None or record[0].status != JobStatus.PROCESSING:
         return
+    job, image = record
     now = datetime.now(UTC)
     job.error_code = error_code[:64]
     job.error_message = error_message[:2000]
-    image = db.get(ImageRecord, job.image_id)
-    if image is None:
-        return
     if job.attempt_count >= job.max_attempts:
         job.status = JobStatus.FAILED
         job.completed_at = now

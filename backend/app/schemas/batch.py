@@ -27,7 +27,6 @@ class UploadedImageResponse(BaseModel):
     id: UUID
     original_filename: str
     status: str
-    duplicate: bool = False
 
 
 class BatchImageResponse(BaseModel):

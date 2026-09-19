@@ -1,21 +1,16 @@
-const api = process.env.NEXT_PUBLIC_API_BASE_URL ?? "/api/v1";
+import { apiJson } from "@/services/http";
 export type Dashboard = {
   batches: number;
   images: number;
   jobs: Record<string, number>;
 };
 export async function getDashboard(): Promise<Dashboard> {
-  const response = await fetch(`${api}/dashboard`, { credentials: "include" });
-  if (!response.ok) throw new Error("Không thể tải bảng điều khiển.");
-  return response.json();
+  return apiJson<Dashboard>("/dashboard", {}, "Không thể tải bảng điều khiển.");
 }
 export async function exportConfirmed(csrfToken: string): Promise<string> {
-  const response = await fetch(`${api}/exports/final`, {
+  const body = await apiJson<{ download_url: string }>("/exports/final", {
     method: "POST",
-    credentials: "include",
     headers: { "X-CSRF-Token": csrfToken },
-  });
-  if (!response.ok) throw new Error("Không thể tạo tệp Excel.");
-  const body = (await response.json()) as { download_url: string };
+  }, "Không thể tạo tệp Excel.");
   return body.download_url;
 }

@@ -5,7 +5,7 @@ from app.core.config import get_settings
 from app.core.database import get_db
 from app.models.user import User
 from app.schemas.auth import CurrentUserResponse, LoginRequest, LoginResponse
-from app.security.dependencies import get_current_user, require_csrf
+from app.security.dependencies import AuthContext, get_current_user, require_csrf
 from app.security.rate_limit import login_rate_limiter
 from app.services.auth_service import authenticate, logout
 
@@ -49,12 +49,15 @@ def login(
     return LoginResponse(csrf_token=csrf_token, expires_at=expires_at)
 
 
-@router.post(
-    "/logout", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_csrf)]
-)
-def logout_route(request: Request, response: Response, db: Session = Depends(get_db)) -> Response:
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+def logout_route(
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(require_csrf),
+) -> Response:
     settings = get_settings()
-    logout(db, request.cookies.get(settings.session_cookie_name), _ip(request))
+    logout(db, auth.session, _ip(request))
     response.delete_cookie(settings.session_cookie_name, path="/")
     response.status_code = status.HTTP_204_NO_CONTENT
     return response

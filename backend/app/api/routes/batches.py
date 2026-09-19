@@ -3,6 +3,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, File, Request, Response, UploadFile, status
 from sqlalchemy.orm import Session
 
+from app.api.pagination import validate_pagination
 from app.core.database import get_db
 from app.models.user import User
 from app.schemas.batch import (
@@ -13,8 +14,6 @@ from app.schemas.batch import (
 )
 from app.security.dependencies import get_current_user, require_csrf
 from app.services.batch_service import (
-    count_batch_images,
-    count_batches,
     create_batch,
     list_batch_images,
     list_batches,
@@ -52,15 +51,10 @@ def list_batches_route(
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ) -> list[BatchResponse]:
-    if offset < 0 or not 1 <= limit <= 100:
-        from fastapi import HTTPException
-
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="Giá trị phân trang không hợp lệ.",
-        )
-    response.headers["X-Total-Count"] = str(count_batches(db))
-    return list_batches(db, offset, limit)
+    validate_pagination(offset, limit)
+    rows, total = list_batches(db, offset, limit)
+    response.headers["X-Total-Count"] = str(total)
+    return rows
 
 
 @router.get("/{batch_id}/images", response_model=list[BatchImageResponse])
@@ -72,15 +66,9 @@ def list_batch_images_route(
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ) -> list[BatchImageResponse]:
-    if offset < 0 or not 1 <= limit <= 100:
-        from fastapi import HTTPException
-
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="Giá trị phân trang không hợp lệ.",
-        )
-    rows = list_batch_images(db, batch_id, offset, limit)
-    response.headers["X-Total-Count"] = str(count_batch_images(db, batch_id))
+    validate_pagination(offset, limit)
+    rows, total = list_batch_images(db, batch_id, offset, limit)
+    response.headers["X-Total-Count"] = str(total)
     return rows
 
 

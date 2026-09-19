@@ -1,4 +1,4 @@
-const api = process.env.NEXT_PUBLIC_API_BASE_URL ?? "/api/v1";
+import { apiJson } from "@/services/http";
 
 export type Setting = {
   key: string;
@@ -38,78 +38,71 @@ export type Evaluation = {
   false_auto_pass_rate: number | null;
 };
 
-async function checked(response: Response): Promise<Response> {
-  if (response.ok) return response;
-  const body: { detail?: string } = await response.json().catch(() => ({}));
-  throw new Error(body.detail ?? "Yêu cầu quản trị thất bại.");
-}
-
 export async function getSettings(): Promise<Setting[]> {
-  return checked(
-    await fetch(`${api}/settings`, { credentials: "include" }),
-  ).then((response) => response.json());
+  return apiJson<Setting[]>("/settings", {}, "Không thể tải cấu hình.");
 }
 
 export async function saveSettings(
   values: Record<string, number>,
   csrfToken: string,
 ): Promise<Setting[]> {
-  return checked(
-    await fetch(`${api}/settings`, {
+  return apiJson<Setting[]>(
+    "/settings",
+    {
       method: "PATCH",
-      credentials: "include",
       headers: {
         "Content-Type": "application/json",
         "X-CSRF-Token": csrfToken,
       },
       body: JSON.stringify({ values }),
-    }),
-  ).then((response) => response.json());
+    },
+    "Không thể lưu cấu hình.",
+  );
 }
 
 export async function getModels(): Promise<ModelRecord[]> {
-  return checked(await fetch(`${api}/models`, { credentials: "include" })).then(
-    (response) => response.json(),
-  );
+  return apiJson<ModelRecord[]>("/models", {}, "Không thể tải mô hình.");
 }
 
 export async function registerModel(
   input: ModelInput,
   csrfToken: string,
 ): Promise<ModelRecord> {
-  return checked(
-    await fetch(`${api}/models`, {
+  return apiJson<ModelRecord>(
+    "/models",
+    {
       method: "POST",
-      credentials: "include",
       headers: {
         "Content-Type": "application/json",
         "X-CSRF-Token": csrfToken,
       },
       body: JSON.stringify(input),
-    }),
-  ).then((response) => response.json());
+    },
+    "Không thể đăng ký mô hình.",
+  );
 }
 
 export async function activateModel(
   id: string,
   csrfToken: string,
 ): Promise<ModelRecord> {
-  return checked(
-    await fetch(`${api}/models/${id}/activate`, {
+  return apiJson<ModelRecord>(
+    `/models/${id}/activate`,
+    {
       method: "PUT",
-      credentials: "include",
       headers: { "X-CSRF-Token": csrfToken },
-    }),
-  ).then((response) => response.json());
+    },
+    "Không thể kích hoạt mô hình.",
+  );
 }
 
 export async function getEvaluation(modelVersion = ""): Promise<Evaluation> {
   const query = modelVersion
     ? `?model_version=${encodeURIComponent(modelVersion)}`
     : "";
-  return checked(
-    await fetch(`${api}/evaluation/summary${query}`, {
-      credentials: "include",
-    }),
-  ).then((response) => response.json());
+  return apiJson<Evaluation>(
+    `/evaluation/summary${query}`,
+    {},
+    "Không thể tải đánh giá.",
+  );
 }

@@ -3,16 +3,41 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { useForm } from "react-hook-form";
+import dynamic from "next/dynamic";
 
 import { login, logout } from "@/services/auth";
 import type { LoginInput } from "@/types/auth";
 import { FolderUpload } from "@/components/folder-upload";
-import { BatchOverview } from "@/components/batch-overview";
 import { DashboardSummary } from "@/components/dashboard-summary";
-import { AuditHistory } from "@/components/audit-history";
-import { ModelOperations } from "@/components/model-operations";
-import { SystemSettings } from "@/components/system-settings";
-import { OperationsResults } from "@/components/operations-results";
+
+const loadingPanel = () => (
+  <section className="panel full-span" aria-busy="true">
+    <p className="muted" role="status">Đang tải chức năng…</p>
+  </section>
+);
+const BatchOverview = dynamic(
+  () => import("@/components/batch-overview").then((module) => module.BatchOverview),
+  { loading: loadingPanel, ssr: false },
+);
+const AuditHistory = dynamic(
+  () => import("@/components/audit-history").then((module) => module.AuditHistory),
+  { loading: loadingPanel, ssr: false },
+);
+const ModelOperations = dynamic(
+  () => import("@/components/model-operations").then((module) => module.ModelOperations),
+  { loading: loadingPanel, ssr: false },
+);
+const SystemSettings = dynamic(
+  () => import("@/components/system-settings").then((module) => module.SystemSettings),
+  { loading: loadingPanel, ssr: false },
+);
+const OperationsResults = dynamic(
+  () =>
+    import("@/components/operations-results").then(
+      (module) => module.OperationsResults,
+    ),
+  { loading: loadingPanel, ssr: false },
+);
 
 const pages = [
   {

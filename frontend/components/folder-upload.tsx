@@ -110,15 +110,25 @@ export function FolderUpload({ csrfToken, onQueued }: Props) {
     setProgress((current) => ({ ...current, failed: 0 }));
     setFailedFiles([]);
     setUploading(true);
-    const failures = await transfer(batchId, retryFiles);
-    if (!failures.length) {
-      const queued = await startBatch(batchId, csrfToken);
-      setProcessingStatus(
-        `${queued.batch_code} đã được đưa vào hàng đợi xử lý OCR bằng AI.`,
+    setError(null);
+    try {
+      const failures = await transfer(batchId, retryFiles);
+      if (!failures.length) {
+        const queued = await startBatch(batchId, csrfToken);
+        setProcessingStatus(
+          `${queued.batch_code} đã được đưa vào hàng đợi xử lý OCR bằng AI.`,
+        );
+        onQueued?.();
+      }
+    } catch (reason) {
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : "Không thể thử tải lại các tệp bị lỗi.",
       );
-      onQueued?.();
+    } finally {
+      setUploading(false);
     }
-    setUploading(false);
   }
 
   async function queueForProcessing() {

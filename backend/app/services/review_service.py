@@ -15,33 +15,44 @@ from app.schemas.result import ResultRow, ReviewRequest
 from app.services.job_service import refresh_batch_counters
 
 
+def _apply_result_filters(statement, image_status: str | None, search: str | None):
+    if image_status:
+        statement = statement.where(ImageRecord.status == image_status)
+    if not search:
+        return statement
+    term = f"%{search.strip()}%"
+    return statement.where(
+        ImageRecord.original_filename.ilike(term)
+        | AiResult.customer_id_ai.ilike(term)
+        | AiResult.meter_reading_ai.ilike(term)
+        | MeterReading.final_customer_id.ilike(term)
+        | MeterReading.final_meter_reading.ilike(term)
+    )
+
+
 def list_results(
     db: Session,
     offset: int,
     limit: int,
     image_status: str | None,
     search: str | None,
-) -> list[ResultRow]:
+) -> tuple[list[ResultRow], int]:
     statement = (
-        select(ImageRecord, AiResult, MeterReading)
+        select(
+            ImageRecord,
+            AiResult,
+            MeterReading,
+            func.count(ImageRecord.id).over().label("total_count"),
+        )
         .join(AiResult, AiResult.image_id == ImageRecord.id)
         .outerjoin(MeterReading, MeterReading.image_id == ImageRecord.id)
         .order_by(AiResult.created_at.desc())
         .offset(offset)
         .limit(limit)
     )
-    if image_status:
-        statement = statement.where(ImageRecord.status == image_status)
-    if search:
-        term = f"%{search.strip()}%"
-        statement = statement.where(
-            ImageRecord.original_filename.ilike(term)
-            | AiResult.customer_id_ai.ilike(term)
-            | AiResult.meter_reading_ai.ilike(term)
-            | MeterReading.final_customer_id.ilike(term)
-            | MeterReading.final_meter_reading.ilike(term)
-        )
-    return [
+    statement = _apply_result_filters(statement, image_status, search)
+    rows = db.execute(statement).all()
+    items = [
         ResultRow(
             image_id=image.id,
             original_filename=image.original_filename,
@@ -60,32 +71,20 @@ def list_results(
             final_customer_id=reading.final_customer_id if reading else None,
             final_meter_reading=reading.final_meter_reading if reading else None,
         )
-        for image, ai_result, reading in db.execute(statement)
+        for image, ai_result, reading, _ in rows
     ]
-
-
-def count_results(
-    db: Session,
-    image_status: str | None,
-    search: str | None,
-) -> int:
-    statement = (
-        select(func.count(ImageRecord.id))
-        .join(AiResult, AiResult.image_id == ImageRecord.id)
-        .outerjoin(MeterReading, MeterReading.image_id == ImageRecord.id)
-    )
-    if image_status:
-        statement = statement.where(ImageRecord.status == image_status)
-    if search:
-        term = f"%{search.strip()}%"
-        statement = statement.where(
-            ImageRecord.original_filename.ilike(term)
-            | AiResult.customer_id_ai.ilike(term)
-            | AiResult.meter_reading_ai.ilike(term)
-            | MeterReading.final_customer_id.ilike(term)
-            | MeterReading.final_meter_reading.ilike(term)
+    total = int(rows[0].total_count) if rows else 0
+    if not rows and offset:
+        count_statement = (
+            select(func.count(ImageRecord.id))
+            .join(AiResult, AiResult.image_id == ImageRecord.id)
+            .outerjoin(MeterReading, MeterReading.image_id == ImageRecord.id)
         )
-    return int(db.scalar(statement) or 0)
+        count_statement = _apply_result_filters(
+            count_statement, image_status, search
+        )
+        total = int(db.scalar(count_statement) or 0)
+    return items, total
 
 
 def review_result(
@@ -95,10 +94,15 @@ def review_result(
     user: User,
     ip_address: str | None,
 ) -> MeterReading:
-    image = db.get(ImageRecord, image_id)
-    ai_result = db.scalar(select(AiResult).where(AiResult.image_id == image_id))
-    if image is None or ai_result is None:
+    record = db.execute(
+        select(ImageRecord, AiResult, MeterReading)
+        .join(AiResult, AiResult.image_id == ImageRecord.id)
+        .outerjoin(MeterReading, MeterReading.image_id == ImageRecord.id)
+        .where(ImageRecord.id == image_id)
+    ).one_or_none()
+    if record is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy kết quả.")
+    image, ai_result, reading = record
     if payload.action == "CONFIRM" and (
         not payload.final_customer_id or not payload.final_meter_reading
     ):
@@ -107,7 +111,6 @@ def review_result(
             detail="Kết quả xác nhận phải có đủ hai giá trị cuối cùng.",
         )
 
-    reading = db.scalar(select(MeterReading).where(MeterReading.image_id == image_id))
     if reading is None:
         reading = MeterReading(image_id=image_id, ai_result_id=ai_result.id)
         db.add(reading)

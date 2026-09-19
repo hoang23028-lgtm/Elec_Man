@@ -1,3 +1,4 @@
+import re
 from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
@@ -12,6 +13,10 @@ from app.core.config import get_settings
 from app.models.image import ImageRecord
 from app.models.meter_reading import MeterReading
 
+EXPORT_FILENAME_PATTERN = re.compile(
+    r"^chi-so-da-xac-nhan-(\d{4})(\d{2})\d{2}T\d{6}Z-[0-9a-f]{8}\.xlsx$"
+)
+
 
 def _excel_text(value: str | None) -> str:
     text = value or ""
@@ -25,6 +30,15 @@ def _excel_datetime(value: datetime | None) -> datetime | None:
     if value.tzinfo is not None:
         value = value.astimezone(UTC).replace(tzinfo=None)
     return value
+
+
+def resolve_export_path(filename: str) -> Path | None:
+    match = EXPORT_FILENAME_PATTERN.fullmatch(filename)
+    if match is None:
+        return None
+    root = (get_settings().storage_root / "exports").resolve()
+    path = (root / match.group(1) / match.group(2) / filename).resolve()
+    return path if path.is_relative_to(root) and path.is_file() else None
 
 
 def create_final_export(db: Session) -> tuple[str, Path]:

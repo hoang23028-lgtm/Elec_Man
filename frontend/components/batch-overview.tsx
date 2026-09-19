@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { getBatchImages, getBatchesPage } from "@/services/batches";
 import type { Batch, BatchImage } from "@/types/batch";
+import { usePolling } from "@/hooks/use-polling";
 
 const activeStatuses = new Set(["UPLOADING", "QUEUED", "PROCESSING"]);
 const batchPageSize = 10;
@@ -32,6 +33,18 @@ const fileSize = (value: number) =>
     ? `${(value / 1024 / 1024).toFixed(1)} MB`
     : `${Math.max(1, Math.round(value / 1024))} KB`;
 
+function sameBatchSnapshot(left: Batch, right: Batch): boolean {
+  return (
+    left.status === right.status &&
+    left.total_images === right.total_images &&
+    left.processed_images === right.processed_images &&
+    left.ok_count === right.ok_count &&
+    left.review_count === right.review_count &&
+    left.ng_count === right.ng_count &&
+    left.failed_count === right.failed_count
+  );
+}
+
 export function BatchOverview() {
   const [batches, setBatches] = useState<Batch[]>([]);
   const [batchTotal, setBatchTotal] = useState(0);
@@ -54,11 +67,13 @@ export function BatchOverview() {
         );
         setBatches(result.items);
         setBatchTotal(result.total);
-        setSelected((current) =>
-          current
-            ? result.items.find((batch) => batch.id === current.id) ?? current
-            : null,
-        );
+        setSelected((current) => {
+          if (!current) return null;
+          const updated = result.items.find((batch) => batch.id === current.id);
+          return updated && !sameBatchSnapshot(current, updated)
+            ? updated
+            : current;
+        });
         setError(null);
       } catch (reason) {
         setError(
@@ -101,8 +116,6 @@ export function BatchOverview() {
 
   useEffect(() => {
     void loadBatches(true);
-    const timer = window.setInterval(() => void loadBatches(), 5000);
-    return () => window.clearInterval(timer);
   }, [loadBatches]);
 
   useEffect(() => {
@@ -112,8 +125,6 @@ export function BatchOverview() {
       return;
     }
     void loadImages(true);
-    const timer = window.setInterval(() => void loadImages(), 5000);
-    return () => window.clearInterval(timer);
   }, [loadImages, selected]);
 
   function selectBatch(batch: Batch) {
@@ -124,6 +135,7 @@ export function BatchOverview() {
   const active = batches.filter((batch) =>
     activeStatuses.has(batch.status),
   ).length;
+  usePolling(() => loadBatches(), 10000, active > 0);
   const batchPages = pageCount(batchTotal, batchPageSize);
   const imagePages = pageCount(imageTotal, imagePageSize);
 
@@ -279,7 +291,7 @@ export function BatchOverview() {
                             rel="noreferrer"
                           >
                             <img
-                              src={`/api/v1/images/${image.image_id}/preview`}
+                              src={`/api/v1/images/${image.image_id}/thumbnail`}
                               alt={`Ảnh ${image.original_filename}`}
                               loading="lazy"
                             />

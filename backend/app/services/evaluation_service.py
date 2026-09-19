@@ -15,37 +15,48 @@ def _digit_counts(predicted: str | None, expected: str | None) -> tuple[int, int
 
 def evaluation_summary(db: Session, model_version: str | None) -> EvaluationSummary:
     filter_clause = AiResult.model_version == model_version if model_version else true()
-    total_predictions, review_count, auto_pass_count = db.execute(
+    (
+        total_predictions,
+        review_count,
+        auto_pass_count,
+        sample_count,
+        customer_matches,
+        meter_matches,
+    ) = db.execute(
         select(
             func.count(AiResult.id),
-            func.count(AiResult.id).filter(AiResult.status == "REVIEW"),
-            func.count(AiResult.id).filter(AiResult.status == "OK"),
-        ).where(filter_clause)
+            func.count(MeterReading.id).filter(MeterReading.reviewed_by.is_not(None)),
+            func.count(MeterReading.id).filter(
+                MeterReading.review_status == "CONFIRMED",
+                MeterReading.reviewed_by.is_(None),
+            ),
+            func.count(MeterReading.id).filter(MeterReading.review_status == "CONFIRMED"),
+            func.count(MeterReading.id).filter(
+                MeterReading.review_status == "CONFIRMED",
+                AiResult.customer_id_ai == MeterReading.final_customer_id,
+            ),
+            func.count(MeterReading.id).filter(
+                MeterReading.review_status == "CONFIRMED",
+                AiResult.meter_reading_ai == MeterReading.final_meter_reading,
+            ),
+        )
+        .outerjoin(MeterReading, MeterReading.ai_result_id == AiResult.id)
+        .where(filter_clause)
     ).one()
-    confirmed = db.execute(
+    confirmed_meters = db.execute(
         select(
-            AiResult.customer_id_ai,
             AiResult.meter_reading_ai,
-            MeterReading.final_customer_id,
             MeterReading.final_meter_reading,
         )
         .join(MeterReading, MeterReading.ai_result_id == AiResult.id)
         .where(MeterReading.review_status == "CONFIRMED", filter_clause)
     ).all()
-    customer_matches = sum(
-        predicted_customer == final_customer
-        for predicted_customer, _, final_customer, _ in confirmed
-    )
-    meter_matches = sum(
-        predicted_meter == final_meter for _, predicted_meter, _, final_meter in confirmed
-    )
     digit_correct = 0
     digit_total = 0
-    for _, predicted_meter, _, final_meter in confirmed:
+    for predicted_meter, final_meter in confirmed_meters:
         correct, total = _digit_counts(predicted_meter, final_meter)
         digit_correct += correct
         digit_total += total
-    sample_count = len(confirmed)
     return EvaluationSummary(
         model_version=model_version,
         total_predictions=total_predictions,

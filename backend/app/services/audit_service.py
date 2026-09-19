@@ -6,9 +6,15 @@ from app.models.user import User
 from app.schemas.audit import AuditRow
 
 
-def list_audit_logs(db: Session, offset: int, limit: int, action: str | None) -> list[AuditRow]:
+def list_audit_logs(
+    db: Session, offset: int, limit: int, action: str | None
+) -> tuple[list[AuditRow], int]:
     statement = (
-        select(AuditLog, User.username)
+        select(
+            AuditLog,
+            User.username,
+            func.count(AuditLog.id).over().label("total_count"),
+        )
         .outerjoin(User, User.id == AuditLog.user_id)
         .order_by(AuditLog.created_at.desc())
         .offset(offset)
@@ -16,7 +22,8 @@ def list_audit_logs(db: Session, offset: int, limit: int, action: str | None) ->
     )
     if action:
         statement = statement.where(AuditLog.action == action)
-    return [
+    rows = db.execute(statement).all()
+    items = [
         AuditRow(
             id=record.id,
             username=username,
@@ -26,12 +33,12 @@ def list_audit_logs(db: Session, offset: int, limit: int, action: str | None) ->
             ip_address=record.ip_address,
             created_at=record.created_at,
         )
-        for record, username in db.execute(statement)
+        for record, username, _ in rows
     ]
-
-
-def count_audit_logs(db: Session, action: str | None) -> int:
-    statement = select(func.count(AuditLog.id))
-    if action:
-        statement = statement.where(AuditLog.action == action)
-    return int(db.scalar(statement) or 0)
+    total = int(rows[0].total_count) if rows else 0
+    if not rows and offset:
+        count_statement = select(func.count(AuditLog.id))
+        if action:
+            count_statement = count_statement.where(AuditLog.action == action)
+        total = int(db.scalar(count_statement) or 0)
+    return items, total
