@@ -1,6 +1,6 @@
 # Hệ thống AI quản lý đồng hồ điện
 
-Hệ thống web nội bộ dành cho một quản trị viên, hỗ trợ xử lý ảnh đồng hồ điện theo lô một cách an toàn và kiểm duyệt kết quả thủ công.
+Hệ thống web nội bộ dành cho một quản trị viên, hỗ trợ xử lý ảnh đồng hồ điện theo lô, tự động xác nhận kết quả đủ tin cậy và kiểm duyệt phần còn lại.
 
 ## Trạng thái hiện tại
 
@@ -34,7 +34,7 @@ Hàng đợi dựa trên PostgreSQL xử lý ảnh bên ngoài yêu cầu HTTP. 
 
 ## Quy trình AI
 
-Mô hình phát triển hiện tại là `meter-ocr-baseline-v1`, sử dụng OpenCV, mô hình ONNX dựng sẵn của RapidOCR và Tesseract làm phương án dự phòng. Mọi kết quả đều phải được kiểm duyệt thủ công và không được mô tả đây là mô hình sản xuất đã huấn luyện; xem [tài liệu quy trình AI](docs/ai-pipeline.md).
+Mô hình phát triển hiện tại là `meter-ocr-baseline-v1`, sử dụng OpenCV, mô hình ONNX dựng sẵn của RapidOCR và Tesseract làm phương án dự phòng. Kết quả đầy đủ có độ tin cậy lớn hơn ngưỡng cấu hình (mặc định 90%) được tự động xác nhận; phần còn lại phải kiểm duyệt thủ công. Đây chưa phải mô hình sản xuất đã được huấn luyện trên tập dữ liệu thực tế; xem [tài liệu quy trình AI](docs/ai-pipeline.md).
 
 ## Dữ liệu huấn luyện
 
@@ -42,11 +42,11 @@ Nhãn mẫu đã được phê duyệt được ghi trong `training/annotations.
 
 ## Kiểm duyệt
 
-Hệ thống tách biệt đầu ra AI bất biến với giá trị cuối cùng đã kiểm duyệt và ghi lại mọi chỉnh sửa; xem [tài liệu kiểm duyệt](docs/review.md).
+Trang Vận hành hiển thị hàng chờ kiểm duyệt và danh sách đã xác nhận song song. Hệ thống tách biệt đầu ra AI bất biến với giá trị cuối cùng, đồng thời ghi lại mọi xác nhận, từ chối và chỉnh sửa; xem [tài liệu kiểm duyệt](docs/review.md).
 
 ## Bảng điều khiển và xuất dữ liệu
 
-Bảng điều khiển cung cấp số liệu tổng hợp công khai ở chế độ chỉ xem. Quản trị viên có thể xuất chỉ số cuối cùng đã xác nhận ra Excel; xem [tài liệu xuất dữ liệu](docs/export.md).
+Bảng điều khiển cung cấp số liệu tổng hợp công khai ở chế độ chỉ xem. Quản trị viên xuất chỉ số cuối cùng đã xác nhận ra Excel ở cuối cột “Đã xác nhận” trên trang Vận hành; xem [tài liệu xuất dữ liệu](docs/export.md).
 
 ## Quản trị và sao lưu
 

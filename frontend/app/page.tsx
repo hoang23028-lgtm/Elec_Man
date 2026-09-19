@@ -13,6 +13,7 @@ import { DashboardSummary } from "@/components/dashboard-summary";
 import { AuditHistory } from "@/components/audit-history";
 import { ModelOperations } from "@/components/model-operations";
 import { SystemSettings } from "@/components/system-settings";
+import { OperationsResults } from "@/components/operations-results";
 
 const pages = [
   {
@@ -141,6 +142,7 @@ export default function HomePage() {
   const [csrfToken, setCsrfToken] = useState<string | null>(null);
   const [loginOpen, setLoginOpen] = useState(false);
   const [activePage, setActivePage] = useState<PageId>("dashboard");
+  const [operationsRefresh, setOperationsRefresh] = useState(0);
   const navScrollRef = useRef<HTMLDivElement>(null);
   const activeNavItemRef = useRef<HTMLButtonElement>(null);
   const loginTriggerRef = useRef<HTMLButtonElement>(null);
@@ -354,8 +356,15 @@ export default function HomePage() {
               )}
               {csrfToken && displayedPage === "operations" && (
                 <>
-                  <FolderUpload csrfToken={csrfToken} />
+                  <FolderUpload
+                    csrfToken={csrfToken}
+                    onQueued={() => setOperationsRefresh((value) => value + 1)}
+                  />
                   <BatchOverview />
+                  <OperationsResults
+                    csrfToken={csrfToken}
+                    refreshKey={operationsRefresh}
+                  />
                 </>
               )}
               {csrfToken && displayedPage === "human-review" && (

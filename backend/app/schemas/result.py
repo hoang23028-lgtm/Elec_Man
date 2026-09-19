@@ -14,6 +14,7 @@ class ResultRow(BaseModel):
     final_confidence: float
     ai_status: str
     review_status: str | None
+    auto_confirmed: bool
     final_customer_id: str | None
     final_meter_reading: str | None
 

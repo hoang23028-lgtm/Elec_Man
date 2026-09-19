@@ -567,6 +567,171 @@ a {
   font-family: "Cascadia Code", Consolas, monospace;
   font-size: 0.78rem;
 }
+.operations-results-heading .muted {
+  max-width: 48rem;
+  margin: var(--space-md) 0 0;
+}
+.operations-search {
+  max-width: 45rem;
+  margin-top: var(--space-xl);
+}
+.operations-search > label {
+  display: block;
+  margin-bottom: var(--space-sm);
+}
+.review-board {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-xl);
+  margin-top: var(--space-xl);
+}
+.review-lane {
+  min-width: 0;
+  border: 1px solid var(--color-border);
+  border-top: 3px solid #f97316;
+  border-radius: 0.75rem;
+  background: #f8fafc;
+  padding: var(--space-xl);
+}
+.confirmed-lane {
+  border-top-color: #16a34a;
+}
+.review-lane-heading,
+.result-card-heading,
+.export-confirmed {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-lg);
+}
+.review-lane-heading h3 {
+  margin: 0;
+  font-family: "Cascadia Code", Consolas, monospace;
+  font-size: 1rem;
+  letter-spacing: -0.03em;
+}
+.lane-count {
+  display: grid;
+  min-width: 2rem;
+  min-height: 2rem;
+  place-items: center;
+  border-radius: 999px;
+  background: #ffedd5;
+  color: #9a3412;
+  font-family: "Cascadia Code", Consolas, monospace;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.lane-count.success {
+  background: #dcfce7;
+  color: #166534;
+}
+.result-list {
+  display: grid;
+  gap: var(--space-lg);
+  margin-top: var(--space-xl);
+}
+.result-card {
+  display: grid;
+  grid-template-columns: 7rem minmax(0, 1fr);
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: 0.625rem;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+}
+.result-preview {
+  display: block;
+  min-height: 12rem;
+  background: #e2e8f0;
+}
+.result-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.result-card-body {
+  min-width: 0;
+  padding: var(--space-lg);
+}
+.result-card-heading strong,
+.result-card-heading small {
+  display: block;
+}
+.result-card-heading strong {
+  overflow: hidden;
+  max-width: 18rem;
+  font-size: 0.86rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.result-card-heading small {
+  margin-top: var(--space-xs);
+  color: var(--color-muted);
+  font-family: "Cascadia Code", Consolas, monospace;
+  font-size: 0.65rem;
+}
+.result-origin {
+  display: inline-block;
+  margin-top: var(--space-md);
+  color: #166534;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+.result-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-md);
+  margin-top: var(--space-lg);
+}
+.result-fields label {
+  min-width: 0;
+  color: var(--color-muted);
+  font-size: 0.72rem;
+}
+.result-fields input {
+  min-width: 0;
+  min-height: 2.35rem;
+  margin-top: var(--space-sm);
+  padding: 0.45rem 0.55rem;
+  font-family: "Cascadia Code", Consolas, monospace;
+  font-size: 0.8rem;
+}
+.result-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-md);
+  margin-top: var(--space-lg);
+}
+.result-actions button {
+  min-height: 2.35rem;
+  padding: 0.45rem 0.7rem;
+  font-size: 0.78rem;
+}
+.result-actions button.danger {
+  margin-left: 0;
+}
+.empty-state {
+  margin: var(--space-xl) 0 0;
+  border: 1px dashed #cbd5e1;
+  border-radius: 0.625rem;
+  color: var(--color-muted);
+  padding: var(--space-2xl);
+  text-align: center;
+}
+.export-confirmed {
+  align-items: center;
+  margin-top: var(--space-xl);
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--space-xl);
+}
+.export-confirmed p {
+  margin: var(--space-sm) 0 0;
+  font-size: 0.78rem;
+}
+.export-confirmed button {
+  flex: 0 0 auto;
+}
 .audit-filter {
   width: min(100%, 20rem);
   margin-top: var(--space-xl);
@@ -622,6 +787,9 @@ a {
     padding-right: var(--space-2xl);
     padding-left: var(--space-2xl);
   }
+  .review-board {
+    grid-template-columns: 1fr;
+  }
 }
 @media (max-width: 760px) {
   .app-main {
@@ -674,6 +842,16 @@ a {
   .pagination {
     justify-content: space-between;
   }
+  .result-card {
+    grid-template-columns: 6rem minmax(0, 1fr);
+  }
+  .result-fields {
+    grid-template-columns: 1fr;
+  }
+  .export-confirmed {
+    align-items: stretch;
+    flex-direction: column;
+  }
 }
 @media (max-width: 480px) {
   .navbar-brand span:not(.brand-mark),
@@ -698,6 +876,12 @@ a {
   .metrics,
   .settings-grid {
     grid-template-columns: 1fr;
+  }
+  .result-card {
+    grid-template-columns: 1fr;
+  }
+  .result-preview {
+    max-height: 12rem;
   }
 }
 @media (prefers-reduced-motion: reduce) {

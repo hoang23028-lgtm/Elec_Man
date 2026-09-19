@@ -6,11 +6,39 @@ from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
+from app.models.ai_result import AiResult
 from app.models.audit_log import AuditLog
 from app.models.batch import Batch, BatchStatus
 from app.models.image import ImageRecord, ImageStatus
+from app.models.meter_reading import MeterReading
 from app.models.processing_job import JobStatus, ProcessingJob
+from app.models.system_setting import SystemSetting
 from app.models.user import User
+
+DEFAULT_AUTO_CONFIRM_THRESHOLD = 0.9
+
+
+def should_auto_confirm(result_json: dict, threshold: float) -> bool:
+    """Only complete, high-confidence results may bypass human review."""
+    try:
+        confidence = float(result_json.get("final_confidence", 0))
+    except (TypeError, ValueError):
+        return False
+    return bool(
+        confidence > threshold
+        and result_json.get("customer_id_ai")
+        and result_json.get("meter_reading_ai")
+    )
+
+
+def get_auto_confirm_threshold(db: Session) -> float:
+    setting = db.get(SystemSetting, "confidence_ok_threshold")
+    if setting is None:
+        return DEFAULT_AUTO_CONFIRM_THRESHOLD
+    try:
+        return float(setting.value_json)
+    except (TypeError, ValueError):
+        return DEFAULT_AUTO_CONFIRM_THRESHOLD
 
 
 def queue_batch(db: Session, batch_id: UUID, user: User, ip_address: str | None) -> Batch:
@@ -176,15 +204,43 @@ def mark_job_completed(db: Session, job_id: UUID, result_json: dict) -> None:
     job.status = JobStatus.COMPLETED
     job.completed_at = datetime.now(UTC)
     job.result_json = result_json
-    image_status = (
-        ImageStatus.REVIEW_REQUIRED
-        if result_json.get("status") == "REVIEW"
-        else ImageStatus.AI_COMPLETED
-    )
     image = db.get(ImageRecord, job.image_id)
     if image is None:
         return
-    image.status = image_status
+    threshold = get_auto_confirm_threshold(db)
+    if should_auto_confirm(result_json, threshold):
+        image.status = ImageStatus.CONFIRMED
+        ai_result = db.scalar(select(AiResult).where(AiResult.image_id == image.id))
+        if ai_result is None:
+            image.status = ImageStatus.REVIEW_REQUIRED
+        else:
+            reading = db.scalar(
+                select(MeterReading).where(MeterReading.image_id == image.id)
+            )
+            if reading is None:
+                reading = MeterReading(image_id=image.id, ai_result_id=ai_result.id)
+                db.add(reading)
+            reading.final_customer_id = result_json["customer_id_ai"]
+            reading.final_meter_reading = result_json["meter_reading_ai"]
+            reading.review_status = "CONFIRMED"
+            reading.reviewed_by = None
+            reading.reviewed_at = datetime.now(UTC)
+            db.add(
+                AuditLog(
+                    user_id=None,
+                    action="AUTO_CONFIRM_RESULT",
+                    target_type="image",
+                    target_id=str(image.id),
+                    details_json={
+                        "ai_result_id": str(ai_result.id),
+                        "confidence": result_json["final_confidence"],
+                        "threshold": threshold,
+                    },
+                    ip_address=None,
+                )
+            )
+    else:
+        image.status = ImageStatus.REVIEW_REQUIRED
     db.flush()
     refresh_batch_counters(db, image.batch_id)
     db.commit()

@@ -5,7 +5,7 @@ import { useRef, useState } from "react";
 import { createBatch, startBatch, uploadImage } from "@/services/batches";
 import type { UploadProgress } from "@/types/batch";
 
-type Props = { csrfToken: string };
+type Props = { csrfToken: string; onQueued?: () => void };
 const allowedExtensions = new Set(["jpg", "jpeg", "png", "webp"]);
 
 function folderName(file: File): string {
@@ -14,7 +14,7 @@ function folderName(file: File): string {
   return path?.split("/")[0] || "meter-images";
 }
 
-export function FolderUpload({ csrfToken }: Props) {
+export function FolderUpload({ csrfToken, onQueued }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [files, setFiles] = useState<File[]>([]);
   const [failedFiles, setFailedFiles] = useState<File[]>([]);
@@ -91,6 +91,7 @@ export function FolderUpload({ csrfToken }: Props) {
         setProcessingStatus(
           `${queued.batch_code} đã được đưa vào hàng đợi xử lý OCR bằng AI.`,
         );
+        onQueued?.();
         setFiles([]);
         if (inputRef.current) inputRef.current.value = "";
       }
@@ -115,6 +116,7 @@ export function FolderUpload({ csrfToken }: Props) {
       setProcessingStatus(
         `${queued.batch_code} đã được đưa vào hàng đợi xử lý OCR bằng AI.`,
       );
+      onQueued?.();
     }
     setUploading(false);
   }
@@ -127,6 +129,7 @@ export function FolderUpload({ csrfToken }: Props) {
       setProcessingStatus(
         `${batch.batch_code} đã được đưa vào hàng đợi xử lý OCR bằng AI.`,
       );
+      onQueued?.();
     } catch (reason) {
       setError(
         reason instanceof Error

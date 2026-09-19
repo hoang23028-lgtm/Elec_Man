@@ -38,6 +38,8 @@ def list_results(
             ImageRecord.original_filename.ilike(term)
             | AiResult.customer_id_ai.ilike(term)
             | AiResult.meter_reading_ai.ilike(term)
+            | MeterReading.final_customer_id.ilike(term)
+            | MeterReading.final_meter_reading.ilike(term)
         )
     return [
         ResultRow(
@@ -50,6 +52,11 @@ def list_results(
             final_confidence=ai_result.final_confidence,
             ai_status=ai_result.status,
             review_status=reading.review_status if reading else None,
+            auto_confirmed=bool(
+                reading
+                and reading.review_status == "CONFIRMED"
+                and reading.reviewed_by is None
+            ),
             final_customer_id=reading.final_customer_id if reading else None,
             final_meter_reading=reading.final_meter_reading if reading else None,
         )
@@ -86,12 +93,15 @@ def review_result(
         old_customer = reading.final_customer_id
         old_meter = reading.final_meter_reading
 
+    was_confirmed = bool(reading and reading.review_status == "CONFIRMED")
     corrections = (
         ("customer_id", old_customer, payload.final_customer_id),
         ("meter_reading", old_meter, payload.final_meter_reading),
     )
+    correction_count = 0
     for field, old, new in corrections:
         if old != new:
+            correction_count += 1
             db.add(
                 ManualCorrection(
                     image_id=image_id,
@@ -115,10 +125,20 @@ def review_result(
     db.add(
         AuditLog(
             user_id=user.id,
-            action="CONFIRM_RESULT" if payload.action == "CONFIRM" else "REJECT_RESULT",
+            action=(
+                "UPDATE_CONFIRMED_RESULT"
+                if payload.action == "CONFIRM" and was_confirmed
+                else "CONFIRM_RESULT"
+                if payload.action == "CONFIRM"
+                else "REJECT_RESULT"
+            ),
             target_type="image",
             target_id=str(image_id),
-            details_json={"ai_result_id": str(ai_result.id), "reason": payload.reason},
+            details_json={
+                "ai_result_id": str(ai_result.id),
+                "reason": payload.reason,
+                "correction_count": correction_count,
+            },
             ip_address=ip_address,
         )
     )

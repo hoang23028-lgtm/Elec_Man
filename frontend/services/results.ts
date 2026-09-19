@@ -8,6 +8,7 @@ export type Result = {
   meter_reading_ai: string | null;
   final_confidence: number;
   review_status: string | null;
+  auto_confirmed: boolean;
   final_customer_id: string | null;
   final_meter_reading: string | null;
 };
