@@ -45,17 +45,25 @@ main {
   width: min(100%, 87.5rem);
   margin: auto;
 }
-header {
+.app-header {
   margin-bottom: var(--space-2xl);
-  padding: var(--space-2xl);
+  overflow: hidden;
   border-radius: 0.75rem;
   background: var(--color-primary);
   color: var(--color-on-primary);
   box-shadow: var(--shadow-md);
 }
-header .muted {
+.brand-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-xl);
+  padding: var(--space-2xl);
+}
+.app-header .muted {
   color: #dbeafe;
   max-width: 42rem;
+  margin-bottom: 0;
 }
 h1,
 h2 {
@@ -82,8 +90,109 @@ p {
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
-header .eyebrow {
+.app-header .eyebrow {
   color: #fff7ed;
+}
+.skip-link {
+  position: fixed;
+  z-index: 20;
+  top: var(--space-md);
+  left: var(--space-md);
+  transform: translateY(-160%);
+  border-radius: 0.5rem;
+  background: var(--color-surface);
+  color: var(--color-primary);
+  padding: 0.65rem 0.85rem;
+  box-shadow: var(--shadow-md);
+}
+.skip-link:focus {
+  transform: translateY(0);
+}
+.app-nav {
+  border-top: 1px solid rgb(255 255 255 / 0.16);
+  background: #1d4ed8;
+}
+.nav-scroll {
+  display: flex;
+  gap: var(--space-xs);
+  overflow-x: auto;
+  padding: var(--space-md) var(--space-lg);
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+}
+.nav-scroll::-webkit-scrollbar {
+  display: none;
+}
+.nav-item {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--space-md);
+  min-height: 2.75rem;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #dbeafe;
+  padding: 0.6rem 0.75rem;
+  font-size: 0.83rem;
+  scroll-snap-align: center;
+  white-space: nowrap;
+}
+.nav-item:hover:not(:disabled) {
+  border-color: rgb(255 255 255 / 0.22);
+  background: rgb(255 255 255 / 0.1);
+  color: white;
+}
+.nav-item[aria-current="page"] {
+  border-color: rgb(255 255 255 / 0.25);
+  background: white;
+  color: #1d4ed8;
+  box-shadow: var(--shadow-sm);
+}
+.nav-item[aria-current="page"]::after {
+  position: absolute;
+  right: 0.75rem;
+  bottom: 0.25rem;
+  left: 0.75rem;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--color-accent);
+  content: "";
+}
+.nav-icon {
+  width: 1.1rem;
+  height: 1.1rem;
+  flex: 0 0 auto;
+}
+.page-view {
+  scroll-margin-top: var(--space-xl);
+}
+.page-intro {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-xl);
+  margin-bottom: var(--space-xl);
+  border-bottom: 1px solid var(--color-border);
+  padding: 0 var(--space-xs) var(--space-xl);
+}
+.page-intro h2 {
+  font-size: clamp(1.25rem, 2.4vw, 1.75rem);
+}
+.page-intro .muted {
+  max-width: 48rem;
+  margin: var(--space-md) 0 0;
+}
+.page-context {
+  border: 1px solid #bfdbfe;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  padding: 0.4rem 0.65rem;
+  font-family: "Cascadia Code", Consolas, monospace;
+  font-size: 0.68rem;
+  font-weight: 700;
+  white-space: nowrap;
 }
 .muted {
   color: var(--color-muted);
@@ -101,6 +210,12 @@ header .eyebrow {
 .workspace > .panel:nth-child(4),
 .workspace > .full-span {
   grid-column: 1 / -1;
+}
+.page-content:not(.operations-layout) > .panel {
+  grid-column: 1 / -1;
+}
+.operations-layout > .panel {
+  grid-column: span 6;
 }
 .panel {
   border: 1px solid var(--color-border);
@@ -404,8 +519,19 @@ a {
   main {
     padding: var(--space-md);
   }
-  header {
+  .brand-row {
     padding: var(--space-xl);
+  }
+  .nav-scroll {
+    padding-right: var(--space-md);
+    padding-left: var(--space-md);
+  }
+  .page-intro {
+    display: block;
+  }
+  .page-context {
+    display: inline-flex;
+    margin-top: var(--space-lg);
   }
   .workspace {
     display: grid;
@@ -415,6 +541,10 @@ a {
   .workspace > .panel:nth-child(3),
   .workspace > .panel:nth-child(4),
   .workspace > .full-span {
+    grid-column: auto;
+  }
+  .operations-layout > .panel,
+  .page-content:not(.operations-layout) > .panel {
     grid-column: auto;
   }
   .metrics,
@@ -435,6 +565,16 @@ a {
   }
 }
 @media (max-width: 480px) {
+  .brand-row {
+    display: block;
+  }
+  .brand-row > button {
+    width: 100%;
+    margin-top: var(--space-xl);
+  }
+  .nav-item {
+    min-height: 3rem;
+  }
   .metrics,
   .settings-grid {
     grid-template-columns: 1fr;
