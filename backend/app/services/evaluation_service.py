@@ -9,7 +9,7 @@ from app.schemas.evaluation import EvaluationSummary
 
 
 def _integer_digits(value: str | None) -> str:
-    integer_part = re.split(r"[.,]", value or "", 1)[0]
+    integer_part = re.split(r"[.,]", value or "", maxsplit=1)[0]
     return "".join(character for character in integer_part if character.isdigit())
 
 

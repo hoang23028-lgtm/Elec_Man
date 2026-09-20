@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, String, Text, UniqueConstraint
+from sqlalchemy import DateTime, Index, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -10,7 +10,10 @@ from app.models.mixins import UUIDPrimaryKeyMixin
 
 class ModelRecord(UUIDPrimaryKeyMixin, Base):
     __tablename__ = "models"
-    __table_args__ = (UniqueConstraint("model_name", "version", name="uq_models_name_version"),)
+    __table_args__ = (
+        UniqueConstraint("model_name", "version", name="uq_models_name_version"),
+        Index("ix_models_runtime", "model_type", "status", "activated_at"),
+    )
 
     model_name: Mapped[str] = mapped_column(String(128), nullable=False)
     model_type: Mapped[str] = mapped_column(String(64), index=True, nullable=False)

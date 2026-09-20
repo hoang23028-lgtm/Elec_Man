@@ -12,10 +12,20 @@ from app.models.training_run import TrainingRun
 from app.models.user import User
 from app.schemas.training import DatasetSummary, TrainingOverview, TrainingRunRow
 
+_TRAINING_DEFAULTS = {
+    "training_auto_start": 1,
+    "training_min_samples": 20,
+    "training_min_new_samples": 10,
+}
 
-def _setting(db: Session, key: str, default: int) -> int:
-    record = db.get(SystemSetting, key)
-    return int(record.value_json) if record is not None else default
+
+def _training_settings(db: Session) -> dict[str, int]:
+    values = _TRAINING_DEFAULTS.copy()
+    records = db.scalars(
+        select(SystemSetting).where(SystemSetting.key.in_(values))
+    ).all()
+    values.update({record.key: int(record.value_json) for record in records})
+    return values
 
 
 def eligible_clause():
@@ -47,22 +57,25 @@ def _row(run: TrainingRun) -> TrainingRunRow:
     )
 
 
-def dataset_summary(db: Session) -> DatasetSummary:
-    uploaded = int(db.scalar(select(func.count(ImageRecord.id))) or 0)
-    confirmed = int(
-        db.scalar(
-            select(func.count(MeterReading.id)).where(MeterReading.review_status == "CONFIRMED")
-        )
-        or 0
+def dataset_summary(
+    db: Session, training_settings: dict[str, int] | None = None
+) -> DatasetSummary:
+    settings = training_settings or _training_settings(db)
+    uploaded_query = select(func.count(ImageRecord.id)).scalar_subquery()
+    confirmed_query = (
+        select(func.count(MeterReading.id))
+        .where(MeterReading.review_status == "CONFIRMED")
+        .scalar_subquery()
     )
-    eligible = int(
-        db.scalar(
-            select(func.count(func.distinct(ImageRecord.sha256)))
-            .join(MeterReading, MeterReading.image_id == ImageRecord.id)
-            .where(*eligible_clause())
-        )
-        or 0
+    eligible_query = (
+        select(func.count(func.distinct(ImageRecord.sha256)))
+        .join(MeterReading, MeterReading.image_id == ImageRecord.id)
+        .where(*eligible_clause())
+        .scalar_subquery()
     )
+    uploaded, confirmed, eligible = db.execute(
+        select(uploaded_query, confirmed_query, eligible_query)
+    ).one()
     last_count = int(
         db.scalar(
             select(TrainingRun.sample_count)
@@ -72,7 +85,7 @@ def dataset_summary(db: Session) -> DatasetSummary:
         )
         or 0
     )
-    minimum = _setting(db, "training_min_samples", 20)
+    minimum = settings["training_min_samples"]
     new_samples = max(0, eligible - last_count)
     return DatasetSummary(
         uploaded_images=uploaded,
@@ -80,7 +93,7 @@ def dataset_summary(db: Session) -> DatasetSummary:
         eligible_samples=eligible,
         minimum_samples=minimum,
         new_samples_since_last_run=new_samples,
-        auto_start_enabled=bool(_setting(db, "training_auto_start", 1)),
+        auto_start_enabled=bool(settings["training_auto_start"]),
         ready=eligible >= minimum,
     )
 
@@ -143,8 +156,9 @@ def enqueue_training(
 
 
 def maybe_enqueue_auto(db: Session) -> bool:
-    summary = dataset_summary(db)
-    minimum_new = _setting(db, "training_min_new_samples", 10)
+    settings = _training_settings(db)
+    summary = dataset_summary(db, settings)
+    minimum_new = settings["training_min_new_samples"]
     if (
         not summary.auto_start_enabled
         or not summary.ready

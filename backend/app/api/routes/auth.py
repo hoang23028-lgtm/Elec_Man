@@ -6,7 +6,7 @@ from app.core.database import get_db
 from app.models.user import User
 from app.schemas.auth import CurrentUserResponse, LoginRequest, LoginResponse
 from app.security.dependencies import AuthContext, get_current_user, require_csrf
-from app.security.rate_limit import login_rate_limiter
+from app.security.rate_limit import login_account_rate_limiter, login_ip_rate_limiter
 from app.services.auth_service import authenticate, logout
 
 router = APIRouter()
@@ -20,8 +20,11 @@ def _ip(request: Request) -> str | None:
 def login(
     payload: LoginRequest, request: Request, response: Response, db: Session = Depends(get_db)
 ) -> LoginResponse:
-    key = f"{_ip(request)}:{payload.username.casefold()}"
-    if not login_rate_limiter.allowed(key):
+    ip_key = _ip(request) or "unknown"
+    account_key = f"{ip_key}:{payload.username.casefold()}"
+    if not login_ip_rate_limiter.allowed(ip_key) or not login_account_rate_limiter.allowed(
+        account_key
+    ):
         from fastapi import HTTPException
 
         raise HTTPException(
@@ -33,9 +36,10 @@ def login(
             db, payload.username, payload.password, _ip(request), request.headers.get("user-agent")
         )
     except Exception:
-        login_rate_limiter.record_failure(key)
+        login_ip_rate_limiter.record_failure(ip_key)
+        login_account_rate_limiter.record_failure(account_key)
         raise
-    login_rate_limiter.reset(key)
+    login_account_rate_limiter.reset(account_key)
     settings = get_settings()
     response.set_cookie(
         key=settings.session_cookie_name,

@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -11,6 +11,7 @@ from app.models.mixins import UUIDPrimaryKeyMixin
 
 class TrainingRun(UUIDPrimaryKeyMixin, Base):
     __tablename__ = "training_runs"
+    __table_args__ = (Index("ix_training_runs_claim", "status", "created_at"),)
 
     status: Mapped[str] = mapped_column(String(24), index=True, nullable=False, default="PENDING")
     trigger: Mapped[str] = mapped_column(String(16), nullable=False)

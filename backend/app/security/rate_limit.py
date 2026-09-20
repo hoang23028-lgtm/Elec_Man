@@ -6,9 +6,12 @@ from threading import Lock
 class LoginRateLimiter:
     """Small in-memory limiter suitable for the single-server deployment."""
 
-    def __init__(self, attempts: int = 5, window_seconds: int = 900) -> None:
+    def __init__(
+        self, attempts: int = 5, window_seconds: int = 900, max_keys: int = 10_000
+    ) -> None:
         self.attempts = attempts
         self.window_seconds = window_seconds
+        self.max_keys = max_keys
         self._attempts: dict[str, deque[float]] = {}
         self._lock = Lock()
 
@@ -27,6 +30,8 @@ class LoginRateLimiter:
 
     def record_failure(self, key: str) -> None:
         with self._lock:
+            if key not in self._attempts and len(self._attempts) >= self.max_keys:
+                self._attempts.pop(next(iter(self._attempts)))
             self._attempts.setdefault(key, deque()).append(time.monotonic())
 
     def reset(self, key: str) -> None:
@@ -34,4 +39,5 @@ class LoginRateLimiter:
             self._attempts.pop(key, None)
 
 
-login_rate_limiter = LoginRateLimiter()
+login_account_rate_limiter = LoginRateLimiter()
+login_ip_rate_limiter = LoginRateLimiter(attempts=30)

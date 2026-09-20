@@ -11,7 +11,10 @@ from app.models.mixins import TimestampMixin, UUIDPrimaryKeyMixin
 
 class MeterReading(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "meter_readings"
-    __table_args__ = (Index("ix_meter_readings_review_ai", "review_status", "ai_result_id"),)
+    __table_args__ = (
+        Index("ix_meter_readings_review_ai", "review_status", "ai_result_id"),
+        Index("ix_meter_readings_training", "review_status", "reviewed_by"),
+    )
     image_id: Mapped[UUID] = mapped_column(
         ForeignKey("images.id", ondelete="RESTRICT"), unique=True, index=True
     )

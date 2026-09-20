@@ -2,7 +2,8 @@
 
 from dataclasses import dataclass
 from pathlib import Path
-from subprocess import run
+# The executable is fixed and invoked with an argument list; shell execution is disabled.
+from subprocess import run  # nosec B404
 from tempfile import TemporaryDirectory
 
 import cv2
@@ -18,6 +19,10 @@ class OcrCandidate:
 def read(image: np.ndarray, *, psm: int, whitelist: str | None = None) -> OcrCandidate:
     if image.size == 0:
         return OcrCandidate("", 0.0)
+    if whitelist is not None and (
+        len(whitelist) > 128 or not whitelist.isascii() or any(char.isspace() for char in whitelist)
+    ):
+        raise ValueError("Danh sách ký tự OCR không hợp lệ.")
     with TemporaryDirectory(prefix="meter-ocr-") as directory:
         input_path = Path(directory) / "input.png"
         output_base = Path(directory) / "result"
@@ -33,7 +38,8 @@ def read(image: np.ndarray, *, psm: int, whitelist: str | None = None) -> OcrCan
         ]
         if whitelist:
             command.extend(["-c", f"tessedit_char_whitelist={whitelist}"])
-        completed = run(
+        # Variable arguments are validated temporary paths and bounded OCR options.
+        completed = run(  # nosec B603
             command, capture_output=True, text=True, timeout=20, check=False
         )
         tsv_path = output_base.with_suffix(".tsv")

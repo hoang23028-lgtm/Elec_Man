@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:16-alpine@sha256:3c5c8892d184f738f4fe282d14ddaa613a38f00f4189d2d94725ebe6f2909ddb
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB}
@@ -15,13 +15,13 @@ services:
       retries: 5
     networks: [internal]
   storage-init:
-    image: alpine:3.21
+    image: alpine:3.21@sha256:ce64758a109eb420d874a118f87920e625e12d3634e03b4a5573fd9f6e5d3507
     command: ["sh", "-c", "mkdir -p /data && chown -R 10001:10001 /data"]
     volumes:
       - storage_data:/data
     networks: [internal]
   model-init:
-    image: alpine:3.21
+    image: alpine:3.21@sha256:ce64758a109eb420d874a118f87920e625e12d3634e03b4a5573fd9f6e5d3507
     command: ["sh", "-c", "mkdir -p /models && chown -R 10001:10001 /models"]
     volumes:
       - model_data:/models
@@ -35,6 +35,12 @@ services:
       APP_ENV: ${APP_ENV:-production}
       DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
       SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET}
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
     depends_on:
       postgres:
         condition: service_healthy
@@ -62,7 +68,12 @@ services:
     volumes:
       - storage_data:${STORAGE_ROOT:-/data/electric-meter-ai}
       - model_data:${MODELS_ROOT:-/models}:ro
-      - app_logs:/var/log/electric-meter-ai
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
     depends_on:
       postgres:
         condition: service_healthy
@@ -92,10 +103,16 @@ services:
       MODELS_ROOT: ${MODELS_ROOT:-/models}
       SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET}
       WORKER_POLL_INTERVAL_SECONDS: ${WORKER_POLL_INTERVAL_SECONDS:-2}
+      XDG_CACHE_HOME: /tmp/.cache
     volumes:
       - storage_data:${STORAGE_ROOT:-/data/electric-meter-ai}
       - model_data:${MODELS_ROOT:-/models}:ro
-      - app_logs:/var/log/electric-meter-ai
+    read_only: true
+    tmpfs:
+      - /tmp:size=256m,mode=1777
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
     depends_on:
       postgres:
         condition: service_healthy
@@ -122,10 +139,16 @@ services:
       STORAGE_ROOT: ${STORAGE_ROOT:-/data/electric-meter-ai}
       MODELS_ROOT: ${MODELS_ROOT:-/models}
       SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET}
+      XDG_CACHE_HOME: /tmp/.cache
     volumes:
       - storage_data:${STORAGE_ROOT:-/data/electric-meter-ai}:ro
       - model_data:${MODELS_ROOT:-/models}
-      - app_logs:/var/log/electric-meter-ai
+    read_only: true
+    tmpfs:
+      - /tmp:size=256m,mode=1777
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
     depends_on:
       postgres:
         condition: service_healthy
@@ -144,12 +167,15 @@ services:
     restart: unless-stopped
     environment:
       NODE_ENV: production
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
     depends_on:
       backend:
         condition: service_healthy
     networks: [internal]
   nginx:
-    image: nginx:1.27-alpine
+    image: nginx:stable-alpine@sha256:ef8676b33d681f272ba429b27658bdd7e640963279714c96bddf1dc76307f7b6
     restart: unless-stopped
     ports:
       - "${NGINX_BIND_ADDRESS:-127.0.0.1}:80:80"
@@ -168,4 +194,3 @@ volumes:
   postgres_data:
   storage_data:
   model_data:
-  app_logs:

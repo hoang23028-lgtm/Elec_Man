@@ -24,6 +24,17 @@ def test_rate_limiter_tracks_failures_and_reset_releases_key() -> None:
     assert limiter._attempts == {}
 
 
+def test_rate_limiter_bounds_untrusted_key_storage() -> None:
+    limiter = LoginRateLimiter(attempts=2, window_seconds=60, max_keys=2)
+    limiter.record_failure("first")
+    limiter.record_failure("second")
+    limiter.record_failure("third")
+
+    assert len(limiter._attempts) == 2
+    assert "first" not in limiter._attempts
+    assert set(limiter._attempts) == {"second", "third"}
+
+
 def test_unknown_user_password_path_still_performs_hash_verification() -> None:
     assert verify_password(None, "not-the-dummy-password") is False
 
