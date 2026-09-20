@@ -102,10 +102,14 @@ const detailLabels: Record<string, string> = {
   confidence: "Độ tin cậy",
   threshold: "Ngưỡng áp dụng",
   correction_count: "Số trường chỉnh sửa",
-  changes: "Các giá trị thay đổi",
+  changed_fields: "Các trường đã thay đổi",
   review_action: "Thao tác kiểm duyệt",
-  final_customer_id: "Mã khách hàng cuối cùng",
-  final_meter_reading: "Số điện cuối cùng",
+  ai_customer_id: "Mã khách hàng AI nhận diện",
+  ai_meter_reading: "Số điện AI nhận diện",
+  customer_id_before: "Mã khách hàng trước thay đổi",
+  customer_id_after: "Mã khách hàng sau thay đổi",
+  meter_reading_before: "Số điện trước thay đổi",
+  meter_reading_after: "Số điện sau thay đổi",
   folder_name: "Tên thư mục",
   status: "Trạng thái",
   original_filename: "Tên ảnh gốc",
@@ -152,11 +156,52 @@ function formatDetailValue(value: unknown): string {
 function AuditDetails({ details }: { details: Record<string, unknown> }) {
   const entries = Object.entries(details);
   if (!entries.length) return <>—</>;
+  const changes = [
+    {
+      key: "customer_id",
+      label: "Mã khách hàng",
+      before: details.customer_id_before,
+      after: details.customer_id_after,
+    },
+    {
+      key: "meter_reading",
+      label: "Số điện",
+      before: details.meter_reading_before,
+      after: details.meter_reading_after,
+    },
+  ].filter(
+    (change) =>
+      (change.before !== undefined || change.after !== undefined) &&
+      change.before !== change.after,
+  );
+  const changeKeys = new Set([
+    "customer_id_before",
+    "customer_id_after",
+    "meter_reading_before",
+    "meter_reading_after",
+  ]);
+  const metadataEntries = entries.filter(([key]) => !changeKeys.has(key));
   return (
     <details className="audit-details">
-      <summary>{entries.length} thông tin</summary>
+      <summary>
+        {changes.length
+          ? `${changes.length} thay đổi thủ công · Xem chi tiết`
+          : `${entries.length} thông tin · Xem chi tiết`}
+      </summary>
+      {changes.length > 0 && (
+        <div className="audit-change-list" aria-label="Giá trị trước và sau thay đổi">
+          {changes.map((change) => (
+            <div className="audit-change" key={change.key}>
+              <strong>{change.label}</strong>
+              <span><small>Trước</small>{formatDetailValue(change.before)}</span>
+              <b aria-hidden="true">→</b>
+              <span><small>Sau</small>{formatDetailValue(change.after)}</span>
+            </div>
+          ))}
+        </div>
+      )}
       <dl>
-        {entries.map(([key, value]) => (
+        {metadataEntries.map(([key, value]) => (
           <div key={key}>
             <dt>{detailLabels[key] ?? key}</dt>
             <dd>{formatDetailValue(value)}</dd>

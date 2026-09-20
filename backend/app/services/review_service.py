@@ -120,6 +120,7 @@ def review_result(
         )
     final_meter = normalized_meter or payload.final_meter_reading
 
+    previous_review_status = reading.review_status if reading else "UNREVIEWED"
     if reading is None:
         reading = MeterReading(image_id=image_id, ai_result_id=ai_result.id)
         db.add(reading)
@@ -135,11 +136,11 @@ def review_result(
         ("meter_reading", old_meter, final_meter),
     )
     correction_count = 0
-    changes: dict[str, dict[str, str | None]] = {}
+    changed_fields: list[str] = []
     for field, old, new in corrections:
         if old != new:
             correction_count += 1
-            changes[field] = {"old": old, "new": new}
+            changed_fields.append(field)
             db.add(
                 ManualCorrection(
                     image_id=image_id,
@@ -175,14 +176,20 @@ def review_result(
             target_id=str(image_id),
             details_json={
                 "ai_result_id": str(ai_result.id),
+                "batch_id": str(image.batch_id),
+                "original_filename": image.original_filename,
                 "reason": payload.reason,
                 "correction_count": correction_count,
-                "changes": changes,
+                "changed_fields": changed_fields,
                 "review_action": payload.action,
-                "previous_status": "CONFIRMED" if was_confirmed else None,
+                "previous_status": previous_review_status,
                 "new_status": reading.review_status,
-                "final_customer_id": reading.final_customer_id,
-                "final_meter_reading": reading.final_meter_reading,
+                "ai_customer_id": ai_result.customer_id_ai,
+                "ai_meter_reading": ai_result.meter_reading_ai,
+                "customer_id_before": old_customer,
+                "customer_id_after": reading.final_customer_id,
+                "meter_reading_before": old_meter,
+                "meter_reading_after": reading.final_meter_reading,
             },
             ip_address=ip_address,
         )

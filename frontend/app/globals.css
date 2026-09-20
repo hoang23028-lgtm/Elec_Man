@@ -1056,6 +1056,38 @@ a {
   gap: var(--space-sm);
   margin: var(--space-md) 0 0;
 }
+.audit-change-list {
+  display: grid;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+}
+.audit-change {
+  display: grid;
+  grid-template-columns: minmax(7rem, 0.7fr) minmax(8rem, 1fr) auto minmax(8rem, 1fr);
+  align-items: center;
+  gap: var(--space-sm);
+  border: 1px solid #bfdbfe;
+  border-radius: 0.5rem;
+  background: #eff6ff;
+  padding: var(--space-sm) var(--space-md);
+}
+.audit-change > span {
+  overflow-wrap: anywhere;
+  font-family: "Cascadia Code", Consolas, monospace;
+  font-size: 0.8rem;
+}
+.audit-change small {
+  display: block;
+  margin-bottom: 0.125rem;
+  color: var(--color-muted);
+  font-family: inherit;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.audit-change > b {
+  color: var(--color-primary);
+}
 .audit-details dl > div {
   display: grid;
   grid-template-columns: minmax(8rem, 0.8fr) minmax(12rem, 1.2fr);
@@ -1289,6 +1321,12 @@ a {
   .export-confirmed {
     align-items: stretch;
     flex-direction: column;
+  }
+  .audit-change {
+    grid-template-columns: 1fr;
+  }
+  .audit-change > b {
+    display: none;
   }
   .footer-inner {
     grid-template-columns: 1fr;

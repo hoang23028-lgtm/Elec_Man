@@ -4,6 +4,8 @@ Cấu hình hệ thống, quản lý tài khoản, vòng đời mô hình, chỉ
 
 Trang Truy vết hiển thị tên hành động tiếng Việt, người hoặc tiến trình hệ thống thực hiện, đối tượng, mã đối tượng, địa chỉ IP và phần chi tiết có thể mở rộng. Chi tiết lưu dữ liệu phù hợp với từng hành động như giá trị trước/sau, tên ảnh và checksum, số bản ghi xuất, ngưỡng tự động, tiến độ huấn luyện, chỉ số đánh giá và nguyên nhân lỗi. Mật khẩu, token phiên và token CSRF không được ghi vào nhật ký.
 
+Khi người dùng sửa kết quả thủ công, sự kiện kiểm toán lưu riêng giá trị mã khách hàng trước/sau và số điện trước/sau, danh sách trường bị đổi, kết quả AI gốc, lý do, tên ảnh, lô dữ liệu và trạng thái kiểm duyệt trước/sau. Giao diện làm nổi bật từng cặp thay đổi để có thể đối chiếu trực tiếp.
+
 Trang Quản trị cho phép thêm, sửa tên đăng nhập/trạng thái, đổi mật khẩu và xóa mềm tài khoản. Xóa mềm giữ nguyên quan hệ với các bản ghi kiểm duyệt và lịch sử kiểm toán, đồng thời thu hồi toàn bộ phiên của tài khoản. Hệ thống chặn tự khóa, tự xóa và luôn yêu cầu còn ít nhất một tài khoản hoạt động. Khi quản trị viên đổi mật khẩu của chính mình, phiên hiện tại được giữ lại nhưng các phiên khác bị thu hồi.
 
 Thay đổi cấu hình được kiểm tra, lưu trong PostgreSQL và ghi nhật ký kiểm toán. Các giá trị điều khiển lúc khởi động vẫn là chính sách triển khai và chỉ có hiệu lực sau khi cập nhật cấu hình môi trường rồi khởi động lại dịch vụ liên quan; hệ thống không tự động khởi động lại ngầm.
