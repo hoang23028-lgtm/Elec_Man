@@ -2,7 +2,7 @@
 
 `training/annotations.jsonl` là tệp nhãn có quản lý phiên bản dành cho các mẫu huấn luyện đã phê duyệt. Ảnh không được commit vì ảnh đồng hồ có thể chứa dữ liệu cá nhân hoặc vận hành và phải nằm trong vùng lưu trữ được bảo vệ.
 
-Mỗi dòng yêu cầu checksum SHA-256, mã khách hàng đã xác minh và toàn bộ chỉ số điện. Bản ghi mẫu hiện đại diện cho `ảnh.jpg` với `KH003` và `05068.4 kWh`; bánh số cuối màu đỏ là chữ số hàng phần mười.
+Mỗi dòng yêu cầu checksum SHA-256, mã khách hàng đã xác minh và chỉ số điện nguyên. Bản ghi mẫu hiện đại diện cho `ảnh.jpg` với `KH003` và `05068 kWh`; bánh số cuối màu đỏ và phần thập phân không được đưa vào nhãn huấn luyện.
 
 Một ảnh chỉ là mẫu gán nhãn ban đầu và dữ liệu kiểm thử thủ công, không phải tập huấn luyện đủ lớn. Trước khi kích hoạt mô hình nhận dạng thực tế, hãy thu thập tập dữ liệu được chia tách với nhiều loại đồng hồ, ánh sáng, độ mờ, góc chụp, bụi bẩn/che khuất và tổ hợp chữ số đại diện. Giữ riêng tập kiểm thử độc lập và công bố chỉ số chính xác/lỗi cho mã khách hàng và chỉ số điện.
 

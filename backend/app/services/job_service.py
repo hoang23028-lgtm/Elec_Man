@@ -14,7 +14,7 @@ from app.models.meter_reading import MeterReading
 from app.models.processing_job import JobStatus, ProcessingJob
 from app.models.system_setting import SystemSetting
 from app.models.user import User
-from app.services.meter_value import parse_meter_value
+from app.services.meter_value import normalize_meter_reading, parse_meter_value
 
 DEFAULT_AUTO_CONFIRM_THRESHOLD = 0.9
 
@@ -227,9 +227,10 @@ def mark_job_completed(db: Session, job_id: UUID, result_json: dict) -> None:
             if reading is None:
                 reading = MeterReading(image_id=image.id, ai_result_id=ai_result.id)
                 db.add(reading)
+            meter_reading = normalize_meter_reading(result_json["meter_reading_ai"])
             reading.final_customer_id = result_json["customer_id_ai"]
-            reading.final_meter_reading = result_json["meter_reading_ai"]
-            reading.reading_value = parse_meter_value(result_json["meter_reading_ai"])
+            reading.final_meter_reading = meter_reading
+            reading.reading_value = parse_meter_value(meter_reading)
             reading.review_status = "CONFIRMED"
             reading.reviewed_by = None
             reading.reviewed_at = datetime.now(UTC)

@@ -16,7 +16,7 @@ from ai.pipeline.validator import validate
 class DevelopmentPipeline:
     """Pretrained OCR baseline for bootstrapping a human-reviewed dataset."""
 
-    model_version = "meter-ocr-baseline-v1"
+    model_version = "meter-ocr-baseline-v2-integer"
     name = "OCR_BASELINE"
 
     def __init__(self) -> None:

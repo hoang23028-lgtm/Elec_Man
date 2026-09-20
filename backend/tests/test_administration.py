@@ -6,9 +6,9 @@ from app.services.settings_service import _audit_target, _validated_value
 
 
 def test_digit_accuracy_counts_missing_and_wrong_digits() -> None:
-    assert _digit_counts("63751.3", "63751.3") == (6, 6)
-    assert _digit_counts("63751", "63751.3") == (5, 6)
-    assert _digit_counts("63741.3", "63751.3") == (5, 6)
+    assert _digit_counts("63751.3", "63751.3") == (5, 5)
+    assert _digit_counts("63751", "63751.3") == (5, 5)
+    assert _digit_counts("63741.3", "63751.3") == (4, 5)
 
 
 def test_setting_validation_coerces_numeric_values() -> None:

@@ -13,7 +13,7 @@ from app.models.meter_reading import MeterReading
 from app.models.user import User
 from app.schemas.result import ResultRow, ReviewRequest
 from app.services.job_service import refresh_batch_counters
-from app.services.meter_value import parse_meter_value
+from app.services.meter_value import normalize_meter_reading, parse_meter_value
 
 
 def _apply_result_filters(statement, image_status: str | None, search: str | None):
@@ -111,12 +111,14 @@ def review_result(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Kết quả xác nhận phải có đủ hai giá trị cuối cùng.",
         )
-    reading_value = parse_meter_value(payload.final_meter_reading)
-    if payload.action == "CONFIRM" and reading_value is None:
+    normalized_meter = normalize_meter_reading(payload.final_meter_reading)
+    reading_value = parse_meter_value(normalized_meter)
+    if payload.action == "CONFIRM" and normalized_meter is None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="Số điện phải là số không âm, có tối đa ba chữ số thập phân.",
+            detail="Số điện phải là số nguyên không âm; phần sau dấu phẩy sẽ không được lấy.",
         )
+    final_meter = normalized_meter or payload.final_meter_reading
 
     if reading is None:
         reading = MeterReading(image_id=image_id, ai_result_id=ai_result.id)
@@ -130,7 +132,7 @@ def review_result(
     was_confirmed = bool(reading and reading.review_status == "CONFIRMED")
     corrections = (
         ("customer_id", old_customer, payload.final_customer_id),
-        ("meter_reading", old_meter, payload.final_meter_reading),
+        ("meter_reading", old_meter, final_meter),
     )
     correction_count = 0
     for field, old, new in corrections:
@@ -149,7 +151,7 @@ def review_result(
             )
 
     reading.final_customer_id = payload.final_customer_id
-    reading.final_meter_reading = payload.final_meter_reading
+    reading.final_meter_reading = final_meter
     reading.reading_value = reading_value if payload.action == "CONFIRM" else None
     reading.review_status = "CONFIRMED" if payload.action == "CONFIRM" else "REJECTED"
     reading.reviewed_by = user.id

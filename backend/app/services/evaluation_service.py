@@ -1,3 +1,5 @@
+import re
+
 from sqlalchemy import func, select, true
 from sqlalchemy.orm import Session
 
@@ -6,9 +8,14 @@ from app.models.meter_reading import MeterReading
 from app.schemas.evaluation import EvaluationSummary
 
 
+def _integer_digits(value: str | None) -> str:
+    integer_part = re.split(r"[.,]", value or "", 1)[0]
+    return "".join(character for character in integer_part if character.isdigit())
+
+
 def _digit_counts(predicted: str | None, expected: str | None) -> tuple[int, int]:
-    left = "".join(character for character in (predicted or "") if character.isdigit())
-    right = "".join(character for character in (expected or "") if character.isdigit())
+    left = _integer_digits(predicted)
+    right = _integer_digits(expected)
     total = max(len(left), len(right))
     return sum(a == b for a, b in zip(left, right, strict=False)), total
 
@@ -21,7 +28,6 @@ def evaluation_summary(db: Session, model_version: str | None) -> EvaluationSumm
         auto_pass_count,
         sample_count,
         customer_matches,
-        meter_matches,
     ) = db.execute(
         select(
             func.count(AiResult.id),
@@ -34,10 +40,6 @@ def evaluation_summary(db: Session, model_version: str | None) -> EvaluationSumm
             func.count(MeterReading.id).filter(
                 MeterReading.review_status == "CONFIRMED",
                 AiResult.customer_id_ai == MeterReading.final_customer_id,
-            ),
-            func.count(MeterReading.id).filter(
-                MeterReading.review_status == "CONFIRMED",
-                AiResult.meter_reading_ai == MeterReading.final_meter_reading,
             ),
         )
         .outerjoin(MeterReading, MeterReading.ai_result_id == AiResult.id)
@@ -53,10 +55,13 @@ def evaluation_summary(db: Session, model_version: str | None) -> EvaluationSumm
     ).all()
     digit_correct = 0
     digit_total = 0
+    meter_matches = 0
     for predicted_meter, final_meter in confirmed_meters:
         correct, total = _digit_counts(predicted_meter, final_meter)
         digit_correct += correct
         digit_total += total
+        if total and correct == total:
+            meter_matches += 1
     return EvaluationSummary(
         model_version=model_version,
         total_predictions=total_predictions,

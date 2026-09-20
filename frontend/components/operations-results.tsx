@@ -221,6 +221,7 @@ export function OperationsResults({ csrfToken, refreshKey = 0 }: Props) {
               Số điện (kWh)
               <input
                 value={draft.reading}
+                inputMode="numeric"
                 onChange={(event) =>
                   updateDraft(row.image_id, "reading", event.target.value)
                 }
