@@ -31,6 +31,13 @@ const SystemSettings = dynamic(
   () => import("@/components/system-settings").then((module) => module.SystemSettings),
   { loading: loadingPanel, ssr: false },
 );
+const AccountManagement = dynamic(
+  () =>
+    import("@/features/administration/account-management").then(
+      (module) => module.AccountManagement,
+    ),
+  { loading: loadingPanel, ssr: false },
+);
 const OperationsResults = dynamic(
   () =>
     import("@/components/operations-results").then(
@@ -51,7 +58,7 @@ const pages = [
     id: "operations",
     label: "Vận hành",
     eyebrow: "Xử lý hình ảnh",
-    title: "Tải ảnh và vận hành lô dữ liệu",
+    title: "Tải ảnh và vận hành dữ liệu",
     description:
       "Tạo lô dữ liệu, tải ảnh đồng hồ điện và theo dõi tiến trình OCR.",
   },
@@ -61,7 +68,7 @@ const pages = [
     eyebrow: "Lịch sử xử lý",
     title: "Các lô dữ liệu",
     description:
-      "Theo dõi từng lô và mở chi tiết hình ảnh, kết quả OCR cùng trạng thái xử lý.",
+      "Theo dõi từng lô và chi tiết hình ảnh, kết quả OCR cùng trạng thái xử lý.",
   },
   {
     id: "administration",
@@ -69,7 +76,7 @@ const pages = [
     eyebrow: "Chính sách hệ thống",
     title: "Quản trị hệ thống",
     description:
-      "Quản lý ngưỡng vận hành, giới hạn, thời gian lưu trữ và tiến trình xử lý.",
+      "Quản lý tài khoản, mật khẩu, ngưỡng vận hành và chính sách hệ thống.",
   },
   {
     id: "model-lifecycle",
@@ -393,7 +400,10 @@ export default function HomePage() {
                 <BatchOverview />
               )}
               {csrfToken && displayedPage === "administration" && (
-                <SystemSettings csrfToken={csrfToken} />
+                <>
+                  <AccountManagement csrfToken={csrfToken} />
+                  <SystemSettings csrfToken={csrfToken} />
+                </>
               )}
               {csrfToken && displayedPage === "model-lifecycle" && (
                 <ModelOperations csrfToken={csrfToken} />

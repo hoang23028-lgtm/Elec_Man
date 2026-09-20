@@ -28,7 +28,9 @@ def _audit(db: Session, action: str, ip_address: str | None, user_id: object | N
 def authenticate(
     db: Session, username: str, password: str, ip_address: str | None, user_agent: str | None
 ) -> tuple[str, str, datetime]:
-    user = db.scalar(select(User).where(User.username == username))
+    user = db.scalar(
+        select(User).where(User.username == username, User.deleted_at.is_(None))
+    )
     password_hash = user.password_hash if user is not None and user.is_active else None
     password_valid = verify_password(password_hash, password)
     if user is None or not user.is_active or not password_valid:

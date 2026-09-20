@@ -1,6 +1,8 @@
 # Quản trị
 
-Cấu hình hệ thống, vòng đời mô hình, chỉ số đánh giá và lịch sử kiểm toán là các chức năng dành cho quản trị viên đã xác thực.
+Cấu hình hệ thống, quản lý tài khoản, vòng đời mô hình, chỉ số đánh giá và lịch sử kiểm toán là các chức năng dành cho quản trị viên đã xác thực.
+
+Trang Quản trị cho phép thêm, sửa tên đăng nhập/trạng thái, đổi mật khẩu và xóa mềm tài khoản. Xóa mềm giữ nguyên quan hệ với các bản ghi kiểm duyệt và lịch sử kiểm toán, đồng thời thu hồi toàn bộ phiên của tài khoản. Hệ thống chặn tự khóa, tự xóa và luôn yêu cầu còn ít nhất một tài khoản hoạt động. Khi quản trị viên đổi mật khẩu của chính mình, phiên hiện tại được giữ lại nhưng các phiên khác bị thu hồi.
 
 Thay đổi cấu hình được kiểm tra, lưu trong PostgreSQL và ghi nhật ký kiểm toán. Các giá trị điều khiển lúc khởi động vẫn là chính sách triển khai và chỉ có hiệu lực sau khi cập nhật cấu hình môi trường rồi khởi động lại dịch vụ liên quan; hệ thống không tự động khởi động lại ngầm.
 

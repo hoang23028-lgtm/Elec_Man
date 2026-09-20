@@ -1,16 +1,16 @@
 # Bảo mật và xác thực
 
-Hệ thống sử dụng một tài khoản quản trị viên, mật khẩu băm Argon2id, phiên làm việc không trong suốt phía máy chủ và cookie HttpOnly. Cơ sở dữ liệu chỉ lưu giá trị băm SHA-256 của phiên và token CSRF. Cookie có thuộc tính `Secure` trong production và dùng `SameSite=Strict`.
+Hệ thống sử dụng các tài khoản quản trị viên, mật khẩu băm Argon2id, phiên làm việc không trong suốt phía máy chủ và cookie HttpOnly. Cơ sở dữ liệu chỉ lưu giá trị băm SHA-256 của phiên và token CSRF. Cookie có thuộc tính `Secure` trong production và dùng `SameSite=Strict`.
 
 Mọi endpoint thay đổi trạng thái có xác thực đều yêu cầu `X-CSRF-Token` được trả về khi đăng nhập. Frontend chỉ giữ token CSRF không phải thông tin đăng nhập này trong bộ nhớ, không lưu vào localStorage. Số lần đăng nhập được giới hạn trong bộ nhớ ở mức năm lần cho mỗi tổ hợp IP/tên đăng nhập trong 15 phút, phù hợp với phạm vi một máy chủ.
 
 Tạo quản trị viên sau khi áp dụng migration:
 
 ```powershell
-$env:ADMIN_INITIAL_PASSWORD = "mat-khau-dai-va-duy-nhat"
-docker compose exec backend python -m app.scripts.init_admin --username admin_operator
-Remove-Item Env:ADMIN_INITIAL_PASSWORD
+docker compose exec -e "ADMIN_INITIAL_PASSWORD=<mat-khau-tam>" backend python -m app.scripts.init_admin --username admin_operator
 ```
+
+Không ghi mật khẩu thật trực tiếp vào lịch sử terminal; dùng quy trình nhập bảo mật trong [installation.md](installation.md). Sau khi có tài khoản đầu tiên, tạo các tài khoản khác trong trang Quản trị. Đổi mật khẩu hoặc khóa/xóa tài khoản sẽ thu hồi các phiên liên quan.
 
 Trong production, đặt `SESSION_SECRET` thành giá trị ngẫu nhiên duy nhất dài ít nhất 32 ký tự, thay mật khẩu PostgreSQL mẫu và khai báo chính xác `ALLOWED_HOSTS`. Quá trình khởi động sẽ từ chối secret/mật khẩu mẫu và host ký tự đại diện trong production. Tài liệu API tự động cũng bị tắt trong môi trường này. Không bao giờ commit tệp `.env`.
 

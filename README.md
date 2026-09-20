@@ -1,6 +1,6 @@
 # Hệ thống AI quản lý đồng hồ điện
 
-Hệ thống web nội bộ dành cho một quản trị viên, hỗ trợ xử lý ảnh đồng hồ điện theo lô, tự động xác nhận kết quả đủ tin cậy và kiểm duyệt phần còn lại.
+Hệ thống web nội bộ dành cho các tài khoản quản trị, hỗ trợ xử lý ảnh đồng hồ điện theo lô, tự động xác nhận kết quả đủ tin cậy và kiểm duyệt phần còn lại.
 
 ## Trạng thái hiện tại
 
@@ -16,13 +16,15 @@ docker compose up --build
 
 Mở `http://localhost/`. Endpoint kiểm tra hoạt động của backend là `/api/v1/health/live`; endpoint kiểm tra sẵn sàng là `/api/v1/health/ready`.
 
+Để cài trên một máy mới từ đầu, làm theo [hướng dẫn cài đặt từng bước](docs/installation.md). Cấu trúc và quy ước đặt source code được mô tả trong [tài liệu cấu trúc](docs/source-structure.md).
+
 ## Migration và kiểm thử
 
 Chạy migration bằng `docker compose exec backend alembic upgrade head`. Kiểm thử Python yêu cầu Python 3.12 trở lên cùng các dependency phát triển của backend, sau đó chạy `pytest backend/tests`.
 
 ## Khởi tạo quản trị viên
 
-Sau khi áp dụng migration, đặt tạm thời `ADMIN_INITIAL_PASSWORD` rồi chạy `python -m app.scripts.init_admin --username <ten_dang_nhap>` trong container backend. Xem [tài liệu bảo mật](docs/security.md). Hệ thống chủ động không cung cấp endpoint đăng ký hoặc mật khẩu quản trị mặc định.
+Sau khi áp dụng migration, truyền tạm thời `ADMIN_INITIAL_PASSWORD` vào lệnh khởi tạo trong container backend theo [hướng dẫn cài đặt](docs/installation.md). Sau khi đăng nhập, quản trị viên có thể thêm, sửa, khóa, xóa mềm và đổi mật khẩu tài khoản tại trang Quản trị. Xem thêm [tài liệu bảo mật](docs/security.md). Hệ thống chủ động không cung cấp endpoint đăng ký công khai hoặc mật khẩu mặc định.
 
 ## Tải ảnh
 

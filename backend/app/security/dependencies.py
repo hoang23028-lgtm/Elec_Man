@@ -39,7 +39,7 @@ def get_auth_context(request: Request, db: Session = Depends(get_db)) -> AuthCon
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Phiên đăng nhập không hợp lệ hoặc đã hết hạn.",
         )
-    if not user.is_active:
+    if not user.is_active or user.deleted_at is not None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Yêu cầu đăng nhập.")
     return AuthContext(session=session, user=user)
 

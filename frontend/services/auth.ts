@@ -1,6 +1,12 @@
 import type { LoginInput, LoginResult } from "@/types/auth";
 import { apiFetch, apiJson } from "@/services/http";
 
+export type CurrentUser = {
+  id: string;
+  username: string;
+  last_login_at: string | null;
+};
+
 export async function login(input: LoginInput): Promise<LoginResult> {
   return apiJson<LoginResult>("/auth/login", {
     method: "POST",
@@ -14,4 +20,8 @@ export async function logout(csrfToken: string): Promise<void> {
     method: "POST",
     headers: { "X-CSRF-Token": csrfToken },
   }, "Không thể đăng xuất.");
+}
+
+export async function getCurrentUser(): Promise<CurrentUser> {
+  return apiJson<CurrentUser>("/auth/me", {}, "Không thể xác định tài khoản hiện tại.");
 }
