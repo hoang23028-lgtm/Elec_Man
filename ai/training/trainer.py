@@ -8,6 +8,7 @@ from sqlalchemy import select
 from ai.training.digit_model import sample_features
 from app.core.config import get_settings
 from app.core.database import SessionLocal
+from app.models.audit_log import AuditLog
 from app.models.image import ImageRecord
 from app.models.meter_reading import MeterReading
 from app.models.model_registry import ModelRecord
@@ -21,6 +22,16 @@ def _set_stage(run_id, stage: str, progress: int) -> None:
         if run is not None:
             run.stage = stage
             run.progress = progress
+            db.add(
+                AuditLog(
+                    user_id=None,
+                    action="TRAINING_STAGE_CHANGED",
+                    target_type="training_run",
+                    target_id=str(run.id),
+                    details_json={"stage": stage, "progress": progress},
+                    ip_address=None,
+                )
+            )
             db.commit()
 
 
@@ -114,4 +125,23 @@ def train_run(run_id) -> None:
         run.metrics_json = metrics
         run.model_id = model.id
         run.completed_at = datetime.now(UTC)
+        db.add(
+            AuditLog(
+                user_id=None,
+                action="TRAINING_COMPLETED",
+                target_type="training_run",
+                target_id=str(run.id),
+                details_json={
+                    "dataset_hash": dataset_hash,
+                    "sample_count": len(rows),
+                    "training_count": len(training_rows),
+                    "validation_count": len(validation_rows),
+                    "model_id": str(model.id),
+                    "model_version": version,
+                    "model_sha256": digest,
+                    "metrics": metrics,
+                },
+                ip_address=None,
+            )
+        )
         db.commit()

@@ -30,6 +30,7 @@ def list_audit_logs(
             action=record.action,
             target_type=record.target_type,
             target_id=record.target_id,
+            details=record.details_json,
             ip_address=record.ip_address,
             created_at=record.created_at,
         )

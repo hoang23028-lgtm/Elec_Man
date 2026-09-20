@@ -6,6 +6,7 @@ export type AuditRow = {
   action: string;
   target_type: string | null;
   target_id: string | null;
+  details: Record<string, unknown>;
   ip_address: string | null;
   created_at: string;
 };

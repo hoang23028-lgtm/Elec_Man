@@ -5,11 +5,12 @@ import signal
 import time
 from datetime import UTC, datetime
 
-from sqlalchemy import select, update
+from sqlalchemy import select
 
 from ai.training.trainer import train_run
 from app.core.database import SessionLocal
 from app.core.logging import configure_logging
+from app.models.audit_log import AuditLog
 from app.models.training_run import TrainingRun
 from app.services.training_service import maybe_enqueue_auto
 
@@ -37,6 +38,21 @@ def _claim():
         run.progress = 5
         run.started_at = datetime.now(UTC)
         run_id = run.id
+        db.add(
+            AuditLog(
+                user_id=None,
+                action="TRAINING_STARTED",
+                target_type="training_run",
+                target_id=str(run.id),
+                details_json={
+                    "trigger": run.trigger,
+                    "sample_count": run.sample_count,
+                    "stage": run.stage,
+                    "progress": run.progress,
+                },
+                ip_address=None,
+            )
+        )
         db.commit()
         return run_id
 
@@ -44,21 +60,36 @@ def _claim():
 def _recover_interrupted_runs() -> int:
     """Close runs left in RUNNING when the trainer process was interrupted."""
     with SessionLocal() as db:
-        result = db.execute(
-            update(TrainingRun)
-            .where(TrainingRun.status == "RUNNING")
-            .values(
-                status="FAILED",
-                stage="FAILED",
-                error_message=(
-                    "Tiến trình huấn luyện trước đó bị gián đoạn. "
-                    "Hãy khởi chạy lại phiên huấn luyện."
-                ),
-                completed_at=datetime.now(UTC),
-            )
+        interrupted = db.scalars(
+            select(TrainingRun).where(TrainingRun.status == "RUNNING")
+        ).all()
+        message = (
+            "Tiến trình huấn luyện trước đó bị gián đoạn. "
+            "Hãy khởi chạy lại phiên huấn luyện."
         )
+        for run in interrupted:
+            previous_stage = run.stage
+            run.status = "FAILED"
+            run.stage = "FAILED"
+            run.error_message = message
+            run.completed_at = datetime.now(UTC)
+            db.add(
+                AuditLog(
+                    user_id=None,
+                    action="TRAINING_FAILED",
+                    target_type="training_run",
+                    target_id=str(run.id),
+                    details_json={
+                        "reason": "trainer_interrupted",
+                        "error_message": message,
+                        "last_stage": previous_stage,
+                        "progress": run.progress,
+                    },
+                    ip_address=None,
+                )
+            )
         db.commit()
-        return result.rowcount
+        return len(interrupted)
 
 
 def main() -> None:
@@ -98,10 +129,26 @@ def main() -> None:
                 with SessionLocal() as db:
                     run = db.get(TrainingRun, run_id)
                     if run is not None:
+                        previous_stage = run.stage
                         run.status = "FAILED"
                         run.stage = "FAILED"
                         run.error_message = str(exc)[:2000]
                         run.completed_at = datetime.now(UTC)
+                        db.add(
+                            AuditLog(
+                                user_id=None,
+                                action="TRAINING_FAILED",
+                                target_type="training_run",
+                                target_id=str(run.id),
+                                details_json={
+                                    "error_type": type(exc).__name__,
+                                    "error_message": str(exc)[:2000],
+                                    "last_stage": previous_stage,
+                                    "progress": run.progress,
+                                },
+                                ip_address=None,
+                            )
+                        )
                         db.commit()
             time.sleep(5)
 

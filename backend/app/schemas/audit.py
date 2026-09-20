@@ -10,5 +10,6 @@ class AuditRow(BaseModel):
     action: str
     target_type: str | None
     target_id: str | None
+    details: dict
     ip_address: str | None
     created_at: datetime

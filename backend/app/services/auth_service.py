@@ -12,14 +12,20 @@ from app.security.passwords import verify_password
 from app.security.tokens import generate_token, hash_token
 
 
-def _audit(db: Session, action: str, ip_address: str | None, user_id: object | None = None) -> None:
+def _audit(
+    db: Session,
+    action: str,
+    ip_address: str | None,
+    user_id: object | None = None,
+    details: dict | None = None,
+) -> None:
     db.add(
         AuditLog(
             user_id=user_id,
             action=action,
             target_type="user" if user_id else None,
             target_id=str(user_id) if user_id else None,
-            details_json={},
+            details_json=details or {},
             ip_address=ip_address,
         )
     )
@@ -34,7 +40,12 @@ def authenticate(
     password_hash = user.password_hash if user is not None and user.is_active else None
     password_valid = verify_password(password_hash, password)
     if user is None or not user.is_active or not password_valid:
-        _audit(db, "LOGIN_FAILED", ip_address)
+        _audit(
+            db,
+            "LOGIN_FAILED",
+            ip_address,
+            details={"result": "DENIED", "reason": "invalid_credentials_or_inactive"},
+        )
         db.commit()
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -57,7 +68,13 @@ def authenticate(
         )
     )
     user.last_login_at = now
-    _audit(db, "LOGIN_SUCCESS", ip_address, user.id)
+    _audit(
+        db,
+        "LOGIN_SUCCESS",
+        ip_address,
+        user.id,
+        {"result": "SUCCESS", "session_expires_at": expires_at.isoformat()},
+    )
     db.commit()
     return raw_session, raw_csrf, expires_at
 
@@ -66,5 +83,11 @@ def logout(db: Session, session: SessionRecord, ip_address: str | None) -> None:
     if session.revoked_at is not None:
         return
     session.revoked_at = datetime.now(UTC)
-    _audit(db, "LOGOUT", ip_address, session.user_id)
+    _audit(
+        db,
+        "LOGOUT",
+        ip_address,
+        session.user_id,
+        {"result": "SUCCESS", "session_id": str(session.id)},
+    )
     db.commit()

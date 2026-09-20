@@ -115,6 +115,7 @@ def activate_model(db: Session, model_id: object, user: User, ip_address: str | 
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy mô hình.")
     _verified_model_path(record.file_path, record.sha256)
     _validate_activation_metrics(record)
+    previous_status = record.status
     db.execute(
         update(ModelRecord)
         .where(ModelRecord.model_type == record.model_type, ModelRecord.status == "ACTIVE")
@@ -128,7 +129,15 @@ def activate_model(db: Session, model_id: object, user: User, ip_address: str | 
             action="ACTIVATE_MODEL",
             target_type="model",
             target_id=str(record.id),
-            details_json={"model_name": record.model_name, "version": record.version},
+            details_json={
+                "model_name": record.model_name,
+                "model_type": record.model_type,
+                "version": record.version,
+                "previous_status": previous_status,
+                "new_status": "ACTIVE",
+                "sha256": record.sha256,
+                "metrics": record.metrics_json,
+            },
             ip_address=ip_address,
         )
     )

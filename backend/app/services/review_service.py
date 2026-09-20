@@ -135,9 +135,11 @@ def review_result(
         ("meter_reading", old_meter, final_meter),
     )
     correction_count = 0
+    changes: dict[str, dict[str, str | None]] = {}
     for field, old, new in corrections:
         if old != new:
             correction_count += 1
+            changes[field] = {"old": old, "new": new}
             db.add(
                 ManualCorrection(
                     image_id=image_id,
@@ -175,6 +177,12 @@ def review_result(
                 "ai_result_id": str(ai_result.id),
                 "reason": payload.reason,
                 "correction_count": correction_count,
+                "changes": changes,
+                "review_action": payload.action,
+                "previous_status": "CONFIRMED" if was_confirmed else None,
+                "new_status": reading.review_status,
+                "final_customer_id": reading.final_customer_id,
+                "final_meter_reading": reading.final_meter_reading,
             },
             ip_address=ip_address,
         )

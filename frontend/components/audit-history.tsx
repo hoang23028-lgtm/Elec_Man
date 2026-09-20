@@ -12,6 +12,9 @@ const actions = [
   "CREATE_BATCH",
   "UPLOAD_IMAGE",
   "START_BATCH",
+  "PROCESSING_COMPLETED",
+  "PROCESSING_RETRY_SCHEDULED",
+  "PROCESSING_FAILED",
   "CONFIRM_RESULT",
   "AUTO_CONFIRM_RESULT",
   "UPDATE_CONFIRMED_RESULT",
@@ -20,6 +23,15 @@ const actions = [
   "CHANGE_SETTING",
   "REGISTER_MODEL",
   "ACTIVATE_MODEL",
+  "TRAINING_QUEUED",
+  "TRAINING_STARTED",
+  "TRAINING_STAGE_CHANGED",
+  "TRAINING_COMPLETED",
+  "TRAINING_FAILED",
+  "USER_CREATE",
+  "USER_UPDATE",
+  "USER_PASSWORD_CHANGE",
+  "USER_DELETE",
   "LOGOUT",
 ];
 const actionLabels: Record<string, string> = {
@@ -28,6 +40,9 @@ const actionLabels: Record<string, string> = {
   CREATE_BATCH: "Tạo lô dữ liệu",
   UPLOAD_IMAGE: "Tải ảnh lên",
   START_BATCH: "Bắt đầu xử lý lô",
+  PROCESSING_COMPLETED: "Xử lý ảnh hoàn tất",
+  PROCESSING_RETRY_SCHEDULED: "Lên lịch xử lý lại",
+  PROCESSING_FAILED: "Xử lý ảnh thất bại",
   CONFIRM_RESULT: "Xác nhận kết quả",
   AUTO_CONFIRM_RESULT: "AI tự động xác nhận",
   UPDATE_CONFIRMED_RESULT: "Cập nhật kết quả đã xác nhận",
@@ -36,6 +51,15 @@ const actionLabels: Record<string, string> = {
   CHANGE_SETTING: "Thay đổi cấu hình",
   REGISTER_MODEL: "Đăng ký mô hình",
   ACTIVATE_MODEL: "Kích hoạt mô hình",
+  TRAINING_QUEUED: "Xếp hàng huấn luyện",
+  TRAINING_STARTED: "Bắt đầu huấn luyện",
+  TRAINING_STAGE_CHANGED: "Chuyển giai đoạn huấn luyện",
+  TRAINING_COMPLETED: "Huấn luyện hoàn tất",
+  TRAINING_FAILED: "Huấn luyện thất bại",
+  USER_CREATE: "Tạo tài khoản",
+  USER_UPDATE: "Cập nhật tài khoản",
+  USER_PASSWORD_CHANGE: "Đổi mật khẩu tài khoản",
+  USER_DELETE: "Xóa tài khoản",
   LOGOUT: "Đăng xuất",
 };
 const targetLabels: Record<string, string> = {
@@ -43,8 +67,105 @@ const targetLabels: Record<string, string> = {
   batch: "Lô dữ liệu",
   image: "Hình ảnh",
   model: "Mô hình",
+  training_run: "Phiên huấn luyện",
   system_settings: "Cấu hình hệ thống",
 };
+
+const detailLabels: Record<string, string> = {
+  trigger: "Nguồn khởi chạy",
+  sample_count: "Tổng số mẫu",
+  minimum_samples: "Số mẫu tối thiểu",
+  new_samples_since_last_run: "Mẫu mới từ lần train trước",
+  auto_start_enabled: "Tự động huấn luyện",
+  stage: "Giai đoạn",
+  last_stage: "Giai đoạn cuối",
+  progress: "Tiến độ",
+  training_count: "Mẫu huấn luyện",
+  validation_count: "Mẫu validation",
+  dataset_hash: "Checksum dataset",
+  model_id: "Mã mô hình",
+  model_name: "Tên mô hình",
+  model_type: "Loại mô hình",
+  model_version: "Phiên bản mô hình",
+  version: "Phiên bản",
+  model_sha256: "Checksum mô hình",
+  sha256: "SHA-256",
+  metrics: "Chỉ số đánh giá",
+  previous_status: "Trạng thái trước",
+  new_status: "Trạng thái mới",
+  error_type: "Loại lỗi",
+  error_message: "Nội dung lỗi",
+  reason: "Lý do",
+  batch_code: "Mã lô",
+  batch_id: "Mã lô",
+  ai_result_id: "Mã kết quả AI",
+  confidence: "Độ tin cậy",
+  threshold: "Ngưỡng áp dụng",
+  correction_count: "Số trường chỉnh sửa",
+  changes: "Các giá trị thay đổi",
+  review_action: "Thao tác kiểm duyệt",
+  final_customer_id: "Mã khách hàng cuối cùng",
+  final_meter_reading: "Số điện cuối cùng",
+  folder_name: "Tên thư mục",
+  status: "Trạng thái",
+  original_filename: "Tên ảnh gốc",
+  mime_type: "Loại tệp",
+  file_size_bytes: "Kích thước (byte)",
+  width: "Chiều rộng",
+  height: "Chiều cao",
+  job_count: "Số tác vụ",
+  processor: "Bộ xử lý",
+  max_attempts: "Số lần thử tối đa",
+  job_id: "Mã tác vụ",
+  processing_time_ms: "Thời gian xử lý (ms)",
+  auto_confirmed: "Tự động xác nhận",
+  error_code: "Mã lỗi",
+  attempt_count: "Lần thử hiện tại",
+  next_retry_at: "Thời điểm thử lại",
+  customer_id: "Mã khách hàng",
+  meter_reading: "Số điện",
+  filename: "Tên tệp",
+  exported_rows: "Số dòng đã xuất",
+  result: "Kết quả",
+  session_expires_at: "Phiên hết hạn lúc",
+  session_id: "Mã phiên đăng nhập",
+  username: "Tên đăng nhập",
+  is_active: "Trạng thái hoạt động",
+};
+
+function formatDetailValue(value: unknown): string {
+  if (value === null || value === undefined || value === "") return "—";
+  if (typeof value === "boolean") return value ? "Có" : "Không";
+  if (typeof value === "number") return String(value);
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) return value.map(formatDetailValue).join(", ");
+  if (typeof value === "object") {
+    const change = value as { old?: unknown; new?: unknown };
+    if ("old" in change || "new" in change) {
+      return `${formatDetailValue(change.old)} → ${formatDetailValue(change.new)}`;
+    }
+    return JSON.stringify(value, null, 2);
+  }
+  return String(value);
+}
+
+function AuditDetails({ details }: { details: Record<string, unknown> }) {
+  const entries = Object.entries(details);
+  if (!entries.length) return <>—</>;
+  return (
+    <details className="audit-details">
+      <summary>{entries.length} thông tin</summary>
+      <dl>
+        {entries.map(([key, value]) => (
+          <div key={key}>
+            <dt>{detailLabels[key] ?? key}</dt>
+            <dd>{formatDetailValue(value)}</dd>
+          </div>
+        ))}
+      </dl>
+    </details>
+  );
+}
 
 function targetIdLabel(value: string | null): string {
   if (!value) return "";
@@ -136,6 +257,7 @@ export function AuditHistory() {
                 <th>Hành động</th>
                 <th>Người dùng</th>
                 <th>Đối tượng</th>
+                <th>Chi tiết hành động</th>
                 <th>Địa chỉ IP</th>
               </tr>
             </thead>
@@ -156,6 +278,7 @@ export function AuditHistory() {
                       : "—"}
                     <small>{targetIdLabel(row.target_id)}</small>
                   </td>
+                  <td><AuditDetails details={row.details} /></td>
                   <td>{row.ip_address ?? "—"}</td>
                 </tr>
               ))}

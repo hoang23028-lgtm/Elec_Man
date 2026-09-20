@@ -1,9 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.models.audit_log import AuditLog
+from app.models.meter_reading import MeterReading
 from app.models.user import User
 from app.security.dependencies import get_current_user, require_csrf
 from app.services.export_service import create_final_export, resolve_export_path
@@ -16,13 +18,21 @@ def export_final(
     request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)
 ) -> dict:
     name, _ = create_final_export(db)
+    exported_rows = int(
+        db.scalar(
+            select(func.count(MeterReading.id)).where(
+                MeterReading.review_status == "CONFIRMED"
+            )
+        )
+        or 0
+    )
     db.add(
         AuditLog(
             user_id=user.id,
             action="EXPORT_EXCEL",
             target_type="export",
             target_id=name,
-            details_json={},
+            details_json={"filename": name, "exported_rows": exported_rows},
             ip_address=request.client.host if request.client else None,
         )
     )

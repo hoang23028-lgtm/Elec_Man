@@ -1037,6 +1037,44 @@ a {
   display: block;
   margin-bottom: var(--space-sm);
 }
+.audit-details {
+  min-width: 12rem;
+}
+.audit-details summary {
+  width: max-content;
+  cursor: pointer;
+  color: var(--color-primary);
+  font-weight: 700;
+}
+.audit-details summary:focus-visible {
+  border-radius: 0.25rem;
+  outline: 3px solid rgba(37, 99, 235, 0.25);
+  outline-offset: 3px;
+}
+.audit-details dl {
+  display: grid;
+  gap: var(--space-sm);
+  margin: var(--space-md) 0 0;
+}
+.audit-details dl > div {
+  display: grid;
+  grid-template-columns: minmax(8rem, 0.8fr) minmax(12rem, 1.2fr);
+  gap: var(--space-md);
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--space-sm);
+}
+.audit-details dt {
+  color: var(--color-muted);
+  font-weight: 600;
+}
+.audit-details dd {
+  margin: 0;
+  max-width: 34rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: "Cascadia Code", Consolas, monospace;
+  font-size: 0.76rem;
+}
 .settings-form {
   margin-top: var(--space-xl);
 }

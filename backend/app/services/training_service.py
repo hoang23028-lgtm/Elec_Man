@@ -121,17 +121,22 @@ def enqueue_training(
     )
     db.add(run)
     db.flush()
-    if user is not None:
-        db.add(
-            AuditLog(
-                user_id=user.id,
-                action="START_TRAINING",
-                target_type="training_run",
-                target_id=str(run.id),
-                details_json={"sample_count": run.sample_count},
-                ip_address=ip_address,
-            )
+    db.add(
+        AuditLog(
+            user_id=user.id if user else None,
+            action="TRAINING_QUEUED",
+            target_type="training_run",
+            target_id=str(run.id),
+            details_json={
+                "trigger": trigger,
+                "sample_count": run.sample_count,
+                "minimum_samples": summary.minimum_samples,
+                "new_samples_since_last_run": summary.new_samples_since_last_run,
+                "auto_start_enabled": summary.auto_start_enabled,
+            },
+            ip_address=ip_address,
         )
+    )
     db.commit()
     db.refresh(run)
     return _row(run)

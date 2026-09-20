@@ -70,6 +70,7 @@ def queue_batch(db: Session, batch_id: UUID, user: User, ip_address: str | None)
         )
     now = datetime.now(UTC)
     settings = get_settings()
+    previous_status = batch.status
     db.add_all(
         [
             ProcessingJob(
@@ -94,7 +95,14 @@ def queue_batch(db: Session, batch_id: UUID, user: User, ip_address: str | None)
             action="START_BATCH",
             target_type="batch",
             target_id=str(batch.id),
-            details_json={"job_count": len(image_ids), "processor": "OCR_BASELINE"},
+            details_json={
+                "batch_code": batch.batch_code,
+                "job_count": len(image_ids),
+                "processor": "OCR_BASELINE",
+                "max_attempts": settings.max_retry_count,
+                "previous_status": previous_status,
+                "new_status": BatchStatus.QUEUED,
+            },
             ip_address=ip_address,
         )
     )
@@ -212,7 +220,8 @@ def mark_job_completed(db: Session, job_id: UUID, result_json: dict) -> None:
     job.completed_at = datetime.now(UTC)
     job.result_json = result_json
     threshold = get_auto_confirm_threshold(db)
-    if should_auto_confirm(result_json, threshold):
+    auto_confirmed = should_auto_confirm(result_json, threshold)
+    if auto_confirmed:
         image.status = ImageStatus.CONFIRMED
         result_record = db.execute(
             select(AiResult, MeterReading)
@@ -221,6 +230,7 @@ def mark_job_completed(db: Session, job_id: UUID, result_json: dict) -> None:
         ).one_or_none()
         ai_result = result_record[0] if result_record else None
         if ai_result is None:
+            auto_confirmed = False
             image.status = ImageStatus.REVIEW_REQUIRED
         else:
             reading = result_record[1]
@@ -244,12 +254,35 @@ def mark_job_completed(db: Session, job_id: UUID, result_json: dict) -> None:
                         "ai_result_id": str(ai_result.id),
                         "confidence": result_json["final_confidence"],
                         "threshold": threshold,
+                        "customer_id": reading.final_customer_id,
+                        "meter_reading": reading.final_meter_reading,
+                        "model_version": result_json.get("model_version"),
                     },
                     ip_address=None,
                 )
             )
     else:
         image.status = ImageStatus.REVIEW_REQUIRED
+    db.add(
+        AuditLog(
+            user_id=None,
+            action="PROCESSING_COMPLETED",
+            target_type="image",
+            target_id=str(image.id),
+            details_json={
+                "job_id": str(job.id),
+                "batch_id": str(image.batch_id),
+                "original_filename": image.original_filename,
+                "processor": result_json.get("processor"),
+                "model_version": result_json.get("model_version"),
+                "confidence": result_json.get("final_confidence"),
+                "processing_time_ms": result_json.get("processing_time_ms"),
+                "auto_confirmed": auto_confirmed,
+                "new_status": image.status,
+            },
+            ip_address=None,
+        )
+    )
     db.flush()
     refresh_batch_counters(db, image.batch_id)
     db.commit()
@@ -271,11 +304,33 @@ def mark_job_failure(db: Session, job_id: UUID, error_code: str, error_message: 
         job.status = JobStatus.FAILED
         job.completed_at = now
         image.status = ImageStatus.FAILED
+        audit_action = "PROCESSING_FAILED"
     else:
         job.status = JobStatus.PENDING
         job.next_retry_at = now + timedelta(seconds=min(60, 2**job.attempt_count))
         job.worker_id = None
         job.started_at = None
+        audit_action = "PROCESSING_RETRY_SCHEDULED"
+    db.add(
+        AuditLog(
+            user_id=None,
+            action=audit_action,
+            target_type="image",
+            target_id=str(image.id),
+            details_json={
+                "job_id": str(job.id),
+                "batch_id": str(image.batch_id),
+                "original_filename": image.original_filename,
+                "error_code": job.error_code,
+                "error_message": job.error_message,
+                "attempt_count": job.attempt_count,
+                "max_attempts": job.max_attempts,
+                "next_retry_at": job.next_retry_at.isoformat() if job.next_retry_at else None,
+                "new_status": job.status,
+            },
+            ip_address=None,
+        )
+    )
     db.flush()
     refresh_batch_counters(db, image.batch_id)
     db.commit()

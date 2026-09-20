@@ -40,7 +40,11 @@ def create_batch(
             action="CREATE_BATCH",
             target_type="batch",
             target_id=str(batch.id),
-            details_json={"batch_code": code},
+            details_json={
+                "batch_code": code,
+                "folder_name": folder_name,
+                "status": BatchStatus.UPLOADING,
+            },
             ip_address=ip_address,
         )
     )
@@ -89,7 +93,16 @@ def save_uploaded_image(
             action="UPLOAD_IMAGE",
             target_type="image",
             target_id=str(image.id),
-            details_json={"batch_id": str(batch.id), "sha256": upload.sha256},
+            details_json={
+                "batch_id": str(batch.id),
+                "batch_code": batch.batch_code,
+                "original_filename": upload.original_filename,
+                "mime_type": upload.mime_type,
+                "file_size_bytes": upload.file_size,
+                "width": upload.width,
+                "height": upload.height,
+                "sha256": upload.sha256,
+            },
             ip_address=ip_address,
         )
     )
