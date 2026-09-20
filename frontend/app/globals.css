@@ -31,6 +31,9 @@
   box-sizing: border-box;
 }
 body {
+  display: flex;
+  min-height: 100dvh;
+  flex-direction: column;
   margin: 0;
   min-width: 320px;
   background: var(--color-background);
@@ -38,7 +41,10 @@ body {
   font-family: "Segoe UI", Arial, sans-serif;
 }
 .app-main {
-  min-height: 100dvh;
+  width: 100%;
+  min-height: 0;
+  min-width: 0;
+  flex: 1;
   padding: var(--space-2xl);
 }
 .shell {
@@ -208,6 +214,61 @@ p {
   font-family: "Cascadia Code", Consolas, monospace;
   font-size: 0.68rem;
   font-weight: 700;
+}
+.app-footer {
+  border-top: 1px solid #334155;
+  background: #0f172a;
+  color: #e2e8f0;
+}
+.footer-inner {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2xl);
+  width: min(100%, 90.5rem);
+  margin: auto;
+  padding: var(--space-xl) var(--space-2xl);
+}
+.footer-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-lg);
+  min-width: 0;
+}
+.footer-mark {
+  display: grid;
+  width: 2.25rem;
+  height: 2.25rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid #475569;
+  border-radius: 0.625rem;
+  background: #1e293b;
+  color: #93c5fd;
+}
+.footer-mark svg {
+  width: 1.15rem;
+  height: 1.15rem;
+}
+.footer-brand strong {
+  display: block;
+  color: #f8fafc;
+  font-size: 0.85rem;
+}
+.footer-brand p {
+  margin: var(--space-xs) 0 0;
+  color: #cbd5e1;
+  font-size: 0.75rem;
+  line-height: 1.45;
+}
+.footer-meta {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+  gap: var(--space-sm);
+  color: #cbd5e1;
+  font-size: 0.72rem;
+  text-align: right;
 }
 .page-view {
   scroll-margin-top: var(--space-xl);
@@ -1046,7 +1107,7 @@ a {
   }
   .workspace {
     display: grid;
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
   .workspace > .panel,
   .workspace > .panel:nth-child(3),
@@ -1089,6 +1150,15 @@ a {
   .export-confirmed {
     align-items: stretch;
     flex-direction: column;
+  }
+  .footer-inner {
+    grid-template-columns: 1fr;
+    gap: var(--space-lg);
+    padding: var(--space-xl) var(--space-md);
+  }
+  .footer-meta {
+    align-items: flex-start;
+    text-align: left;
   }
 }
 @media (max-width: 480px) {
