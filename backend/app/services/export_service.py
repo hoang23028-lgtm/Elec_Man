@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.models.image import ImageRecord
+from app.models.ai_result import AiResult
 from app.models.meter_reading import MeterReading
 
 EXPORT_FILENAME_PATTERN = re.compile(
@@ -21,15 +21,6 @@ EXPORT_FILENAME_PATTERN = re.compile(
 def _excel_text(value: str | None) -> str:
     text = value or ""
     return f"'{text}" if text[:1] in {"=", "+", "-", "@"} else text
-
-
-def _excel_datetime(value: datetime | None) -> datetime | None:
-    """Excel stores naive datetimes; normalize reviewed timestamps to UTC."""
-    if value is None:
-        return None
-    if value.tzinfo is not None:
-        value = value.astimezone(UTC).replace(tzinfo=None)
-    return value
 
 
 def resolve_export_path(filename: str) -> Path | None:
@@ -43,33 +34,25 @@ def resolve_export_path(filename: str) -> Path | None:
 
 def create_final_export(db: Session) -> tuple[str, Path]:
     statement = (
-        select(ImageRecord, MeterReading)
-        .join(MeterReading, MeterReading.image_id == ImageRecord.id)
+        select(MeterReading, AiResult)
+        .join(AiResult, AiResult.id == MeterReading.ai_result_id)
         .where(MeterReading.review_status == "CONFIRMED")
-        .order_by(ImageRecord.created_at)
+        .order_by(MeterReading.created_at)
         .execution_options(yield_per=1000)
     )
     workbook = Workbook(write_only=True)
     sheet = workbook.create_sheet("Chỉ số đã xác nhận")
     sheet.freeze_panes = "A2"
     for column, width in {
-        "A": 8,
-        "B": 38,
-        "C": 32,
-        "D": 22,
-        "E": 18,
-        "F": 18,
-        "G": 24,
+        "A": 24,
+        "B": 18,
+        "C": 18,
     }.items():
         sheet.column_dimensions[column].width = width
     headers = [
-        "STT",
-        "Mã hình ảnh",
-        "Tên tệp gốc",
         "Mã khách hàng",
-        "Chỉ số điện",
-        "Trạng thái kiểm duyệt",
-        "Thời gian kiểm duyệt",
+        "Số điện",
+        "Độ tin cậy",
     ]
     header_cells = [WriteOnlyCell(sheet, value=value) for value in headers]
     for cell in header_cells:
@@ -77,20 +60,18 @@ def create_final_export(db: Session) -> tuple[str, Path]:
         cell.fill = PatternFill("solid", fgColor="0B7285")
     sheet.append(header_cells)
     row_count = 1
-    for sequence, (image, reading) in enumerate(db.execute(statement), start=1):
+    for reading, ai_result in db.execute(statement):
+        confidence_cell = WriteOnlyCell(sheet, value=ai_result.final_confidence)
+        confidence_cell.number_format = "0.00%"
         sheet.append(
             [
-                sequence,
-                str(image.id),
-                _excel_text(image.original_filename),
                 _excel_text(reading.final_customer_id),
                 _excel_text(reading.final_meter_reading),
-                "Đã xác nhận",
-                _excel_datetime(reading.reviewed_at),
+                confidence_cell,
             ]
         )
         row_count += 1
-    sheet.auto_filter.ref = f"A1:G{row_count}"
+    sheet.auto_filter.ref = f"A1:C{row_count}"
     root = get_settings().storage_root
     directory = root / "exports" / f"{datetime.now(UTC):%Y}" / f"{datetime.now(UTC):%m}"
     directory.mkdir(parents=True, exist_ok=True)

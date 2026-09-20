@@ -345,7 +345,9 @@ export function OperationsResults({ csrfToken, refreshKey = 0 }: Props) {
           <div className="export-confirmed">
             <div>
               <strong>Tải danh sách đã kiểm duyệt</strong>
-              <p className="muted">Tệp Excel bao gồm toàn bộ kết quả đã xác nhận.</p>
+              <p className="muted">
+                Tệp Excel gồm mã khách hàng, số điện và độ tin cậy.
+              </p>
             </div>
             <button type="button" onClick={() => void download()} disabled={exporting}>
               {exporting ? "Đang tạo Excel…" : "Tải file Excel"}
