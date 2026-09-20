@@ -100,10 +100,10 @@ async def store_upload(file: UploadFile, batch_id: UUID) -> StoredUpload:
         _validate_signature(sample, extension)
         try:
             warnings.simplefilter("error", Image.DecompressionBombWarning)
-            with Image.open(temp_path) as image:
+            with Image.open(temp_path, formats=("JPEG", "PNG", "WEBP")) as image:
                 actual_format = image.format
                 image.verify()
-            with Image.open(temp_path) as image:
+            with Image.open(temp_path, formats=("JPEG", "PNG", "WEBP")) as image:
                 width, height = image.size
                 if width * height > settings.max_image_pixels:
                     raise _bad_upload("Kích thước ảnh vượt quá giới hạn điểm ảnh đã cấu hình.")

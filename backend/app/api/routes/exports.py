@@ -39,4 +39,5 @@ def download(filename: str, _: User = Depends(get_current_user)) -> FileResponse
         path,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         filename=filename,
+        headers={"Cache-Control": "private, no-store", "Pragma": "no-cache"},
     )

@@ -1,7 +1,7 @@
 param(
     [Parameter(Mandatory = $true)][string]$BackupDirectory,
     [switch]$ConfirmRestore,
-    [string]$EnvFile = ".env.example",
+    [string]$EnvFile = ".env",
     [string]$ProjectName = "elec_man"
 )
 

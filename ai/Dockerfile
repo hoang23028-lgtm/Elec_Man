@@ -6,7 +6,8 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 COPY backend/pyproject.toml ./
 COPY ai/requirements.txt ./ai-requirements.txt
-RUN mkdir -p app && touch app/__init__.py \
+RUN python -m pip install --no-compile "pip>=26.2,<27" \
+    && mkdir -p app && touch app/__init__.py \
     && pip install --no-compile . -r ai-requirements.txt \
     && pip install --no-compile --no-deps rapidocr-onnxruntime==1.4.4
 COPY backend/app ./app

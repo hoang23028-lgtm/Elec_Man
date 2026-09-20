@@ -44,7 +44,11 @@ def _verified_model_path(relative_path: str, claimed_sha256: str) -> Path:
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Tệp mô hình không khả dụng.",
         )
-    digest = sha256(candidate.read_bytes()).hexdigest()
+    digest_builder = sha256()
+    with candidate.open("rb") as model_file:
+        while chunk := model_file.read(1024 * 1024):
+            digest_builder.update(chunk)
+    digest = digest_builder.hexdigest()
     if digest.casefold() != claimed_sha256.casefold():
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,

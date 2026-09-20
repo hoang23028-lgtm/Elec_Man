@@ -12,4 +12,8 @@ docker compose exec backend python -m app.scripts.init_admin --username admin_op
 Remove-Item Env:ADMIN_INITIAL_PASSWORD
 ```
 
-Trong production, đặt `SESSION_SECRET` thành giá trị ngẫu nhiên duy nhất dài ít nhất 32 ký tự. Quá trình khởi động sẽ từ chối giá trị mẫu trong production. Không bao giờ commit tệp `.env`.
+Trong production, đặt `SESSION_SECRET` thành giá trị ngẫu nhiên duy nhất dài ít nhất 32 ký tự, thay mật khẩu PostgreSQL mẫu và khai báo chính xác `ALLOWED_HOSTS`. Quá trình khởi động sẽ từ chối secret/mật khẩu mẫu và host ký tự đại diện trong production. Tài liệu API tự động cũng bị tắt trong môi trường này. Không bao giờ commit tệp `.env`.
+
+Nginx mặc định chỉ công bố cổng HTTP trên `127.0.0.1`. Chỉ đặt `NGINX_BIND_ADDRESS=0.0.0.0` khi dịch vụ nằm sau reverse proxy HTTPS đáng tin cậy hoặc tường lửa đã được cấu hình. API từ chối Host ngoài danh sách, không cho trình duyệt cache phản hồi và các tệp ảnh/Excel yêu cầu phiên quản trị hợp lệ.
+
+Dashboard là trang chỉ đọc công khai theo yêu cầu sản phẩm hiện tại và có thể hiển thị mã khách hàng cùng dữ liệu tiền điện. Trước khi công bố hệ thống ra Internet, cần quyết định rõ dữ liệu này có được phép công khai hay phải ẩn mã khách hàng/yêu cầu đăng nhập. Tệp sao lưu chứa dữ liệu nghiệp vụ và hiện không tự mã hóa; lưu chúng trong vùng được mã hóa, giới hạn quyền truy cập và quản lý khóa tách biệt.

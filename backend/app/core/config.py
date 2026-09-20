@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     session_cookie_name: str = "ema_session"
     session_ttl_hours: int = Field(default=8, ge=1, le=168)
     session_secret: str = ""
+    allowed_hosts: str = "localhost,127.0.0.1"
     admin_initial_password: str | None = None
     max_image_size_mb: int = Field(default=20, ge=1, le=100)
     max_image_pixels: int = Field(default=40_000_000, ge=1_000_000)
@@ -29,14 +30,22 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_production_secrets(self) -> "Settings":
-        if self.app_env == "production" and (
-            len(self.session_secret) < 32 or self.session_secret.startswith("replace-with-")
-        ):
-            raise ValueError(
-                "SESSION_SECRET phải là giá trị duy nhất gồm ít nhất 32 ký tự "
-                "trong môi trường production."
-            )
+        if self.app_env == "production":
+            if len(self.session_secret) < 32 or self.session_secret.startswith("replace-with-"):
+                raise ValueError(
+                    "SESSION_SECRET phải là giá trị duy nhất gồm ít nhất 32 ký tự "
+                    "trong môi trường production."
+                )
+            if "change-me-before-deployment" in self.database_url:
+                raise ValueError("Mật khẩu cơ sở dữ liệu mặc định không được dùng ở production.")
+            if "*" in self.allowed_host_list:
+                raise ValueError("ALLOWED_HOSTS không được chứa ký tự * ở production.")
         return self
+
+    @property
+    def allowed_host_list(self) -> list[str]:
+        hosts = [host.strip() for host in self.allowed_hosts.split(",") if host.strip()]
+        return hosts or ["localhost", "127.0.0.1"]
 
 
 @lru_cache

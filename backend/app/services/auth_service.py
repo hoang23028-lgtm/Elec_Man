@@ -29,7 +29,9 @@ def authenticate(
     db: Session, username: str, password: str, ip_address: str | None, user_agent: str | None
 ) -> tuple[str, str, datetime]:
     user = db.scalar(select(User).where(User.username == username))
-    if user is None or not user.is_active or not verify_password(user.password_hash, password):
+    password_hash = user.password_hash if user is not None and user.is_active else None
+    password_valid = verify_password(password_hash, password)
+    if user is None or not user.is_active or not password_valid:
         _audit(db, "LOGIN_FAILED", ip_address)
         db.commit()
         raise HTTPException(

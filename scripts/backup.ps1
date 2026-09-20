@@ -1,5 +1,5 @@
 param(
-    [string]$EnvFile = ".env.example",
+    [string]$EnvFile = ".env",
     [string]$BackupRoot = "backups",
     [string]$ProjectName = "elec_man"
 )

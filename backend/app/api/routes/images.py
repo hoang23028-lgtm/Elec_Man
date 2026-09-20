@@ -11,7 +11,7 @@ from app.security.dependencies import get_current_user
 from app.services.storage_service import resolve_storage_path
 
 router = APIRouter()
-IMMUTABLE_IMAGE_HEADERS = {"Cache-Control": "private, max-age=86400, immutable"}
+SENSITIVE_IMAGE_HEADERS = {"Cache-Control": "private, no-store", "Pragma": "no-cache"}
 
 
 @router.get("/{image_id}/preview")
@@ -25,7 +25,7 @@ def preview_image(
         resolve_storage_path(image.relative_path),
         media_type=image.mime_type,
         filename="preview",
-        headers=IMMUTABLE_IMAGE_HEADERS,
+        headers=SENSITIVE_IMAGE_HEADERS,
     )
 
 
@@ -40,5 +40,5 @@ def thumbnail_image(
         resolve_storage_path(image.thumbnail_path),
         media_type="image/jpeg",
         filename="thumbnail.jpg",
-        headers=IMMUTABLE_IMAGE_HEADERS,
+        headers=SENSITIVE_IMAGE_HEADERS,
     )

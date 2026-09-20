@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from secrets import compare_digest
 
 from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy import select
@@ -52,6 +53,8 @@ def require_csrf(
     context: AuthContext = Depends(get_auth_context),
 ) -> AuthContext:
     csrf_token = request.headers.get("X-CSRF-Token")
-    if not csrf_token or hash_token(csrf_token) != context.session.csrf_token_hash:
+    if not csrf_token or not compare_digest(
+        hash_token(csrf_token), context.session.csrf_token_hash
+    ):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Xác thực CSRF thất bại.")
     return context
