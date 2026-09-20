@@ -17,6 +17,9 @@ const labels: Record<string, string> = {
   data_retention_days: "Thời gian lưu trữ dữ liệu (ngày)",
   worker_poll_interval_seconds: "Chu kỳ kiểm tra của tiến trình xử lý (giây)",
   electricity_unit_price_vnd: "Đơn giá điện tạm tính (VNĐ/kWh)",
+  training_auto_start: "Tự động huấn luyện (0: tắt, 1: bật)",
+  training_min_samples: "Số mẫu tối thiểu để huấn luyện",
+  training_min_new_samples: "Số mẫu mới để huấn luyện lại",
 };
 const descriptions: Record<string, string> = {
   confidence_ok_threshold:
@@ -33,6 +36,12 @@ const descriptions: Record<string, string> = {
     "Chu kỳ kiểm tra mong muốn, được áp dụng sau khi khởi động lại tiến trình xử lý.",
   electricity_unit_price_vnd:
     "Đơn giá bình quân dùng trên Dashboard để tạm tính; không thay thế hóa đơn chính thức.",
+  training_auto_start:
+    "Trainer tự tạo phiên mới khi dataset đủ điều kiện và có đủ mẫu mới.",
+  training_min_samples:
+    "Chỉ tính ảnh có mã khách hàng và số điện đã được con người xác nhận.",
+  training_min_new_samples:
+    "Tránh huấn luyện lại liên tục khi dataset chỉ tăng một vài ảnh.",
 };
 
 export function SystemSettings({ csrfToken }: { csrfToken: string }) {

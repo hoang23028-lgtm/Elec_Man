@@ -37,6 +37,33 @@ export type Evaluation = {
   auto_pass_rate: number;
   false_auto_pass_rate: number | null;
 };
+export type DatasetSummary = {
+  uploaded_images: number;
+  confirmed_images: number;
+  eligible_samples: number;
+  minimum_samples: number;
+  new_samples_since_last_run: number;
+  auto_start_enabled: boolean;
+  ready: boolean;
+};
+export type TrainingRun = {
+  id: string;
+  status: string;
+  trigger: string;
+  stage: string;
+  progress: number;
+  sample_count: number;
+  training_count: number;
+  validation_count: number;
+  dataset_hash: string | null;
+  metrics: Record<string, unknown>;
+  error_message: string | null;
+  model_id: string | null;
+  created_at: string;
+  started_at: string | null;
+  completed_at: string | null;
+};
+export type TrainingOverview = { dataset: DatasetSummary; runs: TrainingRun[] };
 
 export async function getSettings(): Promise<Setting[]> {
   return apiJson<Setting[]>("/settings", {}, "Không thể tải cấu hình.");
@@ -104,5 +131,17 @@ export async function getEvaluation(modelVersion = ""): Promise<Evaluation> {
     `/evaluation/summary${query}`,
     {},
     "Không thể tải đánh giá.",
+  );
+}
+
+export async function getTrainingOverview(): Promise<TrainingOverview> {
+  return apiJson<TrainingOverview>("/training", {}, "Không thể tải trạng thái huấn luyện.");
+}
+
+export async function startTraining(csrfToken: string): Promise<TrainingRun> {
+  return apiJson<TrainingRun>(
+    "/training/runs",
+    { method: "POST", headers: { "X-CSRF-Token": csrfToken } },
+    "Không thể tạo phiên huấn luyện.",
   );
 }

@@ -4,7 +4,11 @@ Dự án dùng monorepo theo ranh giới triển khai và phân lớp rõ ràng:
 
 ```text
 Elec_Man/
-├── ai/                         # Worker OCR và pipeline AI độc lập
+├── ai/                         # Worker OCR, trainer và pipeline AI độc lập
+│   ├── training/               # Trích đặc trưng, huấn luyện và artifact an toàn
+│   ├── model_runtime.py        # Nạp động model ACTIVE, kiểm tra checksum
+│   ├── trainer.py              # Tiến trình lập lịch/khôi phục phiên train
+│   └── worker.py               # Tiến trình xử lý ảnh trong hàng đợi
 ├── backend/
 │   ├── alembic/versions/       # Migration cơ sở dữ liệu tuần tự
 │   ├── app/
@@ -19,7 +23,8 @@ Elec_Man/
 │   ├── app/                    # Next.js App Router, layout và global style
 │   ├── components/             # Component dùng chung hoặc màn hình cũ
 │   ├── features/               # Module theo nghiệp vụ mới
-│   │   └── administration/     # UI, API client và type của quản trị tài khoản
+│   │   ├── administration/     # UI, API client và type của quản trị tài khoản
+│   │   └── model-lifecycle/    # Theo dõi dataset và phiên huấn luyện
 │   ├── hooks/                  # React hooks dùng chung
 │   ├── services/               # HTTP client và API dùng chung
 │   └── types/                  # Hợp đồng dùng chung nhiều feature

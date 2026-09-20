@@ -20,6 +20,12 @@ services:
     volumes:
       - storage_data:/data
     networks: [internal]
+  model-init:
+    image: alpine:3.21
+    command: ["sh", "-c", "mkdir -p /models && chown -R 10001:10001 /models"]
+    volumes:
+      - model_data:/models
+    networks: [internal]
   migrate:
     image: elec_man-backend:latest
     build:
@@ -94,6 +100,38 @@ services:
       postgres:
         condition: service_healthy
       storage-init:
+        condition: service_completed_successfully
+      model-init:
+        condition: service_completed_successfully
+      migrate:
+        condition: service_completed_successfully
+    networks: [internal]
+  trainer:
+    build:
+      context: .
+      dockerfile: ai/Dockerfile
+    command: ["python", "-m", "ai.trainer"]
+    restart: unless-stopped
+    environment:
+      APP_ENV: ${APP_ENV:-production}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
+      DATABASE_POOL_SIZE: ${DATABASE_POOL_SIZE:-5}
+      DATABASE_MAX_OVERFLOW: ${DATABASE_MAX_OVERFLOW:-5}
+      DATABASE_POOL_RECYCLE_SECONDS: ${DATABASE_POOL_RECYCLE_SECONDS:-1800}
+      STORAGE_ROOT: ${STORAGE_ROOT:-/data/electric-meter-ai}
+      MODELS_ROOT: ${MODELS_ROOT:-/models}
+      SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET}
+    volumes:
+      - storage_data:${STORAGE_ROOT:-/data/electric-meter-ai}:ro
+      - model_data:${MODELS_ROOT:-/models}
+      - app_logs:/var/log/electric-meter-ai
+    depends_on:
+      postgres:
+        condition: service_healthy
+      storage-init:
+        condition: service_completed_successfully
+      model-init:
         condition: service_completed_successfully
       migrate:
         condition: service_completed_successfully

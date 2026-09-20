@@ -11,18 +11,25 @@ from ai.pipeline.preprocessing import prepare_for_detection
 from ai.pipeline.quality import assess_image_quality
 from ai.pipeline.rapid import read_lines
 from ai.pipeline.validator import validate
+from ai.training.digit_model import DigitCentroidModel
 
 
 class DevelopmentPipeline:
     """Pretrained OCR baseline for bootstrapping a human-reviewed dataset."""
 
-    model_version = "meter-ocr-baseline-v2-integer"
     name = "OCR_BASELINE"
 
-    def __init__(self) -> None:
+    def __init__(
+        self, digit_model_path: Path | None = None, model_version: str | None = None
+    ) -> None:
+        self.name = "TRAINED_DIGIT_CENTROID" if digit_model_path else "OCR_BASELINE"
+        self.model_version = model_version or "meter-ocr-baseline-v2-integer"
         self.detector = MeterDetector()
         self.customer_ocr = CustomerOcr()
-        self.meter_reader = MeterReader()
+        trained_model = (
+            DigitCentroidModel.load(digit_model_path) if digit_model_path else None
+        )
+        self.meter_reader = MeterReader(trained_model)
 
     def process(self, image_path: Path) -> dict:
         started = perf_counter()

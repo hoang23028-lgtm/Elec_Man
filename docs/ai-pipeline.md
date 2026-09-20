@@ -6,4 +6,4 @@ Phiên bản khởi đầu sử dụng OpenCV, các mô hình ONNX dựng sẵn 
 
 Độ tin cậy của mô hình cơ sở là điểm tổng hợp theo quy tắc, chưa phải xác suất đã được hiệu chuẩn trên tập dữ liệu thực tế. Cần theo dõi nhật ký tự động xác nhận và đánh giá lại ngưỡng khi có tập nhãn đủ lớn.
 
-Mô hình cơ sở này dùng để thu thập nhãn đã xác minh trong giai đoạn dữ liệu thực tế còn hạn chế. Đây không phải mô hình đồng hồ điện sản xuất đã được huấn luyện. Gói mô hình được huấn luyện và đánh giá trong tương lai phải triển khai cùng giao diện mô-đun và khai báo phiên bản mới trước khi kích hoạt.
+Mô hình cơ sở này dùng để thu thập nhãn đã xác minh trong giai đoạn dữ liệu thực tế còn hạn chế. Pipeline huấn luyện tích hợp tạo bộ phân loại bánh số từ các nhãn thủ công, đăng ký artifact theo phiên bản/checksum và chỉ đưa vào worker sau khi quản trị viên kích hoạt. Model được huấn luyện bổ trợ phần đọc chữ số; OCR mã khách hàng vẫn dùng OCR cảnh dựng sẵn.

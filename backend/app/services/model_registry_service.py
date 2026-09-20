@@ -57,6 +57,21 @@ def _verified_model_path(relative_path: str, claimed_sha256: str) -> Path:
     return candidate
 
 
+def _validate_activation_metrics(record: ModelRecord) -> None:
+    if record.model_type != "meter_digit_centroid":
+        return
+    coverage = float(record.metrics_json.get("digit_coverage") or 0)
+    accuracy = float(record.metrics_json.get("validation_digit_accuracy") or 0)
+    if coverage < 1.0 or accuracy < 0.9:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=(
+                "Model huấn luyện chỉ được kích hoạt khi phủ đủ chữ số 0–9 "
+                "và độ chính xác validation đạt ít nhất 90%."
+            ),
+        )
+
+
 def register_model(
     db: Session, payload: ModelCreate, user: User, ip_address: str | None
 ) -> ModelRow:
@@ -99,6 +114,7 @@ def activate_model(db: Session, model_id: object, user: User, ip_address: str | 
     if record is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy mô hình.")
     _verified_model_path(record.file_path, record.sha256)
+    _validate_activation_metrics(record)
     db.execute(
         update(ModelRecord)
         .where(ModelRecord.model_type == record.model_type, ModelRecord.status == "ACTIVE")

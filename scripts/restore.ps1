@@ -19,7 +19,7 @@ foreach ($line in Get-Content -LiteralPath (Join-Path $backup "checksums.sha256"
     if ($actual -ne $parts[0]) { throw "Checksum không khớp: $($parts[1])" }
 }
 
-docker compose --env-file $EnvFile stop nginx frontend backend worker
+docker compose --env-file $EnvFile stop nginx frontend backend worker trainer
 docker compose --env-file $EnvFile cp (Join-Path $backup "database.sql") postgres:/tmp/electric-meter-ai-restore.sql
 docker compose --env-file $EnvFile exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;" && psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -f /tmp/electric-meter-ai-restore.sql'
 if ($LASTEXITCODE -ne 0) { throw "Khôi phục cơ sở dữ liệu thất bại; các dịch vụ ứng dụng vẫn đang dừng." }

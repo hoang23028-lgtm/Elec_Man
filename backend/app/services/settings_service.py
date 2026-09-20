@@ -17,6 +17,9 @@ RULES: dict[str, tuple[type, float, float]] = {
     "data_retention_days": (int, 1, 3650),
     "worker_poll_interval_seconds": (float, 0.1, 60.0),
     "electricity_unit_price_vnd": (int, 1, 1_000_000),
+    "training_auto_start": (int, 0, 1),
+    "training_min_samples": (int, 2, 100_000),
+    "training_min_new_samples": (int, 1, 100_000),
 }
 
 

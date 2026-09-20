@@ -12,6 +12,7 @@ from app.api.routes.jobs import router as jobs_router
 from app.api.routes.models import router as models_router
 from app.api.routes.results import router as results_router
 from app.api.routes.settings import router as settings_router
+from app.api.routes.training import router as training_router
 from app.api.routes.users import router as users_router
 
 api_router = APIRouter()
@@ -28,3 +29,4 @@ api_router.include_router(settings_router, prefix="/settings", tags=["Cấu hìn
 api_router.include_router(models_router, prefix="/models", tags=["Mô hình"])
 api_router.include_router(evaluation_router, prefix="/evaluation", tags=["Đánh giá"])
 api_router.include_router(users_router, prefix="/users", tags=["Tài khoản"])
+api_router.include_router(training_router, prefix="/training", tags=["Huấn luyện"])

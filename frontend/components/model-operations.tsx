@@ -88,7 +88,7 @@ export function ModelOperations({ csrfToken }: { csrfToken: string }) {
   async function activate(record: ModelRecord) {
     if (
       !window.confirm(
-        `Kích hoạt ${record.model_name} ${record.version}? Tiến trình xử lý phải được khởi động lại để nạp gói chạy mới.`,
+        `Kích hoạt ${record.model_name} ${record.version}? Worker sẽ kiểm tra checksum và nạp model cho tác vụ tiếp theo.`,
       )
     )
       return;
@@ -97,7 +97,7 @@ export function ModelOperations({ csrfToken }: { csrfToken: string }) {
     try {
       await activateModel(record.id, csrfToken);
       setNotice(
-        "Đã lưu trạng thái kích hoạt. Chỉ khởi động lại tiến trình xử lý sau khi bộ chuyển đổi được cấu hình cho gói này.",
+        "Đã kích hoạt model. Worker sẽ tự động nạp model đã xác minh cho tác vụ tiếp theo.",
       );
       await load();
     } catch (reason) {
@@ -169,6 +169,7 @@ export function ModelOperations({ csrfToken }: { csrfToken: string }) {
                 <th>Loại</th>
                 <th>Phiên bản</th>
                 <th>Trạng thái</th>
+                <th>Đánh giá</th>
                 <th>Hành động</th>
               </tr>
             </thead>
@@ -188,6 +189,17 @@ export function ModelOperations({ csrfToken }: { csrfToken: string }) {
                     >
                       {statusLabels[record.status] ?? record.status}
                     </span>
+                  </td>
+                  <td>
+                    {typeof record.metrics.validation_digit_accuracy ===
+                    "number"
+                      ? `${Math.round(record.metrics.validation_digit_accuracy * 1000) / 10}% chính xác`
+                      : "Chưa có"}
+                    <small>
+                      {typeof record.metrics.digit_coverage === "number"
+                        ? `${Math.round(record.metrics.digit_coverage * 10)}/10 chữ số`
+                        : "Chưa có độ phủ"}
+                    </small>
                   </td>
                   <td>
                     <button

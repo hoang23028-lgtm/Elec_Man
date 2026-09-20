@@ -10,6 +10,7 @@ from app.models.model_registry import ModelRecord
 from app.models.processing_job import ProcessingJob
 from app.models.session import SessionRecord
 from app.models.system_setting import SystemSetting
+from app.models.training_run import TrainingRun
 from app.models.user import User
 
 __all__ = [
@@ -23,5 +24,6 @@ __all__ = [
     "ProcessingJob",
     "SessionRecord",
     "SystemSetting",
+    "TrainingRun",
     "User",
 ]

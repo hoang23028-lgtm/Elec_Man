@@ -38,9 +38,9 @@ Hàng đợi dựa trên PostgreSQL xử lý ảnh bên ngoài yêu cầu HTTP. 
 
 Mô hình phát triển hiện tại là `meter-ocr-baseline-v1`, sử dụng OpenCV, mô hình ONNX dựng sẵn của RapidOCR và Tesseract làm phương án dự phòng. Kết quả đầy đủ có độ tin cậy lớn hơn ngưỡng cấu hình (mặc định 90%) được tự động xác nhận; phần còn lại phải kiểm duyệt thủ công. Đây chưa phải mô hình sản xuất đã được huấn luyện trên tập dữ liệu thực tế; xem [tài liệu quy trình AI](docs/ai-pipeline.md).
 
-## Dữ liệu huấn luyện
+## Dữ liệu và huấn luyện
 
-Nhãn mẫu đã được phê duyệt được ghi trong `training/annotations.jsonl` mà không lưu ảnh nguồn. Mẫu được gán nhãn đầu tiên được mô tả trong [hướng dẫn huấn luyện](docs/training.md). Một ảnh đã gán nhãn không đủ để huấn luyện hoặc xác thực mô hình nhận dạng thực tế.
+Nhãn mẫu đã được phê duyệt được ghi trong `training/annotations.jsonl` mà không lưu ảnh nguồn. Ảnh tải lên và được con người xác nhận tự động trở thành mẫu đủ điều kiện; trainer độc lập chia dataset, huấn luyện bộ đọc chữ số, đánh giá validation và đăng ký artifact có checksum. Xem [hướng dẫn huấn luyện](docs/training.md). Một vài ảnh chỉ đủ thử pipeline, không đủ xác thực chất lượng sản xuất.
 
 ## Kiểm duyệt
 

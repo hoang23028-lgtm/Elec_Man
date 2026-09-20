@@ -1140,6 +1140,30 @@ a {
 .evaluation-metrics strong {
   font-size: 1.1rem;
 }
+.training-heading .muted {
+  max-width: 52rem;
+  margin: var(--space-md) 0 0;
+}
+.training-metrics div {
+  border-left-color: #7c3aed;
+}
+.training-table table {
+  min-width: 68rem;
+}
+.training-progress {
+  width: 10rem;
+  height: 0.5rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--color-muted-surface);
+}
+.training-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--color-primary);
+  transition: width 200ms ease;
+}
 @media (max-width: 1100px) {
   .navbar-inner {
     grid-template-columns: minmax(0, 1fr) auto;

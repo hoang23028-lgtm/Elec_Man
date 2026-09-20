@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 from uuid import UUID, uuid4
 
-from ai.pipeline.pipeline import DevelopmentPipeline
+from ai.model_runtime import current_pipeline
 from app.core.config import get_settings
 from app.core.database import SessionLocal
 from app.core.logging import configure_logging
@@ -46,7 +46,7 @@ def main() -> None:
     logger = logging.getLogger(__name__)
     settings = get_settings()
     worker_id = f"worker-{uuid4().hex[:12]}"
-    processor = DevelopmentPipeline()
+    processor = current_pipeline()
     poll_interval = settings.worker_poll_interval_seconds
     recovery_interval = max(60.0, min(settings.job_stuck_timeout_seconds / 2, 300.0))
     next_recovery_at = 0.0
@@ -77,6 +77,7 @@ def main() -> None:
             job_id, image_id, image_path = job_info
             if not image_path.is_file():
                 raise FileNotFoundError("Tệp hình ảnh không khả dụng.")
+            processor = current_pipeline()
             result = processor.process(image_path)
             with SessionLocal() as db:
                 store_immutable_ai_result(db, image_id, result)

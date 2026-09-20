@@ -38,6 +38,13 @@ const AccountManagement = dynamic(
     ),
   { loading: loadingPanel, ssr: false },
 );
+const TrainingPipeline = dynamic(
+  () =>
+    import("@/features/model-lifecycle/training-pipeline").then(
+      (module) => module.TrainingPipeline,
+    ),
+  { loading: loadingPanel, ssr: false },
+);
 const OperationsResults = dynamic(
   () =>
     import("@/components/operations-results").then(
@@ -406,7 +413,10 @@ export default function HomePage() {
                 </>
               )}
               {csrfToken && displayedPage === "model-lifecycle" && (
-                <ModelOperations csrfToken={csrfToken} />
+                <>
+                  <TrainingPipeline csrfToken={csrfToken} />
+                  <ModelOperations csrfToken={csrfToken} />
+                </>
               )}
               {csrfToken && displayedPage === "traceability" && (
                 <AuditHistory />
