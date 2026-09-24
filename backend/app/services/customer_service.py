@@ -3,12 +3,17 @@ import re
 from collections.abc import Iterable
 
 from pydantic import TypeAdapter, ValidationError
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.customer import Customer
 from app.models.meter_reading import MeterReading
-from app.schemas.customer import CustomerImportResponse, CustomerImportRow, CustomerSummary
+from app.schemas.customer import (
+    CustomerImportResponse,
+    CustomerImportRow,
+    CustomerRow,
+    CustomerSummary,
+)
 
 CUSTOMER_ROWS_ADAPTER = TypeAdapter(list[CustomerImportRow])
 MAX_CUSTOMER_ROWS = 10_000
@@ -113,9 +118,7 @@ def import_customers(db: Session, rows: list[CustomerImportRow]) -> CustomerImpo
         customer = existing_by_key.get(lookup_key)
         serial_owner = existing_by_serial.get(serial_key)
         if serial_owner is not None and serial_owner is not customer:
-            raise ValueError(
-                f"Số serial {row.meter_serial} đã thuộc mã khách hàng khác."
-            )
+            raise ValueError(f"Số serial {row.meter_serial} đã thuộc mã khách hàng khác.")
         if customer is None:
             customer = Customer(lookup_key=lookup_key)
             db.add(customer)
@@ -142,14 +145,35 @@ def customer_summary(db: Session) -> CustomerSummary:
     total = int(db.scalar(select(func.count(Customer.id))) or 0)
     matched, unmatched = db.execute(
         select(
-            func.count(MeterReading.id).filter(
-                MeterReading.customer_match_status == "MATCHED"
-            ),
-            func.count(MeterReading.id).filter(
-                MeterReading.customer_match_status == "NOT_FOUND"
-            ),
+            func.count(MeterReading.id).filter(MeterReading.customer_match_status == "MATCHED"),
+            func.count(MeterReading.id).filter(MeterReading.customer_match_status == "NOT_FOUND"),
         ).where(MeterReading.review_status == "CONFIRMED")
     ).one()
     return CustomerSummary(
         total=total, matched_readings=int(matched), unmatched_readings=int(unmatched)
     )
+
+
+def list_customers(
+    db: Session,
+    offset: int,
+    limit: int,
+    search: str | None = None,
+) -> tuple[list[CustomerRow], int]:
+    statement = select(Customer)
+    count_statement = select(func.count(Customer.id))
+    if search:
+        pattern = f"%{search.strip()}%"
+        condition = or_(
+            Customer.customer_code.ilike(pattern),
+            Customer.full_name.ilike(pattern),
+            Customer.meter_serial.ilike(pattern),
+            Customer.electricity_route.ilike(pattern),
+        )
+        statement = statement.where(condition)
+        count_statement = count_statement.where(condition)
+    total = int(db.scalar(count_statement) or 0)
+    rows = db.scalars(
+        statement.order_by(Customer.customer_code.asc()).offset(offset).limit(limit)
+    ).all()
+    return [CustomerRow.model_validate(row) for row in rows], total

@@ -3,9 +3,13 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session
 
+from app.models.customer import Customer
 from app.services.customer_service import (
     apply_customer_match,
+    list_customers,
     normalize_customer_code,
     parse_customer_json,
 )
@@ -70,3 +74,42 @@ def test_apply_customer_match_uses_canonical_code() -> None:
     assert reading.matched_customer_id == customer_id
     assert reading.customer_match_status == "MATCHED"
     assert reading.final_customer_id == "PN2.001"
+
+
+def test_list_customers_is_paginated_sorted_and_searchable() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Customer.__table__.create(engine)
+    with Session(engine) as db:
+        db.add_all(
+            [
+                Customer(
+                    customer_code="KH002",
+                    lookup_key="KH002",
+                    full_name="Trần Thị B",
+                    address="Khu 2",
+                    electricity_route="Tuyến Bắc",
+                    meter_serial="CT-002",
+                    initial_reading=200,
+                    usage_purpose="SINH_HOAT",
+                ),
+                Customer(
+                    customer_code="KH001",
+                    lookup_key="KH001",
+                    full_name="Nguyễn Văn A",
+                    address="Khu 1",
+                    electricity_route="Tuyến Nam",
+                    meter_serial="CT-001",
+                    initial_reading=100,
+                    usage_purpose="SINH_HOAT",
+                ),
+            ]
+        )
+        db.commit()
+
+        rows, total = list_customers(db, offset=0, limit=1)
+        matches, matched_total = list_customers(db, offset=0, limit=10, search="Trần")
+
+    assert total == 2
+    assert [row.customer_code for row in rows] == ["KH001"]
+    assert matched_total == 1
+    assert matches[0].meter_serial == "CT-002"

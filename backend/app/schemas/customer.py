@@ -1,3 +1,6 @@
+from datetime import datetime
+from uuid import UUID
+
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -24,3 +27,18 @@ class CustomerSummary(BaseModel):
     total: int
     matched_readings: int
     unmatched_readings: int
+
+
+class CustomerRow(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    customer_code: str
+    full_name: str
+    address: str
+    electricity_route: str
+    meter_serial: str
+    initial_reading: int
+    usage_purpose: str
+    created_at: datetime
+    updated_at: datetime

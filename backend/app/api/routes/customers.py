@@ -1,15 +1,17 @@
-from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Request, Response, UploadFile, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.api.pagination import validate_pagination
 from app.core.database import get_db
 from app.models.audit_log import AuditLog
 from app.models.user import User
-from app.schemas.customer import CustomerImportResponse, CustomerSummary
+from app.schemas.customer import CustomerImportResponse, CustomerRow, CustomerSummary
 from app.security.dependencies import get_current_user, require_csrf
 from app.services.customer_service import (
     customer_summary,
     import_customers,
+    list_customers,
     parse_customer_json,
 )
 
@@ -22,6 +24,22 @@ def get_customer_summary(
     db: Session = Depends(get_db), _: User = Depends(get_current_user)
 ) -> CustomerSummary:
     return customer_summary(db)
+
+
+@router.get("", response_model=list[CustomerRow])
+def get_customers(
+    response: Response,
+    offset: int = 0,
+    limit: int = 20,
+    search: str | None = None,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+) -> list[CustomerRow]:
+    validate_pagination(offset, limit)
+    normalized_search = search.strip()[:255] if search else None
+    rows, total = list_customers(db, offset, limit, normalized_search)
+    response.headers["X-Total-Count"] = str(total)
+    return rows
 
 
 @router.post(

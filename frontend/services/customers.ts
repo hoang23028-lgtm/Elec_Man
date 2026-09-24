@@ -1,4 +1,4 @@
-import { apiFetch, apiJson } from "@/services/http";
+import { apiFetch, apiJson, paginatedJson } from "@/services/http";
 
 export type CustomerSummary = {
   total: number;
@@ -13,11 +13,33 @@ export type CustomerImportResult = {
   reconciled_readings: number;
 };
 
+export type CustomerRecord = {
+  id: string;
+  customer_code: string;
+  full_name: string;
+  address: string;
+  electricity_route: string;
+  meter_serial: string;
+  initial_reading: number;
+  usage_purpose: string;
+  created_at: string;
+  updated_at: string;
+};
+
 export async function getCustomerSummary(): Promise<CustomerSummary> {
   return apiJson<CustomerSummary>(
     "/customers/summary",
     {},
     "Không thể tải thông tin dữ liệu khách hàng.",
+  );
+}
+
+export async function getCustomers(offset: number, limit: number, search: string) {
+  const query = new URLSearchParams({ offset: String(offset), limit: String(limit) });
+  if (search) query.set("search", search);
+  return paginatedJson<CustomerRecord>(
+    `/customers?${query}`,
+    "Không thể tải danh sách khách hàng.",
   );
 }
 
