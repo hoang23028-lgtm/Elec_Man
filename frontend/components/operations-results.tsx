@@ -3,7 +3,6 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 
 import { getResultsPage, reviewResult, type Result } from "@/services/results";
-import { exportConfirmed, type ExportBundle } from "@/services/system";
 import { usePolling } from "@/hooks/use-polling";
 
 type Draft = { customer: string; reading: string };
@@ -11,8 +10,6 @@ type Props = { csrfToken: string; refreshKey?: number };
 type ImagePreview = { imageId: string; filename: string };
 
 const pageSize = 12;
-const today = new Date();
-const currentPeriod = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
 
 function initialDraft(row: Result): Draft {
   return {
@@ -37,9 +34,6 @@ export function OperationsResults({ csrfToken, refreshKey = 0 }: Props) {
   const [confirmedPage, setConfirmedPage] = useState(0);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [exporting, setExporting] = useState(false);
-  const [exportPeriod, setExportPeriod] = useState(currentPeriod);
-  const [exportBundle, setExportBundle] = useState<ExportBundle | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [imagePreview, setImagePreview] = useState<ImagePreview | null>(null);
@@ -152,29 +146,6 @@ export function OperationsResults({ csrfToken, refreshKey = 0 }: Props) {
       );
     } finally {
       setBusyId(null);
-    }
-  }
-
-  async function download() {
-    const [year, month] = exportPeriod.split("-").map(Number);
-    if (!year || !month) {
-      setError("Hãy chọn tháng cần xuất báo cáo.");
-      return;
-    }
-    setExporting(true);
-    setError(null);
-    try {
-      const bundle = await exportConfirmed(csrfToken, month, year);
-      setExportBundle(bundle);
-      setMessage(
-        `Đã tạo báo cáo tháng ${month}/${year} gồm ${bundle.exported_rows} khách hàng.`,
-      );
-    } catch (reason) {
-      setError(
-        reason instanceof Error ? reason.message : "Không thể tạo tệp Excel.",
-      );
-    } finally {
-      setExporting(false);
     }
   }
 
@@ -362,38 +333,6 @@ export function OperationsResults({ csrfToken, refreshKey = 0 }: Props) {
             </span>
             <button className="secondary" type="button" onClick={() => setConfirmedPage((page) => page + 1)} disabled={confirmedPage + 1 >= Math.max(1, Math.ceil(confirmedTotal / pageSize)) || loading}>Sau</button>
           </nav>
-          <div className="export-confirmed">
-            <div>
-              <strong>Tải danh sách đã kiểm duyệt</strong>
-              <p className="muted">
-                Mỗi khách hàng lấy chỉ số đã xác nhận mới nhất trong tháng. Excel gồm mã khách hàng,
-                số điện và độ tin cậy.
-              </p>
-            </div>
-            <label>
-              Tháng báo cáo
-              <input
-                type="month"
-                value={exportPeriod}
-                onChange={(event) => {
-                  setExportPeriod(event.target.value);
-                  setExportBundle(null);
-                }}
-                min="2000-01"
-                max="2100-12"
-                required
-              />
-            </label>
-            <button type="button" onClick={() => void download()} disabled={exporting || !exportPeriod}>
-              {exporting ? "Đang tạo báo cáo…" : "Tạo báo cáo theo tháng"}
-            </button>
-            {exportBundle && (
-              <div className="export-downloads">
-                <a className="button-link" href={exportBundle.json_download_url}>Tải JSON</a>
-                <a className="button-link" href={exportBundle.excel_download_url}>Tải Excel</a>
-              </div>
-            )}
-          </div>
         </section>
       </div>
       {imagePreview && (

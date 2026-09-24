@@ -45,6 +45,13 @@ const CustomerDataManagement = dynamic(
     ),
   { loading: loadingPanel, ssr: false },
 );
+const MonthlyExport = dynamic(
+  () =>
+    import("@/features/administration/monthly-export").then(
+      (module) => module.MonthlyExport,
+    ),
+  { loading: loadingPanel, ssr: false },
+);
 const TrainingPipeline = dynamic(
   () =>
     import("@/features/model-lifecycle/training-pipeline").then(
@@ -415,6 +422,7 @@ export default function HomePage() {
               )}
               {csrfToken && displayedPage === "administration" && (
                 <>
+                  <MonthlyExport csrfToken={csrfToken} />
                   <CustomerDataManagement csrfToken={csrfToken} />
                   <AccountManagement csrfToken={csrfToken} />
                   <SystemSettings csrfToken={csrfToken} />
