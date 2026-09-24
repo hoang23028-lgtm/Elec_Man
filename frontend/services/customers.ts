@@ -44,6 +44,14 @@ export async function getCustomerSummary(): Promise<CustomerSummary> {
   );
 }
 
+export async function getCustomerUsagePurposes(): Promise<string[]> {
+  return apiJson<string[]>(
+    "/customers/usage-purposes",
+    {},
+    "Không thể tải danh sách mục đích sử dụng.",
+  );
+}
+
 export async function getCustomers(offset: number, limit: number, search: string) {
   const query = new URLSearchParams({ offset: String(offset), limit: String(limit) });
   if (search) query.set("search", search);

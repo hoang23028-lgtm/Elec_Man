@@ -6,6 +6,7 @@ import {
   createCustomer,
   getCustomers,
   getCustomerSummary,
+  getCustomerUsagePurposes,
   importCustomerFile,
   type CustomerCreateInput,
   type CustomerRecord,
@@ -14,6 +15,21 @@ import {
 
 const PAGE_SIZE = 15;
 const numberFormatter = new Intl.NumberFormat("vi-VN");
+const usagePurposeLabels: Record<string, string> = {
+  SINH_HOAT: "Sinh hoạt",
+  HO_KINH_DOANH: "Hộ kinh doanh",
+  KINH_DOANH: "Kinh doanh",
+  HO_SAN_XUAT: "Hộ sản xuất",
+  SAN_XUAT: "Sản xuất",
+  UB_HANH_CHINH: "Ủy ban / Hành chính",
+  TRUONG_HOC_Y_TE: "Trường học / Y tế",
+  VIETTEL: "Viettel",
+  KHAC: "Khác",
+};
+
+function formatUsagePurpose(value: string) {
+  return usagePurposeLabels[value] ?? value.replaceAll("_", " ").toLocaleLowerCase("vi-VN");
+}
 type CustomerForm = Omit<CustomerCreateInput, "initial_reading"> & {
   initial_reading: string;
 };
@@ -25,11 +41,12 @@ const emptyCustomerForm = (): CustomerForm => ({
   electricity_route: "",
   meter_serial: "",
   initial_reading: "",
-  usage_purpose: "SINH_HOAT",
+  usage_purpose: "",
 });
 
 export function CustomerDataManagement({ csrfToken }: { csrfToken: string }) {
   const [summary, setSummary] = useState<CustomerSummary | null>(null);
+  const [usagePurposes, setUsagePurposes] = useState<string[]>([]);
   const [customers, setCustomers] = useState<CustomerRecord[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -56,6 +73,13 @@ export function CustomerDataManagement({ csrfToken }: { csrfToken: string }) {
 
   useEffect(() => {
     void loadSummary();
+    void getCustomerUsagePurposes()
+      .then(setUsagePurposes)
+      .catch((reason) => {
+        setError(
+          reason instanceof Error ? reason.message : "Không thể tải danh sách mục đích sử dụng.",
+        );
+      });
   }, []);
 
   const loadCustomers = useCallback(async () => {
@@ -260,19 +284,18 @@ export function CustomerDataManagement({ csrfToken }: { csrfToken: string }) {
             </label>
             <label>
               Mục đích sử dụng
-              <input
-                list="customer-usage-purposes"
+              <select
                 value={customerForm.usage_purpose}
                 onChange={(event) => updateCustomerField("usage_purpose", event.target.value)}
-                maxLength={64}
                 required
-              />
-              <datalist id="customer-usage-purposes">
-                <option value="SINH_HOAT" />
-                <option value="KINH_DOANH" />
-                <option value="SAN_XUAT" />
-                <option value="KHAC" />
-              </datalist>
+              >
+                <option value="" disabled>Chọn mục đích sử dụng</option>
+                {usagePurposes.map((purpose) => (
+                  <option key={purpose} value={purpose}>
+                    {formatUsagePurpose(purpose)}
+                  </option>
+                ))}
+              </select>
             </label>
             <label className="customer-address-field">
               Địa chỉ
@@ -382,7 +405,7 @@ export function CustomerDataManagement({ csrfToken }: { csrfToken: string }) {
                     <td>{customer.electricity_route}</td>
                     <td><code>{customer.meter_serial}</code></td>
                     <td>{numberFormatter.format(customer.initial_reading)}</td>
-                    <td>{customer.usage_purpose}</td>
+                    <td>{formatUsagePurpose(customer.usage_purpose)}</td>
                   </tr>
                 ))
               ) : (

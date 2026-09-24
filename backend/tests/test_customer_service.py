@@ -17,6 +17,7 @@ from app.services.customer_service import (
     apply_customer_match,
     create_customer,
     list_customers,
+    list_usage_purposes,
     normalize_customer_code,
     parse_customer_json,
 )
@@ -125,6 +126,31 @@ def test_list_customers_is_paginated_sorted_and_searchable() -> None:
     assert [row.customer_code for row in rows] == ["KH001"]
     assert matched_total == 1
     assert matches[0].meter_serial == "CT-002"
+
+
+def test_list_usage_purposes_includes_defaults_and_database_values() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Customer.__table__.create(engine)
+    with Session(engine) as db:
+        db.add(
+            Customer(
+                customer_code="KH001",
+                lookup_key="KH001",
+                full_name="Nguyễn Văn A",
+                address="Khu 1",
+                electricity_route="Tuyến Nam",
+                meter_serial="CT-001",
+                initial_reading=100,
+                usage_purpose="CHIẾU_SÁNG_CÔNG_CỘNG",
+            )
+        )
+        db.commit()
+
+        purposes = list_usage_purposes(db)
+
+    assert "SINH_HOAT" in purposes
+    assert "UB_HANH_CHINH" in purposes
+    assert "CHIẾU_SÁNG_CÔNG_CỘNG" in purposes
 
 
 def test_create_customer_normalizes_identifiers_and_rejects_duplicates(

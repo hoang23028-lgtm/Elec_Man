@@ -18,6 +18,7 @@ from app.services.customer_service import (
     customer_summary,
     import_customers,
     list_customers,
+    list_usage_purposes,
     parse_customer_json,
 )
 
@@ -30,6 +31,13 @@ def get_customer_summary(
     db: Session = Depends(get_db), _: User = Depends(get_current_user)
 ) -> CustomerSummary:
     return customer_summary(db)
+
+
+@router.get("/usage-purposes", response_model=list[str])
+def get_usage_purposes(
+    db: Session = Depends(get_db), _: User = Depends(get_current_user)
+) -> list[str]:
+    return list_usage_purposes(db)
 
 
 @router.get("", response_model=list[CustomerRow])

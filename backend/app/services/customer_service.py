@@ -22,6 +22,17 @@ from app.schemas.customer import (
 
 CUSTOMER_ROWS_ADAPTER = TypeAdapter(list[CustomerImportRow])
 MAX_CUSTOMER_ROWS = 10_000
+DEFAULT_USAGE_PURPOSES = (
+    "SINH_HOAT",
+    "HO_KINH_DOANH",
+    "KINH_DOANH",
+    "HO_SAN_XUAT",
+    "SAN_XUAT",
+    "UB_HANH_CHINH",
+    "TRUONG_HOC_Y_TE",
+    "VIETTEL",
+    "KHAC",
+)
 
 
 def normalize_customer_code(value: str | None) -> str:
@@ -156,6 +167,18 @@ def customer_summary(db: Session) -> CustomerSummary:
     ).one()
     return CustomerSummary(
         total=total, matched_readings=int(matched), unmatched_readings=int(unmatched)
+    )
+
+
+def list_usage_purposes(db: Session) -> list[str]:
+    """Return canonical options plus any additional values already stored in the database."""
+    stored_values = db.scalars(
+        select(Customer.usage_purpose)
+        .where(Customer.usage_purpose.is_not(None), Customer.usage_purpose != "")
+        .distinct()
+    ).all()
+    return sorted(
+        {*DEFAULT_USAGE_PURPOSES, *(value.strip() for value in stored_values if value.strip())}
     )
 
 

@@ -1019,7 +1019,8 @@ a {
 .customer-form-grid label {
   display: block;
 }
-.customer-form-grid input {
+.customer-form-grid input,
+.customer-form-grid select {
   margin-top: var(--space-sm);
 }
 .customer-address-field {
