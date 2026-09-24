@@ -747,6 +747,21 @@ a {
   font-family: "Cascadia Code", Consolas, monospace;
   font-size: 0.78rem;
 }
+.pagination-selector {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  min-width: 0;
+}
+.pagination-selector select {
+  width: auto;
+  min-width: 4.25rem;
+  min-height: 2.75rem;
+  padding: 0.45rem 2rem 0.45rem 0.7rem;
+  font-family: "Cascadia Code", Consolas, monospace;
+  font-weight: 700;
+}
 .batch-description {
   max-width: 45rem;
   margin: var(--space-md) 0 0;
@@ -1412,7 +1427,12 @@ a {
     grid-column: 1 / -1;
   }
   .pagination {
+    flex-wrap: wrap;
     justify-content: space-between;
+  }
+  .pagination-selector {
+    order: -1;
+    width: 100%;
   }
   .result-card {
     grid-template-columns: 6rem minmax(0, 1fr);

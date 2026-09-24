@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 
+import { Pagination } from "@/components/pagination";
 import { getResultsPage, reviewResult, type Result } from "@/services/results";
 import { usePolling } from "@/hooks/use-polling";
 
@@ -301,13 +302,14 @@ export function OperationsResults({ csrfToken, refreshKey = 0 }: Props) {
           ) : (
             <p className="empty-state">Không có kết quả nào cần kiểm duyệt.</p>
           )}
-          <nav className="pagination" aria-label="Phân trang hàng chờ kiểm duyệt">
-            <button className="secondary" type="button" onClick={() => setPendingPage((page) => Math.max(0, page - 1))} disabled={!pendingPage || loading}>Trước</button>
-            <span>
-              Trang {pendingPage + 1} / {Math.max(1, Math.ceil(pendingTotal / pageSize))}
-            </span>
-            <button className="secondary" type="button" onClick={() => setPendingPage((page) => page + 1)} disabled={pendingPage + 1 >= Math.max(1, Math.ceil(pendingTotal / pageSize)) || loading}>Sau</button>
-          </nav>
+          <Pagination
+            pageIndex={pendingPage}
+            totalPages={Math.max(1, Math.ceil(pendingTotal / pageSize))}
+            onPageChange={setPendingPage}
+            ariaLabel="Phân trang hàng chờ kiểm duyệt"
+            disabled={loading}
+            itemSummary={`${pendingTotal} kết quả`}
+          />
         </section>
         <section className="review-lane confirmed-lane" aria-labelledby="confirmed-title">
           <div className="review-lane-heading">
@@ -326,13 +328,14 @@ export function OperationsResults({ csrfToken, refreshKey = 0 }: Props) {
           ) : (
             <p className="empty-state">Chưa có kết quả nào được xác nhận.</p>
           )}
-          <nav className="pagination" aria-label="Phân trang kết quả đã xác nhận">
-            <button className="secondary" type="button" onClick={() => setConfirmedPage((page) => Math.max(0, page - 1))} disabled={!confirmedPage || loading}>Trước</button>
-            <span>
-              Trang {confirmedPage + 1} / {Math.max(1, Math.ceil(confirmedTotal / pageSize))}
-            </span>
-            <button className="secondary" type="button" onClick={() => setConfirmedPage((page) => page + 1)} disabled={confirmedPage + 1 >= Math.max(1, Math.ceil(confirmedTotal / pageSize)) || loading}>Sau</button>
-          </nav>
+          <Pagination
+            pageIndex={confirmedPage}
+            totalPages={Math.max(1, Math.ceil(confirmedTotal / pageSize))}
+            onPageChange={setConfirmedPage}
+            ariaLabel="Phân trang kết quả đã xác nhận"
+            disabled={loading}
+            itemSummary={`${confirmedTotal} kết quả`}
+          />
         </section>
       </div>
       {imagePreview && (

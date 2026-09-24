@@ -2,6 +2,7 @@
 
 import { ChangeEvent, FormEvent, useCallback, useEffect, useState } from "react";
 
+import { Pagination } from "@/components/pagination";
 import {
   createCustomer,
   getCustomers,
@@ -428,27 +429,14 @@ export function CustomerDataManagement({ csrfToken }: { csrfToken: string }) {
           </table>
         </div>
 
-        <nav className="pagination" aria-label="Phân trang danh sách khách hàng">
-          <button
-            className="secondary"
-            type="button"
-            disabled={page <= 1 || loadingCustomers}
-            onClick={() => setPage((value) => value - 1)}
-          >
-            Trang trước
-          </button>
-          <span>
-            Trang {page} / {totalPages} · {numberFormatter.format(total)} khách hàng
-          </span>
-          <button
-            className="secondary"
-            type="button"
-            disabled={page >= totalPages || loadingCustomers}
-            onClick={() => setPage((value) => value + 1)}
-          >
-            Trang sau
-          </button>
-        </nav>
+        <Pagination
+          pageIndex={page - 1}
+          totalPages={totalPages}
+          onPageChange={(pageIndex) => setPage(pageIndex + 1)}
+          ariaLabel="Phân trang danh sách khách hàng"
+          disabled={loadingCustomers}
+          itemSummary={`${numberFormatter.format(total)} khách hàng`}
+        />
       </div>
     </section>
   );

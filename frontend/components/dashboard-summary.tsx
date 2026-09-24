@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
+import { Pagination } from "@/components/pagination";
 import { usePolling } from "@/hooks/use-polling";
 import {
   getBillingDashboard,
@@ -281,25 +282,14 @@ export function DashboardSummary({ csrfToken }: { csrfToken?: string }) {
           </tbody>
         </table>
       </div>
-      <nav className="pagination" aria-label="Phân trang danh sách tiền điện">
-        <button
-          className="secondary"
-          type="button"
-          onClick={() => setPage((value) => Math.max(0, value - 1))}
-          disabled={!page || loading}
-        >
-          Trước
-        </button>
-        <span>Trang {page + 1} / {pages}</span>
-        <button
-          className="secondary"
-          type="button"
-          onClick={() => setPage((value) => value + 1)}
-          disabled={page + 1 >= pages || loading}
-        >
-          Sau
-        </button>
-      </nav>
+      <Pagination
+        pageIndex={page}
+        totalPages={pages}
+        onPageChange={setPage}
+        ariaLabel="Phân trang danh sách tiền điện"
+        disabled={loading}
+        itemSummary={`${billing?.total ?? 0} bản ghi`}
+      />
 
       <p className="billing-disclaimer">
         Sinh hoạt áp dụng lũy tiến 6 bậc. Sản xuất, kinh doanh và hành chính sự nghiệp

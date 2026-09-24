@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import { Pagination } from "@/components/pagination";
 import { getAuditLogsPage, type AuditRow } from "@/services/audit";
 
 const pageSize = 10;
@@ -352,27 +353,14 @@ export function AuditHistory() {
           </table>
         </div>
       )}
-      <nav className="pagination" aria-label="Phân trang lịch sử kiểm toán">
-        <button
-          className="secondary"
-          type="button"
-          onClick={() => setPage((current) => Math.max(0, current - 1))}
-          disabled={page === 0 || loading}
-        >
-          Trước
-        </button>
-        <span>
-          Trang {page + 1} / {Math.max(1, Math.ceil(total / pageSize))}
-        </span>
-        <button
-          className="secondary"
-          type="button"
-          onClick={() => setPage((current) => current + 1)}
-          disabled={page + 1 >= Math.max(1, Math.ceil(total / pageSize)) || loading}
-        >
-          Sau
-        </button>
-      </nav>
+      <Pagination
+        pageIndex={page}
+        totalPages={Math.max(1, Math.ceil(total / pageSize))}
+        onPageChange={setPage}
+        ariaLabel="Phân trang lịch sử kiểm toán"
+        disabled={loading}
+        itemSummary={`${total} sự kiện`}
+      />
     </section>
   );
 }

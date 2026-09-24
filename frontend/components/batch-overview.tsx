@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { Pagination } from "@/components/pagination";
 import { getBatchImages, getBatchesPage } from "@/services/batches";
 import type { Batch, BatchImage } from "@/types/batch";
 import { usePolling } from "@/hooks/use-polling";
@@ -222,27 +223,14 @@ export function BatchOverview() {
           </table>
         </div>
       )}
-      <nav className="pagination" aria-label="Phân trang danh sách lô">
-        <button
-          className="secondary"
-          type="button"
-          onClick={() => setPage((value) => Math.max(0, value - 1))}
-          disabled={page === 0 || loading}
-        >
-          Trước
-        </button>
-        <span>
-          Trang {page + 1} / {batchPages} · {batchTotal} lô
-        </span>
-        <button
-          className="secondary"
-          type="button"
-          onClick={() => setPage((value) => value + 1)}
-          disabled={page + 1 >= batchPages || loading}
-        >
-          Sau
-        </button>
-      </nav>
+      <Pagination
+        pageIndex={page}
+        totalPages={batchPages}
+        onPageChange={setPage}
+        ariaLabel="Phân trang danh sách lô"
+        disabled={loading}
+        itemSummary={`${batchTotal} lô`}
+      />
 
       {selected && (
         <section className="batch-detail" aria-labelledby="batch-detail-title">
@@ -333,27 +321,14 @@ export function BatchOverview() {
               </table>
             </div>
           )}
-          <nav className="pagination" aria-label="Phân trang hình ảnh trong lô">
-            <button
-              className="secondary"
-              type="button"
-              onClick={() => setImagePage((value) => Math.max(0, value - 1))}
-              disabled={imagePage === 0 || detailLoading}
-            >
-              Trước
-            </button>
-            <span>
-              Trang {imagePage + 1} / {imagePages} · {imageTotal} hình ảnh
-            </span>
-            <button
-              className="secondary"
-              type="button"
-              onClick={() => setImagePage((value) => value + 1)}
-              disabled={imagePage + 1 >= imagePages || detailLoading}
-            >
-              Sau
-            </button>
-          </nav>
+          <Pagination
+            pageIndex={imagePage}
+            totalPages={imagePages}
+            onPageChange={setImagePage}
+            ariaLabel="Phân trang hình ảnh trong lô"
+            disabled={detailLoading}
+            itemSummary={`${imageTotal} hình ảnh`}
+          />
         </section>
       )}
     </section>

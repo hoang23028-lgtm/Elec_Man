@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { FormEvent } from "react";
 
+import { Pagination } from "@/components/pagination";
 import {
   changeUserPassword,
   createUser,
@@ -315,15 +316,14 @@ export function AccountManagement({ csrfToken }: { csrfToken: string }) {
           </table>
         </div>
       )}
-      <div className="pagination">
-        <button className="secondary" type="button" disabled={page <= 1 || loading} onClick={() => setPage((value) => value - 1)}>
-          Trang trước
-        </button>
-        <span>Trang {page} / {totalPages} · {total} tài khoản</span>
-        <button className="secondary" type="button" disabled={page >= totalPages || loading} onClick={() => setPage((value) => value + 1)}>
-          Trang sau
-        </button>
-      </div>
+      <Pagination
+        pageIndex={page - 1}
+        totalPages={totalPages}
+        onPageChange={(pageIndex) => setPage(pageIndex + 1)}
+        ariaLabel="Phân trang danh sách tài khoản"
+        disabled={loading}
+        itemSummary={`${total} tài khoản`}
+      />
     </section>
   );
 }
