@@ -59,9 +59,7 @@ def resolve_export_path(filename: str) -> Path | None:
     return path if path.is_relative_to(root) and path.is_file() else None
 
 
-def _report_row(
-    reading: MeterReading, customer: Customer | None
-) -> dict[str, str | int | None]:
+def _report_row(reading: MeterReading, customer: Customer | None) -> dict[str, str | int | None]:
     reading_value = reading.reading_value
     return {
         "ma_khach_hang": customer.customer_code if customer else reading.final_customer_id,

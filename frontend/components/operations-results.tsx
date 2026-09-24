@@ -168,6 +168,8 @@ export function OperationsResults({ csrfToken, refreshKey = 0 }: Props) {
           onClick={(event) => openImagePreview(row, event.currentTarget)}
           aria-label={`Phóng lớn ảnh ${row.original_filename}`}
         >
+          {/* Authenticated image URLs cannot be optimized server-side. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={`/api/v1/images/${row.image_id}/thumbnail`}
             alt={`Ảnh đồng hồ ${row.original_filename}`}
@@ -362,6 +364,8 @@ export function OperationsResults({ csrfToken, refreshKey = 0 }: Props) {
             </button>
           </div>
           <div className="image-preview-canvas">
+            {/* Full-resolution authenticated preview must load in the browser. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={`/api/v1/images/${imagePreview.imageId}/preview`}
               alt={`Ảnh đồng hồ ${imagePreview.filename}`}

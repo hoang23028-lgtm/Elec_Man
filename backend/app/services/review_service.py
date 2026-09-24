@@ -70,9 +70,7 @@ def list_results(
             ai_status=ai_result.status,
             review_status=reading.review_status if reading else None,
             auto_confirmed=bool(
-                reading
-                and reading.review_status == "CONFIRMED"
-                and reading.reviewed_by is None
+                reading and reading.review_status == "CONFIRMED" and reading.reviewed_by is None
             ),
             final_customer_id=reading.final_customer_id if reading else None,
             final_meter_reading=reading.final_meter_reading if reading else None,
@@ -90,9 +88,7 @@ def list_results(
             .outerjoin(MeterReading, MeterReading.image_id == ImageRecord.id)
             .outerjoin(Customer, Customer.id == MeterReading.matched_customer_id)
         )
-        count_statement = _apply_result_filters(
-            count_statement, image_status, search
-        )
+        count_statement = _apply_result_filters(count_statement, image_status, search)
         total = int(db.scalar(count_statement) or 0)
     return items, total
 

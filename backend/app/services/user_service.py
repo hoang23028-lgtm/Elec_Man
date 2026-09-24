@@ -84,9 +84,7 @@ def list_users(
     return users, total
 
 
-def create_user(
-    db: Session, payload: UserCreate, actor: User, ip_address: str | None
-) -> UserRow:
+def create_user(db: Session, payload: UserCreate, actor: User, ip_address: str | None) -> UserRow:
     user = User(
         username=payload.username,
         password_hash=hash_password(payload.password),
@@ -157,9 +155,7 @@ def change_password(
     db.commit()
 
 
-def delete_user(
-    db: Session, user_id: UUID, actor: User, ip_address: str | None
-) -> None:
+def delete_user(db: Session, user_id: UUID, actor: User, ip_address: str | None) -> None:
     user = _get_user(db, user_id)
     if user.id == actor.id:
         raise HTTPException(

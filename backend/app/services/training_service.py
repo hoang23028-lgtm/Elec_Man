@@ -21,9 +21,7 @@ _TRAINING_DEFAULTS = {
 
 def _training_settings(db: Session) -> dict[str, int]:
     values = _TRAINING_DEFAULTS.copy()
-    records = db.scalars(
-        select(SystemSetting).where(SystemSetting.key.in_(values))
-    ).all()
+    records = db.scalars(select(SystemSetting).where(SystemSetting.key.in_(values))).all()
     values.update({record.key: int(record.value_json) for record in records})
     return values
 
@@ -57,9 +55,7 @@ def _row(run: TrainingRun) -> TrainingRunRow:
     )
 
 
-def dataset_summary(
-    db: Session, training_settings: dict[str, int] | None = None
-) -> DatasetSummary:
+def dataset_summary(db: Session, training_settings: dict[str, int] | None = None) -> DatasetSummary:
     settings = training_settings or _training_settings(db)
     uploaded_query = select(func.count(ImageRecord.id)).scalar_subquery()
     confirmed_query = (

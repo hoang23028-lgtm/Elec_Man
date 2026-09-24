@@ -75,9 +75,7 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.drop_index("ix_meter_readings_customer_match", table_name="meter_readings")
-    op.drop_constraint(
-        "fk_meter_readings_matched_customer", "meter_readings", type_="foreignkey"
-    )
+    op.drop_constraint("fk_meter_readings_matched_customer", "meter_readings", type_="foreignkey")
     op.drop_column("meter_readings", "customer_match_status")
     op.drop_column("meter_readings", "matched_customer_id")
     op.drop_index("ix_customers_route", table_name="customers")

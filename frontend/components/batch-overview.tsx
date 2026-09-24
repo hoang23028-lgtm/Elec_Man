@@ -284,6 +284,8 @@ export function BatchOverview() {
                             target="_blank"
                             rel="noreferrer"
                           >
+                            {/* Authenticated image URLs cannot be optimized server-side. */}
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img
                               src={`/api/v1/images/${image.image_id}/thumbnail`}
                               alt={`Ảnh ${image.original_filename}`}

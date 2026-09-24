@@ -157,11 +157,7 @@ def list_batch_images(
     total = int(rows[0].total_count) if rows else 0
     if not rows:
         total = int(
-            db.scalar(
-                select(func.count(ImageRecord.id)).where(
-                    ImageRecord.batch_id == batch_id
-                )
-            )
+            db.scalar(select(func.count(ImageRecord.id)).where(ImageRecord.batch_id == batch_id))
             or 0
         )
         if not total and db.get(Batch, batch_id) is None:

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { Pagination } from "@/components/pagination";
 import { getAuditLogsPage, type AuditRow } from "@/services/audit";
@@ -248,7 +248,7 @@ export function AuditHistory() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const result = await getAuditLogsPage(page * pageSize, pageSize, action);
@@ -264,11 +264,11 @@ export function AuditHistory() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [action, page]);
 
   useEffect(() => {
     void load();
-  }, [action, page]);
+  }, [load]);
 
   return (
     <section className="panel full-span" aria-labelledby="audit-title">
