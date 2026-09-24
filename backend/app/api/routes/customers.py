@@ -6,9 +6,15 @@ from app.api.pagination import validate_pagination
 from app.core.database import get_db
 from app.models.audit_log import AuditLog
 from app.models.user import User
-from app.schemas.customer import CustomerImportResponse, CustomerRow, CustomerSummary
-from app.security.dependencies import get_current_user, require_csrf
+from app.schemas.customer import (
+    CustomerCreate,
+    CustomerImportResponse,
+    CustomerRow,
+    CustomerSummary,
+)
+from app.security.dependencies import AuthContext, get_current_user, require_csrf
 from app.services.customer_service import (
+    create_customer,
     customer_summary,
     import_customers,
     list_customers,
@@ -40,6 +46,17 @@ def get_customers(
     rows, total = list_customers(db, offset, limit, normalized_search)
     response.headers["X-Total-Count"] = str(total)
     return rows
+
+
+@router.post("", response_model=CustomerRow, status_code=status.HTTP_201_CREATED)
+def create_customer_route(
+    payload: CustomerCreate,
+    request: Request,
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(require_csrf),
+) -> CustomerRow:
+    ip_address = request.client.host if request.client else None
+    return create_customer(db, payload, auth.user, ip_address)
 
 
 @router.post(

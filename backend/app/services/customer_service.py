@@ -2,13 +2,18 @@ import json
 import re
 from collections.abc import Iterable
 
+from fastapi import HTTPException, status
 from pydantic import TypeAdapter, ValidationError
 from sqlalchemy import func, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.models.audit_log import AuditLog
 from app.models.customer import Customer
 from app.models.meter_reading import MeterReading
+from app.models.user import User
 from app.schemas.customer import (
+    CustomerCreate,
     CustomerImportResponse,
     CustomerImportRow,
     CustomerRow,
@@ -177,3 +182,77 @@ def list_customers(
         statement.order_by(Customer.customer_code.asc()).offset(offset).limit(limit)
     ).all()
     return [CustomerRow.model_validate(row) for row in rows], total
+
+
+def create_customer(
+    db: Session,
+    payload: CustomerCreate,
+    actor: User,
+    ip_address: str | None,
+) -> CustomerRow:
+    lookup_key = normalize_customer_code(payload.customer_code)
+    if not lookup_key:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Mã khách hàng phải có ít nhất một chữ cái hoặc chữ số.",
+        )
+    if db.scalar(select(Customer.id).where(Customer.lookup_key == lookup_key)) is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Mã khách hàng đã tồn tại.",
+        )
+    if (
+        db.scalar(
+            select(Customer.id).where(
+                func.upper(Customer.meter_serial) == payload.meter_serial.upper()
+            )
+        )
+        is not None
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Số serial công tơ đã thuộc khách hàng khác.",
+        )
+
+    customer = Customer(
+        customer_code=payload.customer_code,
+        lookup_key=lookup_key,
+        full_name=payload.full_name,
+        address=payload.address,
+        electricity_route=payload.electricity_route,
+        meter_serial=payload.meter_serial,
+        initial_reading=payload.initial_reading,
+        usage_purpose=payload.usage_purpose,
+    )
+    db.add(customer)
+    try:
+        db.flush()
+        reconciled = reconcile_confirmed_readings(db)
+        db.add(
+            AuditLog(
+                user_id=actor.id,
+                action="CREATE_CUSTOMER",
+                target_type="customer",
+                target_id=str(customer.id),
+                details_json={
+                    "customer_code": customer.customer_code,
+                    "full_name": customer.full_name,
+                    "address": customer.address,
+                    "electricity_route": customer.electricity_route,
+                    "meter_serial": customer.meter_serial,
+                    "initial_reading": customer.initial_reading,
+                    "usage_purpose": customer.usage_purpose,
+                    "reconciled_readings": reconciled,
+                },
+                ip_address=ip_address,
+            )
+        )
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Mã khách hàng hoặc số serial công tơ đã tồn tại.",
+        ) from exc
+    db.refresh(customer)
+    return CustomerRow.model_validate(customer)

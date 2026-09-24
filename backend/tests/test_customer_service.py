@@ -3,16 +3,28 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
+from fastapi import HTTPException
 from sqlalchemy import create_engine
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.orm import Session
 
+from app.models.audit_log import AuditLog
 from app.models.customer import Customer
+from app.schemas.customer import CustomerCreate
+from app.services import customer_service
 from app.services.customer_service import (
     apply_customer_match,
+    create_customer,
     list_customers,
     normalize_customer_code,
     parse_customer_json,
 )
+
+
+@compiles(JSONB, "sqlite")
+def compile_jsonb_for_sqlite(_type, _compiler, **_kwargs) -> str:
+    return "JSON"
 
 
 def test_normalize_customer_code_ignores_formatting() -> None:
@@ -113,3 +125,34 @@ def test_list_customers_is_paginated_sorted_and_searchable() -> None:
     assert [row.customer_code for row in rows] == ["KH001"]
     assert matched_total == 1
     assert matches[0].meter_serial == "CT-002"
+
+
+def test_create_customer_normalizes_identifiers_and_rejects_duplicates(
+    monkeypatch,
+) -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Customer.__table__.create(engine)
+    AuditLog.__table__.create(engine)
+    monkeypatch.setattr(customer_service, "reconcile_confirmed_readings", lambda _: 0)
+    actor = SimpleNamespace(id=uuid4())
+    payload = CustomerCreate(
+        customer_code=" pn3.001 ",
+        full_name="Khách hàng mới",
+        address="Khu 3",
+        electricity_route="Tuyến 03",
+        meter_serial=" ct-003 ",
+        initial_reading=300,
+        usage_purpose="SINH_HOAT",
+    )
+
+    with Session(engine) as db:
+        created = create_customer(db, payload, actor, "127.0.0.1")
+        audit = db.query(AuditLog).one()
+        with pytest.raises(HTTPException) as duplicate:
+            create_customer(db, payload, actor, "127.0.0.1")
+
+    assert created.customer_code == "PN3.001"
+    assert created.meter_serial == "CT-003"
+    assert audit.action == "CREATE_CUSTOMER"
+    assert audit.details_json["customer_code"] == "PN3.001"
+    assert duplicate.value.status_code == 409

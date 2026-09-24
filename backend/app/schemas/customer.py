@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class CustomerImportRow(BaseModel):
@@ -21,6 +21,23 @@ class CustomerImportResponse(BaseModel):
     created: int
     updated: int
     reconciled_readings: int
+
+
+class CustomerCreate(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    customer_code: str = Field(min_length=1, max_length=128)
+    full_name: str = Field(min_length=1, max_length=255)
+    address: str = Field(min_length=1, max_length=500)
+    electricity_route: str = Field(min_length=1, max_length=255)
+    meter_serial: str = Field(min_length=1, max_length=128)
+    initial_reading: int = Field(ge=0, le=999_999_999)
+    usage_purpose: str = Field(min_length=1, max_length=64)
+
+    @field_validator("customer_code", "meter_serial")
+    @classmethod
+    def normalize_identifiers(cls, value: str) -> str:
+        return value.upper()
 
 
 class CustomerSummary(BaseModel):

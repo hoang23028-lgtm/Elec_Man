@@ -26,6 +26,16 @@ export type CustomerRecord = {
   updated_at: string;
 };
 
+export type CustomerCreateInput = {
+  customer_code: string;
+  full_name: string;
+  address: string;
+  electricity_route: string;
+  meter_serial: string;
+  initial_reading: number;
+  usage_purpose: string;
+};
+
 export async function getCustomerSummary(): Promise<CustomerSummary> {
   return apiJson<CustomerSummary>(
     "/customers/summary",
@@ -40,6 +50,24 @@ export async function getCustomers(offset: number, limit: number, search: string
   return paginatedJson<CustomerRecord>(
     `/customers?${query}`,
     "Không thể tải danh sách khách hàng.",
+  );
+}
+
+export async function createCustomer(
+  input: CustomerCreateInput,
+  csrfToken: string,
+): Promise<CustomerRecord> {
+  return apiJson<CustomerRecord>(
+    "/customers",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRF-Token": csrfToken,
+      },
+      body: JSON.stringify(input),
+    },
+    "Không thể thêm khách hàng.",
   );
 }
 

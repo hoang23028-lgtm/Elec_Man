@@ -3,15 +3,30 @@
 import { ChangeEvent, FormEvent, useCallback, useEffect, useState } from "react";
 
 import {
+  createCustomer,
   getCustomers,
   getCustomerSummary,
   importCustomerFile,
+  type CustomerCreateInput,
   type CustomerRecord,
   type CustomerSummary,
 } from "@/services/customers";
 
 const PAGE_SIZE = 15;
 const numberFormatter = new Intl.NumberFormat("vi-VN");
+type CustomerForm = Omit<CustomerCreateInput, "initial_reading"> & {
+  initial_reading: string;
+};
+
+const emptyCustomerForm = (): CustomerForm => ({
+  customer_code: "",
+  full_name: "",
+  address: "",
+  electricity_route: "",
+  meter_serial: "",
+  initial_reading: "",
+  usage_purpose: "SINH_HOAT",
+});
 
 export function CustomerDataManagement({ csrfToken }: { csrfToken: string }) {
   const [summary, setSummary] = useState<CustomerSummary | null>(null);
@@ -21,6 +36,9 @@ export function CustomerDataManagement({ csrfToken }: { csrfToken: string }) {
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [loadingCustomers, setLoadingCustomers] = useState(true);
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [creatingCustomer, setCreatingCustomer] = useState(false);
+  const [customerForm, setCustomerForm] = useState<CustomerForm>(emptyCustomerForm);
   const [file, setFile] = useState<File | null>(null);
   const [fileInputKey, setFileInputKey] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -102,6 +120,44 @@ export function CustomerDataManagement({ csrfToken }: { csrfToken: string }) {
     setSearch(searchInput.trim());
   }
 
+  function updateCustomerField(field: keyof CustomerForm, value: string) {
+    setCustomerForm((current) => ({ ...current, [field]: value }));
+  }
+
+  async function submitCustomer(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const initialReading = Number(customerForm.initial_reading);
+    if (!Number.isInteger(initialReading) || initialReading < 0) {
+      setError("Chỉ số khởi tạo phải là số nguyên không âm.");
+      return;
+    }
+    setCreatingCustomer(true);
+    setMessage(null);
+    setError(null);
+    try {
+      const created = await createCustomer(
+        {
+          ...customerForm,
+          customer_code: customerForm.customer_code.trim().toUpperCase(),
+          meter_serial: customerForm.meter_serial.trim().toUpperCase(),
+          initial_reading: initialReading,
+        },
+        csrfToken,
+      );
+      setMessage(`Đã thêm khách hàng ${created.customer_code} – ${created.full_name}.`);
+      setCustomerForm(emptyCustomerForm());
+      setShowCreateForm(false);
+      setSearchInput(created.customer_code);
+      setPage(1);
+      setSearch(created.customer_code);
+      await loadSummary();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Không thể thêm khách hàng.");
+    } finally {
+      setCreatingCustomer(false);
+    }
+  }
+
   return (
     <section
       className="panel full-span"
@@ -116,11 +172,140 @@ export function CustomerDataManagement({ csrfToken }: { csrfToken: string }) {
             Nhập tệp JSON theo mẫu để đối chiếu mã khách hàng OCR với hồ sơ và số serial công tơ.
           </p>
         </div>
+        <button
+          type="button"
+          className={showCreateForm ? "secondary" : undefined}
+          aria-expanded={showCreateForm}
+          aria-controls="customer-create-form"
+          onClick={() => {
+            setShowCreateForm((value) => !value);
+            setMessage(null);
+            setError(null);
+          }}
+        >
+          {showCreateForm ? "Đóng biểu mẫu" : "Thêm khách hàng"}
+        </button>
       </div>
       <div className="summary-grid customer-summary">
         <div><strong>{summary?.total ?? "—"}</strong><span>Khách hàng</span></div>
         <div><strong>{summary?.matched_readings ?? "—"}</strong><span>Kết quả đã khớp</span></div>
         <div><strong>{summary?.unmatched_readings ?? "—"}</strong><span>Chưa tìm thấy</span></div>
+      </div>
+
+      {showCreateForm && (
+        <form
+          id="customer-create-form"
+          className="account-editor customer-editor"
+          onSubmit={submitCustomer}
+          aria-busy={creatingCustomer}
+        >
+          <div className="account-editor-heading">
+            <div>
+              <p className="eyebrow">Nhập thủ công</p>
+              <h3>Thêm hồ sơ khách hàng mới</h3>
+              <p className="muted">Mã khách hàng và serial công tơ không được trùng.</p>
+            </div>
+          </div>
+          <div className="customer-form-grid">
+            <label>
+              Mã khách hàng
+              <input
+                autoFocus
+                value={customerForm.customer_code}
+                onChange={(event) => updateCustomerField("customer_code", event.target.value)}
+                placeholder="PN2.001"
+                maxLength={128}
+                required
+              />
+            </label>
+            <label>
+              Họ và tên
+              <input
+                value={customerForm.full_name}
+                onChange={(event) => updateCustomerField("full_name", event.target.value)}
+                maxLength={255}
+                required
+              />
+            </label>
+            <label>
+              Serial công tơ
+              <input
+                value={customerForm.meter_serial}
+                onChange={(event) => updateCustomerField("meter_serial", event.target.value)}
+                placeholder="CT-2026-001"
+                maxLength={128}
+                required
+              />
+            </label>
+            <label>
+              Chỉ số khởi tạo
+              <input
+                type="number"
+                value={customerForm.initial_reading}
+                onChange={(event) => updateCustomerField("initial_reading", event.target.value)}
+                min={0}
+                max={999999999}
+                step={1}
+                required
+              />
+            </label>
+            <label>
+              Tuyến điện
+              <input
+                value={customerForm.electricity_route}
+                onChange={(event) => updateCustomerField("electricity_route", event.target.value)}
+                maxLength={255}
+                required
+              />
+            </label>
+            <label>
+              Mục đích sử dụng
+              <input
+                list="customer-usage-purposes"
+                value={customerForm.usage_purpose}
+                onChange={(event) => updateCustomerField("usage_purpose", event.target.value)}
+                maxLength={64}
+                required
+              />
+              <datalist id="customer-usage-purposes">
+                <option value="SINH_HOAT" />
+                <option value="KINH_DOANH" />
+                <option value="SAN_XUAT" />
+                <option value="KHAC" />
+              </datalist>
+            </label>
+            <label className="customer-address-field">
+              Địa chỉ
+              <input
+                value={customerForm.address}
+                onChange={(event) => updateCustomerField("address", event.target.value)}
+                maxLength={500}
+                required
+              />
+            </label>
+          </div>
+          <div className="customer-form-actions">
+            <button
+              className="secondary"
+              type="button"
+              disabled={creatingCustomer}
+              onClick={() => {
+                setCustomerForm(emptyCustomerForm());
+                setShowCreateForm(false);
+              }}
+            >
+              Hủy
+            </button>
+            <button type="submit" disabled={creatingCustomer}>
+              {creatingCustomer ? "Đang thêm…" : "Lưu khách hàng"}
+            </button>
+          </div>
+        </form>
+      )}
+
+      <div className="customer-import-heading">
+        <strong>Nhập nhiều khách hàng từ tệp JSON</strong>
+        <span className="muted">Dùng khi cần thêm hoặc cập nhật hàng loạt.</span>
       </div>
       <div className="inline-controls customer-import-controls">
         <input
