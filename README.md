@@ -48,7 +48,7 @@ Trang Vận hành hiển thị vùng tải ảnh toàn chiều ngang, sau đó l
 
 ## Bảng điều khiển và xuất dữ liệu
 
-Bảng điều khiển cung cấp số liệu tổng hợp công khai ở chế độ chỉ xem. Quản trị viên nhập danh sách khách hàng JSON tại trang Quản trị. Trang Vận hành tạo đồng thời báo cáo JSON và Excel cho các chỉ số đã xác nhận, kèm hồ sơ và trạng thái đối chiếu; xem [tài liệu xuất dữ liệu](docs/export.md).
+Bảng điều khiển cung cấp số liệu tổng hợp công khai ở chế độ chỉ xem. Quản trị viên nhập danh sách khách hàng JSON và tạo đồng thời báo cáo JSON, Excel theo tháng tại trang Quản trị. Hai tệp xuất có cùng bảy trường như dữ liệu khách hàng đầu vào; xem [tài liệu xuất dữ liệu](docs/export.md).
 
 ## Quản trị và sao lưu
 

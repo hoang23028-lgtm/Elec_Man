@@ -48,8 +48,9 @@ export function MonthlyExport({ csrfToken }: { csrfToken: string }) {
           <p className="eyebrow">Báo cáo chỉ số</p>
           <h2 id="monthly-export-title">Xuất dữ liệu theo tháng</h2>
           <p className="muted">
-            Mỗi khách hàng chỉ lấy chỉ số đã xác nhận mới nhất trong tháng. File Excel gồm
-            mã khách hàng, số điện và độ tin cậy.
+            Mỗi khách hàng chỉ lấy chỉ số đã xác nhận mới nhất trong tháng. File Excel và
+            JSON có cùng 7 trường như tệp khách hàng mẫu; chỉ số kỳ này được ghi vào
+            trường chi_so_khoi_tao để dùng cho kỳ tiếp theo.
           </p>
         </div>
       </div>
