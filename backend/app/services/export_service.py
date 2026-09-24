@@ -9,7 +9,7 @@ from uuid import uuid4
 from openpyxl import Workbook
 from openpyxl.cell import WriteOnlyCell
 from openpyxl.styles import Font, PatternFill
-from sqlalchemy import select
+from sqlalchemy import extract, func, select
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
@@ -18,7 +18,8 @@ from app.models.customer import Customer
 from app.models.meter_reading import MeterReading
 
 EXPORT_FILENAME_PATTERN = re.compile(
-    r"^bao-cao-doi-chieu-(\d{4})(\d{2})\d{2}T\d{6}Z-[0-9a-f]{8}\.(xlsx|json)$"
+    r"^bao-cao-doi-chieu-(\d{4})(\d{2})\d{2}T\d{6}Z-[0-9a-f]{8}"
+    r"(?:-ky-\d{4}-(?:0[1-9]|1[0-2]))?\.(xlsx|json)$"
 )
 LEGACY_EXPORT_FILENAME_PATTERN = re.compile(
     r"^chi-so-da-xac-nhan-(\d{4})(\d{2})\d{2}T\d{6}Z-[0-9a-f]{8}\.xlsx$"
@@ -68,18 +69,38 @@ def _report_row(
     }
 
 
-def create_final_exports(db: Session) -> ExportBundle:
+def create_final_exports(db: Session, month: int, year: int) -> ExportBundle:
+    reading_at = func.coalesce(MeterReading.reviewed_at, MeterReading.created_at)
+    ranked_readings = (
+        select(
+            MeterReading.id.label("reading_id"),
+            func.row_number()
+            .over(
+                partition_by=MeterReading.final_customer_id,
+                order_by=(reading_at.desc(), MeterReading.id.desc()),
+            )
+            .label("position"),
+        )
+        .where(
+            MeterReading.review_status == "CONFIRMED",
+            MeterReading.final_customer_id.is_not(None),
+            extract("month", reading_at) == month,
+            extract("year", reading_at) == year,
+        )
+        .subquery()
+    )
     statement = (
         select(MeterReading, AiResult, Customer)
+        .join(ranked_readings, ranked_readings.c.reading_id == MeterReading.id)
         .join(AiResult, AiResult.id == MeterReading.ai_result_id)
         .outerjoin(Customer, Customer.id == MeterReading.matched_customer_id)
-        .where(MeterReading.review_status == "CONFIRMED")
-        .order_by(MeterReading.created_at)
+        .where(ranked_readings.c.position == 1)
+        .order_by(MeterReading.final_customer_id)
         .execution_options(yield_per=1000)
     )
     now = datetime.now(UTC)
     token = uuid4().hex[:8]
-    stem = f"bao-cao-doi-chieu-{now:%Y%m%dT%H%M%SZ}-{token}"
+    stem = f"bao-cao-doi-chieu-{now:%Y%m%dT%H%M%SZ}-{token}-ky-{year}-{month:02d}"
     directory = get_settings().storage_root / "exports" / f"{now:%Y}" / f"{now:%m}"
     directory.mkdir(parents=True, exist_ok=True)
     excel_name = f"{stem}.xlsx"
@@ -90,34 +111,12 @@ def create_final_exports(db: Session) -> ExportBundle:
     json_temporary = json_path.with_suffix(".json.tmp")
 
     workbook = Workbook(write_only=True)
-    sheet = workbook.create_sheet("Báo cáo đối chiếu")
+    sheet = workbook.create_sheet(f"Chỉ số {month:02d}-{year}")
     sheet.freeze_panes = "A2"
-    widths = {
-        "A": 22,
-        "B": 28,
-        "C": 42,
-        "D": 34,
-        "E": 20,
-        "F": 18,
-        "G": 20,
-        "H": 16,
-        "I": 16,
-        "J": 20,
-    }
+    widths = {"A": 22, "B": 18, "C": 16}
     for column, width in widths.items():
         sheet.column_dimensions[column].width = width
-    headers = [
-        "Mã khách hàng",
-        "Họ tên",
-        "Địa chỉ",
-        "Tuyến điện",
-        "Số serial công tơ",
-        "Chỉ số khởi tạo",
-        "Mục đích sử dụng",
-        "Chỉ số mới",
-        "Độ tin cậy",
-        "Kết quả đối chiếu",
-    ]
+    headers = ["Mã khách hàng", "Số điện", "Độ tin cậy"]
     header_cells = [WriteOnlyCell(sheet, value=value) for value in headers]
     for cell in header_cells:
         cell.font = Font(bold=True, color="FFFFFF")
@@ -139,20 +138,13 @@ def create_final_exports(db: Session) -> ExportBundle:
                 sheet.append(
                     [
                         _excel_text(report["ma_khach_hang"]),
-                        _excel_text(report["ho_ten"]),
-                        _excel_text(report["dia_chi"]),
-                        _excel_text(report["tuyen_dien"]),
-                        _excel_text(report["so_seri_cong_to"]),
-                        report["chi_so_khoi_tao"],
-                        _excel_text(report["muc_dich_su_dung"]),
                         report["chi_so_moi"],
                         confidence_cell,
-                        report["ket_qua_doi_chieu"],
                     ]
                 )
                 row_count += 1
             output.write("\n]\n")
-        sheet.auto_filter.ref = f"A1:J{max(1, row_count + 1)}"
+        sheet.auto_filter.ref = f"A1:C{max(1, row_count + 1)}"
         workbook.save(excel_temporary)
         excel_temporary.replace(excel_path)
         json_temporary.replace(json_path)

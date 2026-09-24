@@ -11,6 +11,8 @@ type Props = { csrfToken: string; refreshKey?: number };
 type ImagePreview = { imageId: string; filename: string };
 
 const pageSize = 12;
+const today = new Date();
+const currentPeriod = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
 
 function initialDraft(row: Result): Draft {
   return {
@@ -36,6 +38,7 @@ export function OperationsResults({ csrfToken, refreshKey = 0 }: Props) {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
+  const [exportPeriod, setExportPeriod] = useState(currentPeriod);
   const [exportBundle, setExportBundle] = useState<ExportBundle | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -153,12 +156,19 @@ export function OperationsResults({ csrfToken, refreshKey = 0 }: Props) {
   }
 
   async function download() {
+    const [year, month] = exportPeriod.split("-").map(Number);
+    if (!year || !month) {
+      setError("Hãy chọn tháng cần xuất báo cáo.");
+      return;
+    }
     setExporting(true);
     setError(null);
     try {
-      const bundle = await exportConfirmed(csrfToken);
+      const bundle = await exportConfirmed(csrfToken, month, year);
       setExportBundle(bundle);
-      setMessage(`Đã tạo báo cáo ${bundle.exported_rows} dòng. Chọn định dạng để tải xuống.`);
+      setMessage(
+        `Đã tạo báo cáo tháng ${month}/${year} gồm ${bundle.exported_rows} khách hàng.`,
+      );
     } catch (reason) {
       setError(
         reason instanceof Error ? reason.message : "Không thể tạo tệp Excel.",
@@ -356,11 +366,26 @@ export function OperationsResults({ csrfToken, refreshKey = 0 }: Props) {
             <div>
               <strong>Tải danh sách đã kiểm duyệt</strong>
               <p className="muted">
-                Báo cáo JSON và Excel gồm hồ sơ khách hàng, chỉ số mới, độ tin cậy và kết quả đối chiếu.
+                Mỗi khách hàng lấy chỉ số đã xác nhận mới nhất trong tháng. Excel gồm mã khách hàng,
+                số điện và độ tin cậy.
               </p>
             </div>
-            <button type="button" onClick={() => void download()} disabled={exporting}>
-              {exporting ? "Đang tạo báo cáo…" : "Tạo file JSON và Excel"}
+            <label>
+              Tháng báo cáo
+              <input
+                type="month"
+                value={exportPeriod}
+                onChange={(event) => {
+                  setExportPeriod(event.target.value);
+                  setExportBundle(null);
+                }}
+                min="2000-01"
+                max="2100-12"
+                required
+              />
+            </label>
+            <button type="button" onClick={() => void download()} disabled={exporting || !exportPeriod}>
+              {exporting ? "Đang tạo báo cáo…" : "Tạo báo cáo theo tháng"}
             </button>
             {exportBundle && (
               <div className="export-downloads">

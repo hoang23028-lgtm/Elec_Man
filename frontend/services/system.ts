@@ -72,8 +72,13 @@ export type ExportBundle = {
   json_download_url: string;
   exported_rows: number;
 };
-export async function exportConfirmed(csrfToken: string): Promise<ExportBundle> {
-  return apiJson<ExportBundle>("/exports/final", {
+export async function exportConfirmed(
+  csrfToken: string,
+  month: number,
+  year: number,
+): Promise<ExportBundle> {
+  const query = new URLSearchParams({ month: String(month), year: String(year) });
+  return apiJson<ExportBundle>(`/exports/final?${query.toString()}`, {
     method: "POST",
     headers: { "X-CSRF-Token": csrfToken },
   }, "Không thể tạo báo cáo JSON và Excel.");

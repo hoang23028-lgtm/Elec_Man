@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
@@ -13,9 +13,13 @@ router = APIRouter()
 
 @router.post("/final", dependencies=[Depends(require_csrf)])
 def export_final(
-    request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)
+    request: Request,
+    month: int = Query(ge=1, le=12),
+    year: int = Query(ge=2000, le=2100),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
 ) -> dict:
-    bundle = create_final_exports(db)
+    bundle = create_final_exports(db, month, year)
     db.add(
         AuditLog(
             user_id=user.id,
@@ -26,6 +30,8 @@ def export_final(
                 "excel_filename": bundle.excel_name,
                 "json_filename": bundle.json_name,
                 "exported_rows": bundle.row_count,
+                "month": month,
+                "year": year,
             },
             ip_address=request.client.host if request.client else None,
         )
