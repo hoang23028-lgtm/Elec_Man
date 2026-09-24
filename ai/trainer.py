@@ -132,7 +132,11 @@ def main() -> None:
                         previous_stage = run.stage
                         run.status = "FAILED"
                         run.stage = "FAILED"
-                        run.error_message = str(exc)[:2000]
+                        safe_message = (
+                            "Huấn luyện thất bại. Hãy dùng mã phiên huấn luyện "
+                            "để tra cứu log máy chủ."
+                        )
+                        run.error_message = safe_message
                         run.completed_at = datetime.now(UTC)
                         db.add(
                             AuditLog(
@@ -142,7 +146,7 @@ def main() -> None:
                                 target_id=str(run.id),
                                 details_json={
                                     "error_type": type(exc).__name__,
-                                    "error_message": str(exc)[:2000],
+                                    "error_message": safe_message,
                                     "last_stage": previous_stage,
                                     "progress": run.progress,
                                 },

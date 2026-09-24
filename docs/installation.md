@@ -34,7 +34,8 @@ Trên Linux có thể chạy `openssl rand -hex 32` hai lần. Mở `.env` và:
 2. Dùng chuỗi thứ hai cho `SESSION_SECRET`.
 3. Giữ `NGINX_BIND_ADDRESS=127.0.0.1` nếu chỉ dùng trên chính máy đó.
 4. Nếu truy cập qua tên miền/reverse proxy, thêm tên miền vào `ALLOWED_HOSTS`; không dùng `*` trong production.
-5. Đặt `APP_ENV=production` khi triển khai chính thức.
+5. Khi chạy cục bộ, giữ `APP_ENV=development` và `ENFORCE_HTTPS=false`.
+6. Khi triển khai chính thức, cấu hình TLS theo `docker/nginx.https.conf.example`, sau đó đặt `APP_ENV=production`, `ENFORCE_HTTPS=true` và đổi `FRONTEND_ORIGIN` sang URL `https://`. Backend sẽ chủ động từ chối khởi động production nếu các điều kiện này chưa đạt.
 
 Không gửi hoặc commit tệp `.env`. Tệp này đã được `.gitignore` loại trừ.
 

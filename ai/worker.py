@@ -90,12 +90,17 @@ def main() -> None:
                     "processor": processor.name,
                 },
             )
-        except Exception as exc:
+        except Exception:
             if job_info is not None:
                 job_id = job_info[0]
                 with SessionLocal() as db:
-                    mark_job_failure(db, job_id, "OCR_PROCESSING_ERROR", str(exc))
-                logger.warning(
+                    mark_job_failure(
+                        db,
+                        job_id,
+                        "OCR_PROCESSING_ERROR",
+                        "Không thể xử lý ảnh. Hệ thống sẽ tự động thử lại nếu còn lượt.",
+                    )
+                logger.exception(
                     "job_failed",
                     extra={"event": "job_failed", "job_id": str(job_id)},
                 )

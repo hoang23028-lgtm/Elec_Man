@@ -14,9 +14,19 @@ class JsonFormatter(logging.Formatter):
             "logger": record.name,
             "message": record.getMessage(),
         }
-        for key in ("environment", "request_id", "event"):
+        for key in (
+            "environment",
+            "request_id",
+            "event",
+            "job_id",
+            "run_id",
+            "processor",
+            "count",
+        ):
             if hasattr(record, key):
                 payload[key] = getattr(record, key)
+        if record.exc_info and record.exc_info[0] is not None:
+            payload["exception_type"] = record.exc_info[0].__name__
         return json.dumps(payload, ensure_ascii=False)
 
 

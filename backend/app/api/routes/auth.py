@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
@@ -25,19 +25,19 @@ def login(
     if not login_ip_rate_limiter.allowed(ip_key) or not login_account_rate_limiter.allowed(
         account_key
     ):
-        from fastapi import HTTPException
-
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Có quá nhiều lần đăng nhập. Vui lòng thử lại sau.",
+            headers={"Retry-After": "900"},
         )
     try:
         session_token, csrf_token, expires_at = authenticate(
             db, payload.username, payload.password, _ip(request), request.headers.get("user-agent")
         )
-    except Exception:
-        login_ip_rate_limiter.record_failure(ip_key)
-        login_account_rate_limiter.record_failure(account_key)
+    except HTTPException as exc:
+        if exc.status_code == status.HTTP_401_UNAUTHORIZED:
+            login_ip_rate_limiter.record_failure(ip_key)
+            login_account_rate_limiter.record_failure(account_key)
         raise
     login_account_rate_limiter.reset(account_key)
     settings = get_settings()
@@ -48,6 +48,7 @@ def login(
         secure=settings.app_env == "production",
         samesite="strict",
         max_age=settings.session_ttl_hours * 3600,
+        expires=expires_at,
         path="/",
     )
     return LoginResponse(csrf_token=csrf_token, expires_at=expires_at)
@@ -62,7 +63,13 @@ def logout_route(
 ) -> Response:
     settings = get_settings()
     logout(db, auth.session, _ip(request))
-    response.delete_cookie(settings.session_cookie_name, path="/")
+    response.delete_cookie(
+        settings.session_cookie_name,
+        path="/",
+        secure=settings.app_env == "production",
+        httponly=True,
+        samesite="strict",
+    )
     response.status_code = status.HTTP_204_NO_CONTENT
     return response
 

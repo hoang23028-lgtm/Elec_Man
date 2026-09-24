@@ -1,5 +1,8 @@
 import hashlib
+import hmac
 import secrets
+
+from app.core.config import get_settings
 
 
 def generate_token() -> str:
@@ -7,4 +10,8 @@ def generate_token() -> str:
 
 
 def hash_token(token: str) -> str:
-    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+    return hmac.new(
+        get_settings().session_secret.encode("utf-8"),
+        token.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()

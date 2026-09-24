@@ -39,8 +39,9 @@ def _bad_upload(message: str) -> HTTPException:
 
 
 def _safe_original_name(filename: str | None) -> str:
-    name = Path(filename or "upload").name.strip()
-    if not name or name in {".", ".."} or any(ord(char) < 32 for char in name):
+    normalized = (filename or "upload").replace("\\", "/")
+    name = Path(normalized).name.strip()
+    if not name or name in {".", ".."} or ":" in name or any(ord(char) < 32 for char in name):
         raise _bad_upload("Tên tệp không hợp lệ.")
     return name[:255]
 

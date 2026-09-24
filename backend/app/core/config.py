@@ -15,12 +15,13 @@ class Settings(BaseSettings):
     database_max_overflow: int = Field(default=20, ge=0, le=200)
     database_pool_recycle_seconds: int = Field(default=1800, ge=60)
     frontend_origin: str = "http://localhost:3000"
+    enforce_https: bool = False
     storage_root: Path = Path("./storage")
     models_root: Path = Path("./models")
     worker_poll_interval_seconds: float = Field(default=2.0, gt=0)
     session_cookie_name: str = "ema_session"
     session_ttl_hours: int = Field(default=8, ge=1, le=168)
-    session_secret: str = ""
+    session_secret: str = Field(min_length=32)
     allowed_hosts: str = "localhost,127.0.0.1"
     admin_initial_password: str | None = None
     max_image_size_mb: int = Field(default=20, ge=1, le=100)
@@ -40,6 +41,10 @@ class Settings(BaseSettings):
                 raise ValueError("Mật khẩu cơ sở dữ liệu mặc định không được dùng ở production.")
             if "*" in self.allowed_host_list:
                 raise ValueError("ALLOWED_HOSTS không được chứa ký tự * ở production.")
+            if not self.enforce_https:
+                raise ValueError("ENFORCE_HTTPS phải được bật ở production.")
+            if not self.frontend_origin.startswith("https://"):
+                raise ValueError("FRONTEND_ORIGIN phải dùng HTTPS ở production.")
         return self
 
     @property

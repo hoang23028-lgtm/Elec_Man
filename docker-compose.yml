@@ -1,7 +1,14 @@
+x-default-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
 services:
   postgres:
     image: postgres:16-alpine@sha256:3c5c8892d184f738f4fe282d14ddaa613a38f00f4189d2d94725ebe6f2909ddb
     restart: unless-stopped
+    logging: *default-logging
     environment:
       POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER}
@@ -16,12 +23,14 @@ services:
     networks: [internal]
   storage-init:
     image: alpine:3.21@sha256:ce64758a109eb420d874a118f87920e625e12d3634e03b4a5573fd9f6e5d3507
+    logging: *default-logging
     command: ["sh", "-c", "mkdir -p /data && chown -R 10001:10001 /data"]
     volumes:
       - storage_data:/data
     networks: [internal]
   model-init:
     image: alpine:3.21@sha256:ce64758a109eb420d874a118f87920e625e12d3634e03b4a5573fd9f6e5d3507
+    logging: *default-logging
     command: ["sh", "-c", "mkdir -p /models && chown -R 10001:10001 /models"]
     volumes:
       - model_data:/models
@@ -30,9 +39,12 @@ services:
     image: elec_man-backend:latest
     build:
       context: ./backend
+    logging: *default-logging
     command: ["alembic", "upgrade", "head"]
     environment:
       APP_ENV: ${APP_ENV:-production}
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost}
+      ENFORCE_HTTPS: ${ENFORCE_HTTPS:-false}
       DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
       SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET}
     read_only: true
@@ -50,11 +62,13 @@ services:
     build:
       context: ./backend
     restart: unless-stopped
+    logging: *default-logging
     environment:
       APP_ENV: ${APP_ENV:-production}
       APP_NAME: ${APP_NAME:-Hệ thống AI quản lý đồng hồ điện}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost}
+      ENFORCE_HTTPS: ${ENFORCE_HTTPS:-false}
       DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
       DATABASE_POOL_SIZE: ${DATABASE_POOL_SIZE:-10}
       DATABASE_MAX_OVERFLOW: ${DATABASE_MAX_OVERFLOW:-20}
@@ -92,9 +106,12 @@ services:
       context: .
       dockerfile: ai/Dockerfile
     restart: unless-stopped
+    logging: *default-logging
     environment:
       APP_ENV: ${APP_ENV:-production}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost}
+      ENFORCE_HTTPS: ${ENFORCE_HTTPS:-false}
       DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
       DATABASE_POOL_SIZE: ${DATABASE_POOL_SIZE:-5}
       DATABASE_MAX_OVERFLOW: ${DATABASE_MAX_OVERFLOW:-5}
@@ -129,9 +146,12 @@ services:
       dockerfile: ai/Dockerfile
     command: ["python", "-m", "ai.trainer"]
     restart: unless-stopped
+    logging: *default-logging
     environment:
       APP_ENV: ${APP_ENV:-production}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost}
+      ENFORCE_HTTPS: ${ENFORCE_HTTPS:-false}
       DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
       DATABASE_POOL_SIZE: ${DATABASE_POOL_SIZE:-5}
       DATABASE_MAX_OVERFLOW: ${DATABASE_MAX_OVERFLOW:-5}
@@ -165,6 +185,7 @@ services:
       args:
         NEXT_PUBLIC_API_BASE_URL: /api/v1
     restart: unless-stopped
+    logging: *default-logging
     environment:
       NODE_ENV: production
     cap_drop: [ALL]
@@ -177,6 +198,7 @@ services:
   nginx:
     image: nginx:stable-alpine@sha256:ef8676b33d681f272ba429b27658bdd7e640963279714c96bddf1dc76307f7b6
     restart: unless-stopped
+    logging: *default-logging
     ports:
       - "${NGINX_BIND_ADDRESS:-127.0.0.1}:80:80"
     volumes:

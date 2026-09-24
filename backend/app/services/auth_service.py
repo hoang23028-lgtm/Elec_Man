@@ -8,7 +8,7 @@ from app.core.config import get_settings
 from app.models.audit_log import AuditLog
 from app.models.session import SessionRecord
 from app.models.user import User
-from app.security.passwords import verify_password
+from app.security.passwords import hash_password, password_needs_rehash, verify_password
 from app.security.tokens import generate_token, hash_token
 
 
@@ -34,9 +34,7 @@ def _audit(
 def authenticate(
     db: Session, username: str, password: str, ip_address: str | None, user_agent: str | None
 ) -> tuple[str, str, datetime]:
-    user = db.scalar(
-        select(User).where(User.username == username, User.deleted_at.is_(None))
-    )
+    user = db.scalar(select(User).where(User.username == username, User.deleted_at.is_(None)))
     password_hash = user.password_hash if user is not None and user.is_active else None
     password_valid = verify_password(password_hash, password)
     if user is None or not user.is_active or not password_valid:
@@ -51,6 +49,8 @@ def authenticate(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Tên đăng nhập hoặc mật khẩu không đúng.",
         )
+    if password_needs_rehash(user.password_hash):
+        user.password_hash = hash_password(password)
     now = datetime.now(UTC)
     expires_at = now + timedelta(hours=get_settings().session_ttl_hours)
     raw_session = generate_token()

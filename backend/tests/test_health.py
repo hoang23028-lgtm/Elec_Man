@@ -11,6 +11,10 @@ def test_liveness() -> None:
     assert response.json() == {"status": "ok", "service": "backend", "database": None}
     assert response.headers["cache-control"] == "no-store"
     assert response.headers["pragma"] == "no-cache"
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert response.headers["x-frame-options"] == "DENY"
+    assert response.headers["content-security-policy"].startswith("default-src 'none'")
+    assert len(response.headers["x-request-id"]) == 32
 
 
 def test_dashboard_aggregate_is_public(monkeypatch) -> None:

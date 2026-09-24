@@ -16,6 +16,8 @@ ENV_FILE=.env ./scripts/backup.sh
 
 Sao chép thư mục sao lưu hoàn tất sang vùng lưu trữ riêng hoặc NAS. Bản sao chỉ nằm trên máy chủ ứng dụng là chưa đủ an toàn.
 
+Áp dụng quy tắc 3-2-1: tối thiểu ba bản sao, trên hai loại thiết bị, một bản nằm ngoài máy chủ. Mã hóa thư mục backup ở tầng ổ đĩa hoặc kho lưu trữ vì database dump và ảnh có dữ liệu nghiệp vụ. Giới hạn tài khoản đọc, bật cảnh báo khi script thất bại và kiểm tra `checksums.sha256` sau mỗi lần chuyển. Khuyến nghị chạy backup hằng ngày, giữ tối thiểu 7 bản gần nhất và diễn tập khôi phục hằng tháng trên máy không phải production.
+
 Khôi phục là thao tác phá hủy dữ liệu hiện tại và chủ động yêu cầu công tắc xác nhận rõ ràng. Trước tiên hãy dừng lưu lượng người dùng, xác minh đúng mốc thời gian rồi chạy:
 
 ```powershell

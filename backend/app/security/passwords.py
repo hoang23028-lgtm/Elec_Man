@@ -14,3 +14,11 @@ def verify_password(password_hash: str | None, password: str) -> bool:
         return _hasher.verify(password_hash or _dummy_password_hash, password)
     except (InvalidHashError, VerifyMismatchError):
         return False
+
+
+def password_needs_rehash(password_hash: str) -> bool:
+    """Allow stronger Argon2 parameters to be rolled out on a successful login."""
+    try:
+        return _hasher.check_needs_rehash(password_hash)
+    except InvalidHashError:
+        return True
