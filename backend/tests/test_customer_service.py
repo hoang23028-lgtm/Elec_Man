@@ -128,7 +128,7 @@ def test_list_customers_is_paginated_sorted_and_searchable() -> None:
     assert matches[0].meter_serial == "CT-002"
 
 
-def test_list_usage_purposes_includes_defaults_and_database_values() -> None:
+def test_list_usage_purposes_only_includes_database_values() -> None:
     engine = create_engine("sqlite+pysqlite:///:memory:")
     Customer.__table__.create(engine)
     with Session(engine) as db:
@@ -148,9 +148,7 @@ def test_list_usage_purposes_includes_defaults_and_database_values() -> None:
 
         purposes = list_usage_purposes(db)
 
-    assert "SINH_HOAT" in purposes
-    assert "UB_HANH_CHINH" in purposes
-    assert "CHIẾU_SÁNG_CÔNG_CỘNG" in purposes
+    assert purposes == ["CHIẾU_SÁNG_CÔNG_CỘNG"]
 
 
 def test_create_customer_normalizes_identifiers_and_rejects_duplicates(

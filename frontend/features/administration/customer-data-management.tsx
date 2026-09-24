@@ -71,15 +71,19 @@ export function CustomerDataManagement({ csrfToken }: { csrfToken: string }) {
     }
   }
 
+  async function loadUsagePurposes() {
+    try {
+      setUsagePurposes(await getCustomerUsagePurposes());
+    } catch (reason) {
+      setError(
+        reason instanceof Error ? reason.message : "Không thể tải danh sách mục đích sử dụng.",
+      );
+    }
+  }
+
   useEffect(() => {
     void loadSummary();
-    void getCustomerUsagePurposes()
-      .then(setUsagePurposes)
-      .catch((reason) => {
-        setError(
-          reason instanceof Error ? reason.message : "Không thể tải danh sách mục đích sử dụng.",
-        );
-      });
+    void loadUsagePurposes();
   }, []);
 
   const loadCustomers = useCallback(async () => {
@@ -129,6 +133,7 @@ export function CustomerDataManagement({ csrfToken }: { csrfToken: string }) {
       setFile(null);
       setFileInputKey((value) => value + 1);
       await loadSummary();
+      await loadUsagePurposes();
       if (page === 1) await loadCustomers();
       else setPage(1);
     } catch (reason) {
@@ -296,6 +301,9 @@ export function CustomerDataManagement({ csrfToken }: { csrfToken: string }) {
                   </option>
                 ))}
               </select>
+              {!usagePurposes.length && (
+                <span className="muted">Hãy nhập dữ liệu khách hàng từ tệp JSON trước.</span>
+              )}
             </label>
             <label className="customer-address-field">
               Địa chỉ
