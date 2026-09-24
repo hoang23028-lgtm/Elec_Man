@@ -10,6 +10,8 @@ export type BillingSummary = {
   billed_records: number;
   total_consumption_kwh: number;
   average_consumption_kwh: number | null;
+  energy_charge_before_vat_vnd: number;
+  vat_amount_vnd: number;
   estimated_amount_vnd: number;
 };
 export type BillingRecord = {
@@ -21,13 +23,19 @@ export type BillingRecord = {
   previous_reading: string | null;
   current_reading: string;
   consumption_kwh: number | null;
+  energy_charge_before_vat_vnd: number | null;
+  vat_amount_vnd: number | null;
   estimated_amount_vnd: number | null;
+  tariff_label: string | null;
+  tariff_estimated: boolean;
 };
 export type BillingTrendPoint = {
   month: number;
   year: number;
   record_count: number;
   consumption_kwh: number;
+  energy_charge_before_vat_vnd: number;
+  vat_amount_vnd: number;
   estimated_amount_vnd: number;
 };
 export type BillingDashboard = {
@@ -35,7 +43,7 @@ export type BillingDashboard = {
   records: BillingRecord[];
   trend: BillingTrendPoint[];
   available_years: number[];
-  unit_price_vnd: number;
+  vat_rate_percent: number;
   total: number;
   offset: number;
   limit: number;

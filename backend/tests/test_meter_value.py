@@ -2,7 +2,6 @@ from decimal import Decimal
 
 import pytest
 
-from app.services.dashboard_service import _amount
 from app.services.meter_value import normalize_meter_reading, parse_meter_value
 
 
@@ -25,8 +24,3 @@ def test_parse_meter_value(raw: str | None, expected: Decimal | None) -> None:
 def test_normalize_meter_reading_discards_fractional_wheel() -> None:
     assert normalize_meter_reading("05068.4") == "05068"
     assert normalize_meter_reading("63751,3") == "63751"
-
-
-def test_estimated_amount_uses_configured_unit_price() -> None:
-    assert _amount(Decimal("0.2"), 2500) == 500
-    assert _amount(None, 2500) is None

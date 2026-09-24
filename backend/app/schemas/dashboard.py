@@ -10,6 +10,8 @@ class BillingSummary(BaseModel):
     billed_records: int
     total_consumption_kwh: float
     average_consumption_kwh: float | None
+    energy_charge_before_vat_vnd: int
+    vat_amount_vnd: int
     estimated_amount_vnd: int
 
 
@@ -22,7 +24,11 @@ class BillingRecord(BaseModel):
     previous_reading: str | None
     current_reading: str
     consumption_kwh: float | None
+    energy_charge_before_vat_vnd: int | None
+    vat_amount_vnd: int | None
     estimated_amount_vnd: int | None
+    tariff_label: str | None
+    tariff_estimated: bool
 
 
 class BillingTrendPoint(BaseModel):
@@ -30,6 +36,8 @@ class BillingTrendPoint(BaseModel):
     year: int
     record_count: int
     consumption_kwh: float
+    energy_charge_before_vat_vnd: int
+    vat_amount_vnd: int
     estimated_amount_vnd: int
 
 
@@ -38,7 +46,7 @@ class BillingDashboard(BaseModel):
     records: list[BillingRecord]
     trend: list[BillingTrendPoint]
     available_years: list[int]
-    unit_price_vnd: int
+    vat_rate_percent: int
     total: int
     offset: int
     limit: int

@@ -16,7 +16,6 @@ const labels: Record<string, string> = {
   max_retry_count: "Số lần thử lại tối đa",
   data_retention_days: "Thời gian lưu trữ dữ liệu (ngày)",
   worker_poll_interval_seconds: "Chu kỳ kiểm tra của tiến trình xử lý (giây)",
-  electricity_unit_price_vnd: "Đơn giá điện tạm tính (VNĐ/kWh)",
   training_auto_start: "Tự động huấn luyện (0: tắt, 1: bật)",
   training_min_samples: "Số mẫu tối thiểu để huấn luyện",
   training_min_new_samples: "Số mẫu mới để huấn luyện lại",
@@ -34,8 +33,6 @@ const descriptions: Record<string, string> = {
     "Thời gian dự kiến lưu trữ dữ liệu; hệ thống chưa bật xóa tự động.",
   worker_poll_interval_seconds:
     "Chu kỳ kiểm tra mong muốn, được áp dụng sau khi khởi động lại tiến trình xử lý.",
-  electricity_unit_price_vnd:
-    "Đơn giá bình quân dùng trên Dashboard để tạm tính; không thay thế hóa đơn chính thức.",
   training_auto_start:
     "Trainer tự tạo phiên mới khi dataset đủ điều kiện và có đủ mẫu mới.",
   training_min_samples:
@@ -43,6 +40,7 @@ const descriptions: Record<string, string> = {
   training_min_new_samples:
     "Tránh huấn luyện lại liên tục khi dataset chỉ tăng một vài ảnh.",
 };
+const hiddenLegacySettings = new Set(["electricity_unit_price_vnd"]);
 
 export function SystemSettings({ csrfToken }: { csrfToken: string }) {
   const [settings, setSettings] = useState<Setting[]>([]);
@@ -54,9 +52,10 @@ export function SystemSettings({ csrfToken }: { csrfToken: string }) {
   async function load() {
     try {
       const rows = await getSettings();
-      setSettings(rows);
+      const visibleRows = rows.filter((row) => !hiddenLegacySettings.has(row.key));
+      setSettings(visibleRows);
       setDrafts(
-        Object.fromEntries(rows.map((row) => [row.key, String(row.value)])),
+        Object.fromEntries(visibleRows.map((row) => [row.key, String(row.value)])),
       );
       setError(null);
     } catch (reason) {

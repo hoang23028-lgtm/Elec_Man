@@ -114,8 +114,8 @@ export function DashboardSummary({ csrfToken }: { csrfToken?: string }) {
           <p className="eyebrow">Bảng điều khiển</p>
           <h2 id="dashboard-summary-title">Tổng quan điện năng và tiền điện</h2>
           <p className="muted">
-            Dữ liệu chỉ lấy từ các chỉ số đã xác nhận. Tiền điện được tạm tính từ
-            mức tiêu thụ giữa hai kỳ liên tiếp của cùng khách hàng.
+            Dữ liệu chỉ lấy từ các chỉ số đã xác nhận. Tiền điện được tính theo
+            mục đích sử dụng, mức tiêu thụ giữa hai kỳ và VAT tại thời điểm ghi nhận.
           </p>
         </div>
         <button
@@ -145,13 +145,14 @@ export function DashboardSummary({ csrfToken }: { csrfToken?: string }) {
           <h3>Điện năng đã xác nhận</h3>
         </div>
         <span className="badge">
-          Đơn giá {moneyFormatter.format(billing?.unit_price_vnd ?? 0)}/kWh
+          Biểu giá theo mục đích · VAT {billing?.vat_rate_percent ?? 8}%
         </span>
       </div>
       <div className="metrics billing-metrics" aria-label="Thống kê điện năng">
         <div><strong>{billing?.summary.total_customers ?? "—"}</strong><span>Khách hàng</span></div>
         <div><strong>{billing ? numberFormatter.format(billing.summary.total_consumption_kwh) : "—"}</strong><span>Điện tiêu thụ (kWh)</span></div>
-        <div><strong>{billing ? moneyFormatter.format(billing.summary.estimated_amount_vnd) : "—"}</strong><span>Tiền điện tạm tính</span></div>
+        <div><strong>{billing ? moneyFormatter.format(billing.summary.energy_charge_before_vat_vnd) : "—"}</strong><span>Tiền điện trước VAT</span></div>
+        <div><strong>{billing ? moneyFormatter.format(billing.summary.estimated_amount_vnd) : "—"}</strong><span>Tổng tiền sau VAT</span></div>
         <div><strong>{billing?.summary.billed_records ?? "—"}/{billing?.summary.total_records ?? "—"}</strong><span>Kỳ đủ dữ liệu tính</span></div>
       </div>
 
@@ -228,7 +229,10 @@ export function DashboardSummary({ csrfToken }: { csrfToken?: string }) {
               <th>Chỉ số trước</th>
               <th>Chỉ số hiện tại</th>
               <th>Tiêu thụ</th>
-              <th>Tiền điện tạm tính</th>
+              <th>Biểu giá áp dụng</th>
+              <th>Trước VAT</th>
+              <th>VAT</th>
+              <th>Tổng thanh toán</th>
             </tr>
           </thead>
           <tbody>
@@ -247,6 +251,20 @@ export function DashboardSummary({ csrfToken }: { csrfToken?: string }) {
                   )}
                 </td>
                 <td>
+                  {record.tariff_label ?? "Chưa xác định"}
+                  {record.tariff_estimated && <small>Tạm tính theo dưới 6 kV, giờ bình thường</small>}
+                </td>
+                <td>
+                  {record.energy_charge_before_vat_vnd === null
+                    ? "—"
+                    : moneyFormatter.format(record.energy_charge_before_vat_vnd)}
+                </td>
+                <td>
+                  {record.vat_amount_vnd === null
+                    ? "—"
+                    : moneyFormatter.format(record.vat_amount_vnd)}
+                </td>
+                <td>
                   {record.estimated_amount_vnd === null
                     ? "—"
                     : moneyFormatter.format(record.estimated_amount_vnd)}
@@ -255,7 +273,7 @@ export function DashboardSummary({ csrfToken }: { csrfToken?: string }) {
             ))}
             {!loading && !billing?.records.length && (
               <tr>
-                <td colSpan={7} className="empty-state">
+                <td colSpan={10} className="empty-state">
                   Không có dữ liệu phù hợp với bộ lọc.
                 </td>
               </tr>
@@ -284,8 +302,9 @@ export function DashboardSummary({ csrfToken }: { csrfToken?: string }) {
       </nav>
 
       <p className="billing-disclaimer">
-        Tiền điện trên Dashboard là số tạm tính theo đơn giá bình quân, chưa bao
-        gồm biểu giá bậc thang, thuế và các khoản điều chỉnh trên hóa đơn chính thức.
+        Sinh hoạt áp dụng lũy tiến 6 bậc. Sản xuất, kinh doanh và hành chính sự nghiệp
+        đang tạm tính theo cấp điện áp dưới 6 kV, giờ bình thường vì dữ liệu hiện tại
+        chưa tách ba khung giờ. Chưa bao gồm công suất phản kháng, truy thu hoặc điều chỉnh khác.
       </p>
       {!csrfToken && (
         <p className="read-only-note">
