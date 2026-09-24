@@ -7,11 +7,13 @@ from sqlalchemy.orm import Session
 
 from app.models.ai_result import AiResult
 from app.models.audit_log import AuditLog
+from app.models.customer import Customer
 from app.models.image import ImageRecord, ImageStatus
 from app.models.manual_correction import ManualCorrection
 from app.models.meter_reading import MeterReading
 from app.models.user import User
 from app.schemas.result import ResultRow, ReviewRequest
+from app.services.customer_service import apply_customer_match, find_customer
 from app.services.job_service import refresh_batch_counters
 from app.services.meter_value import normalize_meter_reading, parse_meter_value
 
@@ -28,6 +30,7 @@ def _apply_result_filters(statement, image_status: str | None, search: str | Non
         | AiResult.meter_reading_ai.ilike(term)
         | MeterReading.final_customer_id.ilike(term)
         | MeterReading.final_meter_reading.ilike(term)
+        | Customer.full_name.ilike(term)
     )
 
 
@@ -43,10 +46,12 @@ def list_results(
             ImageRecord,
             AiResult,
             MeterReading,
+            Customer,
             func.count(ImageRecord.id).over().label("total_count"),
         )
         .join(AiResult, AiResult.image_id == ImageRecord.id)
         .outerjoin(MeterReading, MeterReading.image_id == ImageRecord.id)
+        .outerjoin(Customer, Customer.id == MeterReading.matched_customer_id)
         .order_by(AiResult.created_at.desc())
         .offset(offset)
         .limit(limit)
@@ -71,8 +76,11 @@ def list_results(
             ),
             final_customer_id=reading.final_customer_id if reading else None,
             final_meter_reading=reading.final_meter_reading if reading else None,
+            customer_match_status=(reading.customer_match_status if reading else "NOT_CHECKED"),
+            matched_customer_name=customer.full_name if customer else None,
+            matched_meter_serial=customer.meter_serial if customer else None,
         )
-        for image, ai_result, reading, _ in rows
+        for image, ai_result, reading, customer, _ in rows
     ]
     total = int(rows[0].total_count) if rows else 0
     if not rows and offset:
@@ -80,6 +88,7 @@ def list_results(
             select(func.count(ImageRecord.id))
             .join(AiResult, AiResult.image_id == ImageRecord.id)
             .outerjoin(MeterReading, MeterReading.image_id == ImageRecord.id)
+            .outerjoin(Customer, Customer.id == MeterReading.matched_customer_id)
         )
         count_statement = _apply_result_filters(
             count_statement, image_status, search
@@ -119,6 +128,10 @@ def review_result(
             detail="Số điện phải là số nguyên không âm; phần sau dấu phẩy sẽ không được lấy.",
         )
     final_meter = normalized_meter or payload.final_meter_reading
+    matched_customer = find_customer(db, payload.final_customer_id)
+    final_customer = (
+        matched_customer.customer_code if matched_customer else payload.final_customer_id
+    )
 
     previous_review_status = reading.review_status if reading else "UNREVIEWED"
     if reading is None:
@@ -132,7 +145,7 @@ def review_result(
 
     was_confirmed = bool(reading and reading.review_status == "CONFIRMED")
     corrections = (
-        ("customer_id", old_customer, payload.final_customer_id),
+        ("customer_id", old_customer, final_customer),
         ("meter_reading", old_meter, final_meter),
     )
     correction_count = 0
@@ -153,9 +166,14 @@ def review_result(
                 )
             )
 
-    reading.final_customer_id = payload.final_customer_id
+    reading.final_customer_id = final_customer
     reading.final_meter_reading = final_meter
     reading.reading_value = reading_value if payload.action == "CONFIRM" else None
+    if payload.action == "CONFIRM":
+        apply_customer_match(reading, matched_customer)
+    else:
+        reading.matched_customer_id = None
+        reading.customer_match_status = "NOT_CHECKED"
     reading.review_status = "CONFIRMED" if payload.action == "CONFIRM" else "REJECTED"
     reading.reviewed_by = user.id
     reading.reviewed_at = datetime.now(UTC)
@@ -190,6 +208,10 @@ def review_result(
                 "customer_id_after": reading.final_customer_id,
                 "meter_reading_before": old_meter,
                 "meter_reading_after": reading.final_meter_reading,
+                "customer_match_status": reading.customer_match_status,
+                "matched_customer_id": (
+                    str(reading.matched_customer_id) if reading.matched_customer_id else None
+                ),
             },
             ip_address=ip_address,
         )

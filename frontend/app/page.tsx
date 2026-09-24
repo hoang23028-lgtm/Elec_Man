@@ -38,6 +38,13 @@ const AccountManagement = dynamic(
     ),
   { loading: loadingPanel, ssr: false },
 );
+const CustomerDataManagement = dynamic(
+  () =>
+    import("@/features/administration/customer-data-management").then(
+      (module) => module.CustomerDataManagement,
+    ),
+  { loading: loadingPanel, ssr: false },
+);
 const TrainingPipeline = dynamic(
   () =>
     import("@/features/model-lifecycle/training-pipeline").then(
@@ -408,6 +415,7 @@ export default function HomePage() {
               )}
               {csrfToken && displayedPage === "administration" && (
                 <>
+                  <CustomerDataManagement csrfToken={csrfToken} />
                   <AccountManagement csrfToken={csrfToken} />
                   <SystemSettings csrfToken={csrfToken} />
                 </>

@@ -17,6 +17,9 @@ class ResultRow(BaseModel):
     auto_confirmed: bool
     final_customer_id: str | None
     final_meter_reading: str | None
+    customer_match_status: str
+    matched_customer_name: str | None
+    matched_meter_serial: str | None
 
 
 class ReviewRequest(BaseModel):

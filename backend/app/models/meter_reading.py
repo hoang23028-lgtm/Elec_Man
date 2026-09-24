@@ -14,6 +14,7 @@ class MeterReading(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __table_args__ = (
         Index("ix_meter_readings_review_ai", "review_status", "ai_result_id"),
         Index("ix_meter_readings_training", "review_status", "reviewed_by"),
+        Index("ix_meter_readings_customer_match", "customer_match_status", "matched_customer_id"),
     )
     image_id: Mapped[UUID] = mapped_column(
         ForeignKey("images.id", ondelete="RESTRICT"), unique=True, index=True
@@ -22,6 +23,12 @@ class MeterReading(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     final_customer_id: Mapped[str | None] = mapped_column(String(128))
     final_meter_reading: Mapped[str | None] = mapped_column(String(64))
     reading_value: Mapped[Decimal | None] = mapped_column(Numeric(14, 3))
+    matched_customer_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("customers.id", ondelete="SET NULL")
+    )
+    customer_match_status: Mapped[str] = mapped_column(
+        String(24), nullable=False, default="NOT_CHECKED"
+    )
     review_status: Mapped[str] = mapped_column(String(24), nullable=False, default="PENDING")
     reviewed_by: Mapped[UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

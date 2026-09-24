@@ -4,7 +4,7 @@ Hệ thống web nội bộ dành cho các tài khoản quản trị, hỗ trợ
 
 ## Trạng thái hiện tại
 
-Nguyên mẫu có thể chạy gồm giao diện Next.js, backend FastAPI, PostgreSQL, migration Alembic, lưu trữ ảnh cục bộ có xác thực, hàng đợi tác vụ PostgreSQL, tiến trình OCR riêng, quy trình kiểm duyệt, bảng điều khiển, xuất Excel, proxy Nginx, nhật ký có cấu trúc và kiểm tra trạng thái dịch vụ.
+Nguyên mẫu có thể chạy gồm giao diện Next.js, backend FastAPI, PostgreSQL, migration Alembic, lưu trữ ảnh cục bộ có xác thực, hàng đợi tác vụ PostgreSQL, tiến trình OCR riêng, đối chiếu dữ liệu khách hàng, quy trình kiểm duyệt, bảng điều khiển, xuất JSON/Excel, proxy Nginx, nhật ký có cấu trúc và kiểm tra trạng thái dịch vụ.
 
 ## Khởi động
 
@@ -36,7 +36,7 @@ Hàng đợi dựa trên PostgreSQL xử lý ảnh bên ngoài yêu cầu HTTP. 
 
 ## Quy trình AI
 
-Mô hình phát triển hiện tại là `meter-ocr-baseline-v2-integer`, sử dụng OpenCV, mô hình ONNX dựng sẵn của RapidOCR và Tesseract làm phương án dự phòng. Kết quả đầy đủ có độ tin cậy lớn hơn ngưỡng cấu hình (mặc định 90%) được tự động xác nhận; phần còn lại phải kiểm duyệt thủ công. Đây chưa phải mô hình sản xuất đã được huấn luyện trên tập dữ liệu thực tế; xem [tài liệu quy trình AI](docs/ai-pipeline.md).
+Mô hình phát triển hiện tại là `meter-ocr-baseline-v2-integer`, sử dụng OpenCV, mô hình ONNX dựng sẵn của RapidOCR và Tesseract làm phương án dự phòng. Kết quả đầy đủ có độ tin cậy lớn hơn ngưỡng cấu hình (mặc định 90%) và khớp mã khách hàng trong cơ sở dữ liệu được tự động xác nhận; phần còn lại phải kiểm duyệt thủ công. Đây chưa phải mô hình sản xuất đã được huấn luyện trên tập dữ liệu thực tế; xem [tài liệu quy trình AI](docs/ai-pipeline.md).
 
 ## Dữ liệu và huấn luyện
 
@@ -48,7 +48,7 @@ Trang Vận hành hiển thị vùng tải ảnh toàn chiều ngang, sau đó l
 
 ## Bảng điều khiển và xuất dữ liệu
 
-Bảng điều khiển cung cấp số liệu tổng hợp công khai ở chế độ chỉ xem. Quản trị viên xuất chỉ số cuối cùng đã xác nhận ra Excel ở cuối cột “Đã xác nhận” trên trang Vận hành; xem [tài liệu xuất dữ liệu](docs/export.md).
+Bảng điều khiển cung cấp số liệu tổng hợp công khai ở chế độ chỉ xem. Quản trị viên nhập danh sách khách hàng JSON tại trang Quản trị. Trang Vận hành tạo đồng thời báo cáo JSON và Excel cho các chỉ số đã xác nhận, kèm hồ sơ và trạng thái đối chiếu; xem [tài liệu xuất dữ liệu](docs/export.md).
 
 ## Quản trị và sao lưu
 

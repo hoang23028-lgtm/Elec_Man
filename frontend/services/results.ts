@@ -11,6 +11,9 @@ export type Result = {
   auto_confirmed: boolean;
   final_customer_id: string | null;
   final_meter_reading: string | null;
+  customer_match_status: string;
+  matched_customer_name: string | null;
+  matched_meter_serial: string | null;
 };
 export type ResultQuery = {
   offset?: number;

@@ -3,7 +3,7 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 
 import { getResultsPage, reviewResult, type Result } from "@/services/results";
-import { exportConfirmed } from "@/services/system";
+import { exportConfirmed, type ExportBundle } from "@/services/system";
 import { usePolling } from "@/hooks/use-polling";
 
 type Draft = { customer: string; reading: string };
@@ -36,6 +36,7 @@ export function OperationsResults({ csrfToken, refreshKey = 0 }: Props) {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
+  const [exportBundle, setExportBundle] = useState<ExportBundle | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [imagePreview, setImagePreview] = useState<ImagePreview | null>(null);
@@ -155,7 +156,9 @@ export function OperationsResults({ csrfToken, refreshKey = 0 }: Props) {
     setExporting(true);
     setError(null);
     try {
-      window.location.assign(await exportConfirmed(csrfToken));
+      const bundle = await exportConfirmed(csrfToken);
+      setExportBundle(bundle);
+      setMessage(`Đã tạo báo cáo ${bundle.exported_rows} dòng. Chọn định dạng để tải xuống.`);
     } catch (reason) {
       setError(
         reason instanceof Error ? reason.message : "Không thể tạo tệp Excel.",
@@ -202,9 +205,16 @@ export function OperationsResults({ csrfToken, refreshKey = 0 }: Props) {
             </span>
           </div>
           {editableConfirmed && (
-            <span className="result-origin">
-              {row.auto_confirmed ? "AI tự động xác nhận" : "Đã kiểm duyệt thủ công"}
-            </span>
+            <>
+              <span className="result-origin">
+                {row.auto_confirmed ? "AI tự động xác nhận" : "Đã kiểm duyệt thủ công"}
+              </span>
+              <span className={`result-origin ${row.customer_match_status === "MATCHED" ? "matched" : "unmatched"}`}>
+                {row.customer_match_status === "MATCHED"
+                  ? `Đã khớp: ${row.matched_customer_name ?? row.final_customer_id}${row.matched_meter_serial ? ` · ${row.matched_meter_serial}` : ""}`
+                  : "Không tìm thấy mã trong dữ liệu khách hàng"}
+              </span>
+            </>
           )}
           <div className="result-fields">
             <label>
@@ -346,12 +356,18 @@ export function OperationsResults({ csrfToken, refreshKey = 0 }: Props) {
             <div>
               <strong>Tải danh sách đã kiểm duyệt</strong>
               <p className="muted">
-                Tệp Excel gồm mã khách hàng, số điện và độ tin cậy.
+                Báo cáo JSON và Excel gồm hồ sơ khách hàng, chỉ số mới, độ tin cậy và kết quả đối chiếu.
               </p>
             </div>
             <button type="button" onClick={() => void download()} disabled={exporting}>
-              {exporting ? "Đang tạo Excel…" : "Tải file Excel"}
+              {exporting ? "Đang tạo báo cáo…" : "Tạo file JSON và Excel"}
             </button>
+            {exportBundle && (
+              <div className="export-downloads">
+                <a className="button-link" href={exportBundle.json_download_url}>Tải JSON</a>
+                <a className="button-link" href={exportBundle.excel_download_url}>Tải Excel</a>
+              </div>
+            )}
           </div>
         </section>
       </div>

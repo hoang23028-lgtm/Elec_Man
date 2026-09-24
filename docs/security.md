@@ -14,7 +14,7 @@ Không ghi mật khẩu thật trực tiếp vào lịch sử terminal; dùng qu
 
 Trong production, đặt `SESSION_SECRET` thành giá trị ngẫu nhiên duy nhất dài ít nhất 32 ký tự, thay mật khẩu PostgreSQL mẫu và khai báo chính xác `ALLOWED_HOSTS`. Quá trình khởi động sẽ từ chối secret/mật khẩu mẫu và host ký tự đại diện trong production. Tài liệu API tự động cũng bị tắt trong môi trường này. Không bao giờ commit tệp `.env`.
 
-Nginx mặc định chỉ công bố cổng HTTP trên `127.0.0.1`. Chỉ đặt `NGINX_BIND_ADDRESS=0.0.0.0` khi dịch vụ nằm sau reverse proxy HTTPS đáng tin cậy hoặc tường lửa đã được cấu hình. API từ chối Host ngoài danh sách, không cho trình duyệt cache phản hồi và các tệp ảnh/Excel yêu cầu phiên quản trị hợp lệ.
+Nginx mặc định chỉ công bố cổng HTTP trên `127.0.0.1`. Chỉ đặt `NGINX_BIND_ADDRESS=0.0.0.0` khi dịch vụ nằm sau reverse proxy HTTPS đáng tin cậy hoặc tường lửa đã được cấu hình. API từ chối Host ngoài danh sách, không cho trình duyệt cache phản hồi và các tệp ảnh/JSON/Excel yêu cầu phiên quản trị hợp lệ.
 
 Các container ứng dụng chạy bằng người dùng không đặc quyền, loại bỏ toàn bộ Linux capabilities, bật `no-new-privileges` và dùng filesystem gốc chỉ đọc ở các tiến trình Python. Thư mục tạm được cấp bằng `tmpfs`; chỉ volume dữ liệu hoặc mô hình đúng vai trò mới có quyền ghi. Log ứng dụng được phát ra stdout để Docker quản lý thay vì gắn một volume log không được sử dụng.
 

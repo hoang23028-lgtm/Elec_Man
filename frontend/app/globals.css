@@ -975,6 +975,41 @@ a {
   font-size: 0.72rem;
   font-weight: 700;
 }
+
+.result-origin.matched {
+  color: #087f5b;
+}
+
+.result-origin.unmatched {
+  color: #c92a2a;
+}
+
+.export-downloads {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.button-link {
+  align-items: center;
+  background: var(--accent, #0b7285);
+  border-radius: 0.65rem;
+  color: #fff;
+  display: inline-flex;
+  font-weight: 700;
+  justify-content: center;
+  min-height: 2.5rem;
+  padding: 0.55rem 0.9rem;
+  text-decoration: none;
+}
+
+.customer-summary {
+  margin-bottom: 1rem;
+}
+
+.customer-import-controls input[type="file"] {
+  max-width: 32rem;
+}
 .result-fields {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

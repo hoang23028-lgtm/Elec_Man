@@ -14,6 +14,7 @@ from app.models.meter_reading import MeterReading
 from app.models.processing_job import JobStatus, ProcessingJob
 from app.models.system_setting import SystemSetting
 from app.models.user import User
+from app.services.customer_service import apply_customer_match, find_customer
 from app.services.meter_value import normalize_meter_reading, parse_meter_value
 
 DEFAULT_AUTO_CONFIRM_THRESHOLD = 0.9
@@ -220,47 +221,52 @@ def mark_job_completed(db: Session, job_id: UUID, result_json: dict) -> None:
     job.completed_at = datetime.now(UTC)
     job.result_json = result_json
     threshold = get_auto_confirm_threshold(db)
-    auto_confirmed = should_auto_confirm(result_json, threshold)
-    if auto_confirmed:
+    matched_customer = find_customer(db, result_json.get("customer_id_ai"))
+    auto_confirmed = should_auto_confirm(result_json, threshold) and matched_customer is not None
+    result_record = db.execute(
+        select(AiResult, MeterReading)
+        .outerjoin(MeterReading, MeterReading.image_id == AiResult.image_id)
+        .where(AiResult.image_id == image.id)
+    ).one_or_none()
+    ai_result = result_record[0] if result_record else None
+    reading = result_record[1] if result_record else None
+    if ai_result is None:
+        auto_confirmed = False
+    else:
+        if reading is None:
+            reading = MeterReading(image_id=image.id, ai_result_id=ai_result.id)
+            db.add(reading)
+        meter_reading = normalize_meter_reading(result_json.get("meter_reading_ai"))
+        reading.final_customer_id = result_json.get("customer_id_ai")
+        reading.final_meter_reading = meter_reading
+        reading.reading_value = parse_meter_value(meter_reading)
+        apply_customer_match(reading, matched_customer)
+        reading.review_status = "PENDING"
+        reading.reviewed_by = None
+        reading.reviewed_at = None
+
+    if auto_confirmed and reading is not None and ai_result is not None:
         image.status = ImageStatus.CONFIRMED
-        result_record = db.execute(
-            select(AiResult, MeterReading)
-            .outerjoin(MeterReading, MeterReading.image_id == AiResult.image_id)
-            .where(AiResult.image_id == image.id)
-        ).one_or_none()
-        ai_result = result_record[0] if result_record else None
-        if ai_result is None:
-            auto_confirmed = False
-            image.status = ImageStatus.REVIEW_REQUIRED
-        else:
-            reading = result_record[1]
-            if reading is None:
-                reading = MeterReading(image_id=image.id, ai_result_id=ai_result.id)
-                db.add(reading)
-            meter_reading = normalize_meter_reading(result_json["meter_reading_ai"])
-            reading.final_customer_id = result_json["customer_id_ai"]
-            reading.final_meter_reading = meter_reading
-            reading.reading_value = parse_meter_value(meter_reading)
-            reading.review_status = "CONFIRMED"
-            reading.reviewed_by = None
-            reading.reviewed_at = datetime.now(UTC)
-            db.add(
-                AuditLog(
-                    user_id=None,
-                    action="AUTO_CONFIRM_RESULT",
-                    target_type="image",
-                    target_id=str(image.id),
-                    details_json={
-                        "ai_result_id": str(ai_result.id),
-                        "confidence": result_json["final_confidence"],
-                        "threshold": threshold,
-                        "customer_id": reading.final_customer_id,
-                        "meter_reading": reading.final_meter_reading,
-                        "model_version": result_json.get("model_version"),
-                    },
-                    ip_address=None,
-                )
+        reading.review_status = "CONFIRMED"
+        reading.reviewed_at = datetime.now(UTC)
+        db.add(
+            AuditLog(
+                user_id=None,
+                action="AUTO_CONFIRM_RESULT",
+                target_type="image",
+                target_id=str(image.id),
+                details_json={
+                    "ai_result_id": str(ai_result.id),
+                    "confidence": result_json["final_confidence"],
+                    "threshold": threshold,
+                    "customer_id": reading.final_customer_id,
+                    "matched_customer_id": str(matched_customer.id),
+                    "meter_reading": reading.final_meter_reading,
+                    "model_version": result_json.get("model_version"),
+                },
+                ip_address=None,
             )
+        )
     else:
         image.status = ImageStatus.REVIEW_REQUIRED
     db.add(
@@ -278,6 +284,9 @@ def mark_job_completed(db: Session, job_id: UUID, result_json: dict) -> None:
                 "confidence": result_json.get("final_confidence"),
                 "processing_time_ms": result_json.get("processing_time_ms"),
                 "auto_confirmed": auto_confirmed,
+                "customer_match_status": (
+                    reading.customer_match_status if reading else "NOT_CHECKED"
+                ),
                 "new_status": image.status,
             },
             ip_address=None,

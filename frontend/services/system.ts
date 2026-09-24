@@ -65,10 +65,16 @@ export async function getBillingDashboard(
     "Không thể tải dữ liệu điện năng.",
   );
 }
-export async function exportConfirmed(csrfToken: string): Promise<string> {
-  const body = await apiJson<{ download_url: string }>("/exports/final", {
+export type ExportBundle = {
+  excel_filename: string;
+  excel_download_url: string;
+  json_filename: string;
+  json_download_url: string;
+  exported_rows: number;
+};
+export async function exportConfirmed(csrfToken: string): Promise<ExportBundle> {
+  return apiJson<ExportBundle>("/exports/final", {
     method: "POST",
     headers: { "X-CSRF-Token": csrfToken },
-  }, "Không thể tạo tệp Excel.");
-  return body.download_url;
+  }, "Không thể tạo báo cáo JSON và Excel.");
 }

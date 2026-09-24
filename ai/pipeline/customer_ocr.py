@@ -7,15 +7,18 @@ from ai.pipeline.tesseract import enhanced_variants, read
 
 
 class CustomerOcr:
-    pattern = re.compile(r"(?:MA\s*KH|KH)\s*[:\-]?\s*(K?H?[A-Z0-9]{2,})", re.IGNORECASE)
+    pattern = re.compile(
+        r"(?:MA\s*(?:KH|KHACH\s*HANG)|CUSTOMER)\s*[:\-]?\s*([A-Z0-9][A-Z0-9.\-]{2,})",
+        re.IGNORECASE,
+    )
 
     def read(
         self, image: np.ndarray, lines: list[TextLine] | None = None
     ) -> tuple[str | None, float]:
         best: tuple[str | None, float] = (None, 0.0)
         for line in lines if lines is not None else read_lines(image):
-            normalized = re.sub(r"[^A-Z0-9]", "", line.text.upper())
-            match = re.search(r"(?:MAKH)?(KH[A-Z0-9]{2,})", normalized)
+            normalized = line.text.upper().replace("Á", "A").replace("Ã", "A")
+            match = self.pattern.search(normalized)
             if match:
                 value = self._normalize(match.group(1))
                 if value and line.confidence > best[1]:
@@ -39,9 +42,11 @@ class CustomerOcr:
 
     @staticmethod
     def _normalize(value: str) -> str | None:
-        if not value.startswith("KH"):
-            value = f"KH{value.lstrip('KH')}"
-        tail = value[2:].translate(
-            str.maketrans({"O": "0", "I": "1", "L": "1", "S": "5", "B": "8"})
-        )
-        return f"KH{tail}" if len(tail) >= 2 else None
+        normalized = re.sub(r"[^A-Z0-9.\-]", "", value.upper()).strip(".-")
+        if normalized.startswith("KH"):
+            normalized = "KH" + normalized[2:].translate(
+                str.maketrans({"O": "0", "I": "1", "L": "1", "S": "5", "B": "8"})
+            )
+        if len(re.sub(r"[^A-Z0-9]", "", normalized)) < 3:
+            return None
+        return normalized

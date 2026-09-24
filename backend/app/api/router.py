@@ -3,6 +3,7 @@ from fastapi import APIRouter
 from app.api.routes.audit import router as audit_router
 from app.api.routes.auth import router as auth_router
 from app.api.routes.batches import router as batches_router
+from app.api.routes.customers import router as customers_router
 from app.api.routes.dashboard import router as dashboard_router
 from app.api.routes.evaluation import router as evaluation_router
 from app.api.routes.exports import router as exports_router
@@ -18,6 +19,7 @@ from app.api.routes.users import router as users_router
 api_router = APIRouter()
 api_router.include_router(auth_router, prefix="/auth", tags=["Xác thực"])
 api_router.include_router(batches_router, prefix="/batches", tags=["Lô dữ liệu"])
+api_router.include_router(customers_router, prefix="/customers", tags=["Khách hàng"])
 api_router.include_router(health_router, prefix="/health", tags=["Trạng thái hệ thống"])
 api_router.include_router(images_router, prefix="/images", tags=["Hình ảnh"])
 api_router.include_router(jobs_router, tags=["Tác vụ xử lý"])

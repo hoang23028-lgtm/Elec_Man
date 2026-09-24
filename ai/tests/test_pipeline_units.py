@@ -12,6 +12,9 @@ class CustomerOcrTests(unittest.TestCase):
     def test_rejects_identifier_without_suffix(self) -> None:
         self.assertIsNone(CustomerOcr._normalize("KH"))
 
+    def test_preserves_customer_code_punctuation(self) -> None:
+        self.assertEqual(CustomerOcr._normalize("PN2.001"), "PN2.001")
+
 
 class ValidatorTests(unittest.TestCase):
     def test_accepts_integer_mechanical_meter_reading(self) -> None:
@@ -19,6 +22,9 @@ class ValidatorTests(unittest.TestCase):
 
     def test_rejects_decimal_meter_reading(self) -> None:
         self.assertIn("invalid_meter_reading", validate("KH004", "63751.3")["errors"])
+
+    def test_accepts_customer_code_with_dot(self) -> None:
+        self.assertTrue(validate("PN2.001", "63751")["valid"])
 
     def test_rejects_short_or_non_numeric_reading(self) -> None:
         result = validate("KH004", "22OV")
