@@ -10,7 +10,7 @@ $root = [IO.Path]::GetFullPath((Join-Path $workspace $BackupRoot))
 if (-not $root.StartsWith($workspace + [IO.Path]::DirectorySeparatorChar)) {
     throw "BackupRoot phải nằm trong thư mục dự án."
 }
-$timestamp = Get-Date -Format "yyyyMMddTHHmmssZ"
+$timestamp = (Get-Date).ToUniversalTime().ToString("yyyyMMddTHHmmssZ")
 $destination = Join-Path $root $timestamp
 New-Item -ItemType Directory -Path $destination -Force | Out-Null
 

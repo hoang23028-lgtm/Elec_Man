@@ -20,21 +20,21 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    networks: [internal]
+    networks: [data]
   storage-init:
     image: alpine:3.21@sha256:ce64758a109eb420d874a118f87920e625e12d3634e03b4a5573fd9f6e5d3507
     logging: *default-logging
     command: ["sh", "-c", "mkdir -p /data && chown -R 10001:10001 /data"]
     volumes:
       - storage_data:/data
-    networks: [internal]
+    networks: [data]
   model-init:
     image: alpine:3.21@sha256:ce64758a109eb420d874a118f87920e625e12d3634e03b4a5573fd9f6e5d3507
     logging: *default-logging
     command: ["sh", "-c", "mkdir -p /models && chown -R 10001:10001 /models"]
     volumes:
       - model_data:/models
-    networks: [internal]
+    networks: [data]
   migrate:
     image: elec_man-backend:latest
     build:
@@ -56,7 +56,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    networks: [internal]
+    networks: [data]
   backend:
     image: elec_man-backend:latest
     build:
@@ -100,7 +100,7 @@ services:
       interval: 15s
       timeout: 5s
       retries: 5
-    networks: [internal]
+    networks: [application, data]
   worker:
     build:
       context: .
@@ -139,7 +139,7 @@ services:
         condition: service_completed_successfully
       migrate:
         condition: service_completed_successfully
-    networks: [internal]
+    networks: [data]
   trainer:
     build:
       context: .
@@ -178,7 +178,7 @@ services:
         condition: service_completed_successfully
       migrate:
         condition: service_completed_successfully
-    networks: [internal]
+    networks: [data]
   frontend:
     build:
       context: ./frontend
@@ -194,7 +194,7 @@ services:
     depends_on:
       backend:
         condition: service_healthy
-    networks: [internal]
+    networks: [edge]
   nginx:
     image: nginx:stable-alpine@sha256:ef8676b33d681f272ba429b27658bdd7e640963279714c96bddf1dc76307f7b6
     restart: unless-stopped
@@ -208,10 +208,16 @@ services:
         condition: service_started
       backend:
         condition: service_healthy
-    networks: [internal]
+    networks: [edge, application]
 networks:
-  internal:
+  edge:
     driver: bridge
+  application:
+    driver: bridge
+    internal: true
+  data:
+    driver: bridge
+    internal: true
 volumes:
   postgres_data:
   storage_data:

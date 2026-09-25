@@ -24,7 +24,7 @@ Chạy migration bằng `docker compose exec backend alembic upgrade head`. Ki�
 
 ## Khởi tạo quản trị viên
 
-Sau khi áp dụng migration, truyền tạm thời `ADMIN_INITIAL_PASSWORD` vào lệnh khởi tạo trong container backend theo [hướng dẫn cài đặt](docs/installation.md). Sau khi đăng nhập, quản trị viên có thể thêm, sửa, khóa, xóa mềm và đổi mật khẩu tài khoản tại trang Quản trị. Xem thêm [tài liệu bảo mật](docs/security.md). Hệ thống chủ động không cung cấp endpoint đăng ký công khai hoặc mật khẩu mặc định.
+Sau khi áp dụng migration, truyền tạm thời `ADMIN_INITIAL_PASSWORD` vào lệnh khởi tạo trong container backend theo [hướng dẫn cài đặt](docs/installation.md). Sau khi đăng nhập, quản trị viên có thể thêm, sửa, khóa, xóa mềm và đổi mật khẩu tài khoản tại trang Quản trị. Đăng ký công khai chỉ tạo tài khoản chưa kích hoạt; một quản trị viên hiện hữu phải kích hoạt trước khi tài khoản có thể đăng nhập. Xem thêm [tài liệu bảo mật](docs/security.md). Hệ thống không cung cấp mật khẩu mặc định.
 
 ## Tải ảnh
 

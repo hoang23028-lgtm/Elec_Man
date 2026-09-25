@@ -18,7 +18,7 @@ Trong production, đặt `SESSION_SECRET` thành giá trị ngẫu nhiên duy nh
 
 Nginx mặc định chỉ công bố cổng HTTP trên `127.0.0.1`. Chỉ đặt `NGINX_BIND_ADDRESS=0.0.0.0` khi dịch vụ nằm sau reverse proxy HTTPS đáng tin cậy hoặc tường lửa đã được cấu hình. API từ chối Host ngoài danh sách, không cho trình duyệt cache phản hồi và các tệp ảnh/JSON/Excel yêu cầu phiên quản trị hợp lệ.
 
-API gắn mã `X-Request-ID`, trả thông báo chung cho lỗi ngoài dự kiến và chỉ ghi traceback ở log máy chủ. Không đưa chuỗi lỗi nội bộ, đường dẫn hoặc thông tin kết nối vào phản hồi người dùng. Header chống MIME sniffing, clickjacking, nhúng chéo và quyền camera/microphone/vị trí được đặt ở cả API và Nginx.
+API gắn mã `X-Request-ID`, trả thông báo chung cho lỗi ngoài dự kiến và chỉ ghi loại ngoại lệ ở log máy chủ. Không đưa chuỗi lỗi nội bộ, đường dẫn hoặc thông tin kết nối vào phản hồi người dùng. Header chống MIME sniffing, clickjacking, cô lập cross-origin và quyền camera/microphone/vị trí được đặt ở cả API và Nginx.
 
 Khi triển khai tên miền, dùng cấu hình mẫu `docker/nginx.https.conf.example`, gắn chứng thư vào `/etc/nginx/tls`, công bố cổng 443, rồi đặt `APP_ENV=production`, `ENFORCE_HTTPS=true`, `FRONTEND_ORIGIN=https://<tên-miền>` và `ALLOWED_HOSTS=<tên-miền>`. Cấu hình mẫu chuyển hướng HTTP bằng 308 và chỉ bật HSTS ở máy chủ TLS. Không bật HSTS trước khi chứng thư và toàn bộ subdomain đã được kiểm tra.
 
@@ -26,7 +26,7 @@ Các container ứng dụng chạy bằng người dùng không đặc quyền, 
 
 Docker xoay vòng log theo giới hạn 10 MB × 5 tệp cho mỗi container. Theo dõi `health/ready`, trạng thái healthcheck và các sự kiện JSON có mức `ERROR`; dùng `request_id`, `job_id` hoặc `run_id` để đối chiếu. Không hạ `LOG_LEVEL` xuống `DEBUG` trong production.
 
-PostgreSQL chỉ tham gia mạng Docker `internal` và không ánh xạ cổng ra host. Mã ứng dụng dùng biểu thức SQLAlchemy có bind parameter; SQL tĩnh chỉ xuất hiện trong migration và healthcheck, không ghép dữ liệu người dùng vào câu lệnh.
+Docker Compose tách mạng `edge`, `application` và `data`. PostgreSQL chỉ tham gia mạng `data`, không dùng chung mạng với frontend/nginx và không ánh xạ cổng ra host. Mã ứng dụng dùng biểu thức SQLAlchemy có bind parameter; SQL tĩnh chỉ xuất hiện trong migration và healthcheck, không ghép dữ liệu người dùng vào câu lệnh.
 
 Image nền được ghim theo digest để bản dựng có thể tái lập và tránh tag bị thay thế ngoài ý muốn. Cần định kỳ cập nhật digest sau khi kiểm tra release bảo mật chính thức; PostgreSQL giữ cùng major version khi cập nhật minor để volume dữ liệu tương thích.
 

@@ -67,3 +67,14 @@ def test_cors_does_not_allow_unconfigured_origin() -> None:
         )
 
     assert "access-control-allow-origin" not in response.headers
+
+
+def test_security_headers_are_present() -> None:
+    with TestClient(app) as client:
+        response = client.get("/api/v1/health/live")
+
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert response.headers["x-frame-options"] == "DENY"
+    assert response.headers["cross-origin-opener-policy"] == "same-origin"
+    assert response.headers["cross-origin-resource-policy"] == "same-origin"
+    assert response.headers["cache-control"] == "no-store"

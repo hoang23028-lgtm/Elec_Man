@@ -15,6 +15,8 @@ SECURITY_HEADERS = {
     "Referrer-Policy": "strict-origin-when-cross-origin",
     "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
     "X-Permitted-Cross-Domain-Policies": "none",
+    "Cross-Origin-Opener-Policy": "same-origin",
+    "Cross-Origin-Resource-Policy": "same-origin",
     "Content-Security-Policy": (
         "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
     ),
