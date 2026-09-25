@@ -20,6 +20,7 @@ def _dependency_calls(route: APIRoute) -> Iterator[object]:
 def test_every_non_public_api_route_requires_authentication() -> None:
     public = {
         ("POST", "/api/v1/auth/login"),
+        ("POST", "/api/v1/auth/register"),
         ("GET", "/api/v1/dashboard"),
         ("GET", "/api/v1/dashboard/billing"),
         ("GET", "/api/v1/health/live"),

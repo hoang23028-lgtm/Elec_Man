@@ -1,7 +1,8 @@
 from datetime import UTC, datetime, timedelta
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
@@ -10,6 +11,10 @@ from app.models.session import SessionRecord
 from app.models.user import User
 from app.security.passwords import hash_password, password_needs_rehash, verify_password
 from app.security.tokens import generate_token, hash_token
+
+REGISTRATION_MESSAGE = (
+    "Yêu cầu đăng ký đã được tiếp nhận. Tài khoản cần được quản trị viên kích hoạt."
+)
 
 
 def _audit(
@@ -77,6 +82,44 @@ def authenticate(
     )
     db.commit()
     return raw_session, raw_csrf, expires_at
+
+
+def register_account(db: Session, username: str, password: str, ip_address: str | None) -> None:
+    """Create an inactive account without exposing whether a username already exists."""
+    password_hash = hash_password(password)
+    existing = db.scalar(select(User.id).where(func.lower(User.username) == username.casefold()))
+    if existing is not None:
+        _audit(
+            db,
+            "REGISTRATION_REQUEST_IGNORED",
+            ip_address,
+            details={"result": "IGNORED", "reason": "username_unavailable"},
+        )
+        db.commit()
+        return
+
+    user = User(username=username, password_hash=password_hash, is_active=False)
+    db.add(user)
+    try:
+        db.flush()
+    except IntegrityError:
+        db.rollback()
+        _audit(
+            db,
+            "REGISTRATION_REQUEST_IGNORED",
+            ip_address,
+            details={"result": "IGNORED", "reason": "username_unavailable"},
+        )
+        db.commit()
+        return
+    _audit(
+        db,
+        "REGISTRATION_REQUESTED",
+        ip_address,
+        user.id,
+        {"result": "PENDING_ADMIN_APPROVAL"},
+    )
+    db.commit()
 
 
 def logout(db: Session, session: SessionRecord, ip_address: str | None) -> None:

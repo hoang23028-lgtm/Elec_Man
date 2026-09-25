@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { useForm } from "react-hook-form";
 import dynamic from "next/dynamic";
 
-import { login, logout } from "@/services/auth";
-import type { LoginInput } from "@/types/auth";
+import { login, logout, registerAccount } from "@/services/auth";
+import type { LoginInput, RegistrationFormInput } from "@/types/auth";
 import { FolderUpload } from "@/components/folder-upload";
 import { DashboardSummary } from "@/components/dashboard-summary";
 
@@ -192,17 +192,35 @@ export default function HomePage() {
   const [error, setError] = useState<string | null>(null);
   const [csrfToken, setCsrfToken] = useState<string | null>(null);
   const [loginOpen, setLoginOpen] = useState(false);
+  const [authMode, setAuthMode] = useState<"login" | "register">("login");
+  const [showPasswords, setShowPasswords] = useState(false);
   const [activePage, setActivePage] = useState<PageId>("dashboard");
   const [operationsRefresh, setOperationsRefresh] = useState(0);
   const navScrollRef = useRef<HTMLDivElement>(null);
   const activeNavItemRef = useRef<HTMLButtonElement>(null);
   const loginTriggerRef = useRef<HTMLButtonElement>(null);
   const loginModalRef = useRef<HTMLElement>(null);
+  const loginForm = useForm<LoginInput>();
+  const registrationForm = useForm<RegistrationFormInput>();
   const {
-    register,
-    handleSubmit,
-    formState: { errors, isSubmitting },
-  } = useForm<LoginInput>();
+    register: registerLogin,
+    handleSubmit: handleLoginSubmit,
+    formState: { errors: loginErrors, isSubmitting: isLoggingIn },
+  } = loginForm;
+  const {
+    register: registerRegistration,
+    handleSubmit: handleRegistrationSubmit,
+    reset: resetRegistration,
+    formState: { errors: registrationErrors, isSubmitting: isRegistering },
+  } = registrationForm;
+
+  const closeLogin = useCallback(() => {
+    setLoginOpen(false);
+    setAuthMode("login");
+    setShowPasswords(false);
+    setError(null);
+    window.requestAnimationFrame(() => loginTriggerRef.current?.focus());
+  }, []);
 
   useEffect(() => {
     function syncPageFromLocation() {
@@ -245,7 +263,7 @@ export default function HomePage() {
     }
     window.addEventListener("keydown", handleModalKeyboard);
     return () => window.removeEventListener("keydown", handleModalKeyboard);
-  }, [loginOpen]);
+  }, [closeLogin, loginOpen]);
 
   useEffect(() => {
     const nav = navScrollRef.current;
@@ -266,7 +284,7 @@ export default function HomePage() {
     return () => observer.disconnect();
   }, [activePage, csrfToken]);
 
-  async function submit(values: LoginInput) {
+  async function submitLogin(values: LoginInput) {
     setError(null);
     setMessage(null);
     try {
@@ -287,6 +305,27 @@ export default function HomePage() {
     }
   }
 
+  async function submitRegistration(values: RegistrationFormInput) {
+    setError(null);
+    setMessage(null);
+    try {
+      const result = await registerAccount({
+        username: values.username,
+        password: values.password,
+      });
+      setLoginOpen(false);
+      setAuthMode("login");
+      setMessage(result.message);
+      window.requestAnimationFrame(() => document.getElementById("auth-trigger")?.focus());
+    } catch (reason) {
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : "Không thể gửi yêu cầu đăng ký.",
+      );
+    }
+  }
+
   async function signOut() {
     if (!csrfToken) return;
     try {
@@ -303,9 +342,11 @@ export default function HomePage() {
     }
   }
 
-  function closeLogin() {
-    setLoginOpen(false);
-    window.requestAnimationFrame(() => loginTriggerRef.current?.focus());
+  function switchAuthMode(mode: "login" | "register") {
+    if (mode === "register") resetRegistration();
+    setAuthMode(mode);
+    setShowPasswords(false);
+    setError(null);
   }
 
   function navigate(page: PageId) {
@@ -371,13 +412,16 @@ export default function HomePage() {
               <button
                 className="navbar-action"
                 type="button"
+                id="auth-trigger"
                 ref={loginTriggerRef}
                 onClick={() => {
                   setError(null);
+                  setAuthMode("login");
+                  setShowPasswords(false);
                   setLoginOpen(true);
                 }}
               >
-                Đăng nhập quản trị
+                Đăng nhập / Đăng ký
               </button>
             )}
           </div>
@@ -469,8 +513,10 @@ export default function HomePage() {
           >
             <div className="modal-heading">
               <div>
-                <p className="eyebrow">Khu vực hạn chế</p>
-                <h2 id="login-title">Đăng nhập quản trị</h2>
+                <p className="eyebrow">Tài khoản hệ thống</p>
+                <h2 id="login-title">
+                  {authMode === "login" ? "Đăng nhập quản trị" : "Đăng ký tài khoản"}
+                </h2>
               </div>
               <button
                 className="modal-close secondary"
@@ -480,44 +526,185 @@ export default function HomePage() {
                 Đóng
               </button>
             </div>
-            <p className="muted">
-              Đăng nhập để quản lý tải ảnh, kiểm duyệt, cấu hình hệ thống, mô
-              hình và nhật ký kiểm toán.
-            </p>
-            <form onSubmit={handleSubmit(submit)} noValidate>
+            <div className="auth-tabs" role="group" aria-label="Chọn hình thức xác thực">
+              <button
+                type="button"
+                aria-pressed={authMode === "login"}
+                className={authMode === "login" ? "active" : ""}
+                onClick={() => switchAuthMode("login")}
+              >
+                Đăng nhập
+              </button>
+              <button
+                type="button"
+                aria-pressed={authMode === "register"}
+                className={authMode === "register" ? "active" : ""}
+                onClick={() => switchAuthMode("register")}
+              >
+                Đăng ký
+              </button>
+            </div>
+            {authMode === "login" ? (
+              <>
+                <p className="muted auth-description">
+                  Đăng nhập để quản lý tải ảnh, kiểm duyệt, cấu hình hệ thống,
+                  mô hình và nhật ký kiểm toán.
+                </p>
+                <form onSubmit={handleLoginSubmit(submitLogin)} noValidate>
               <label htmlFor="username">Tên đăng nhập</label>
               <input
                 id="username"
                 autoFocus
                 autoComplete="username"
-                {...register("username", {
+                aria-invalid={Boolean(loginErrors.username)}
+                aria-describedby={loginErrors.username ? "login-username-error" : undefined}
+                {...registerLogin("username", {
                   required: "Vui lòng nhập tên đăng nhập.",
                 })}
               />
-              {errors.username?.message && (
-                <span className="field-error">{errors.username.message}</span>
+              {loginErrors.username?.message && (
+                <span id="login-username-error" className="field-error">
+                  {loginErrors.username.message}
+                </span>
               )}
               <label htmlFor="password">Mật khẩu</label>
               <input
                 id="password"
-                type="password"
+                type={showPasswords ? "text" : "password"}
                 autoComplete="current-password"
-                {...register("password", {
+                aria-invalid={Boolean(loginErrors.password)}
+                aria-describedby={loginErrors.password ? "login-password-error" : undefined}
+                {...registerLogin("password", {
                   required: "Vui lòng nhập mật khẩu.",
                 })}
               />
-              {errors.password?.message && (
-                <span className="field-error">{errors.password.message}</span>
+              {loginErrors.password?.message && (
+                <span id="login-password-error" className="field-error">
+                  {loginErrors.password.message}
+                </span>
               )}
+              <label className="auth-password-toggle">
+                <input
+                  type="checkbox"
+                  checked={showPasswords}
+                  onChange={(event) => setShowPasswords(event.target.checked)}
+                />
+                <span>Hiện mật khẩu</span>
+              </label>
               {error && (
                 <p className="error" role="alert">
                   {error}
                 </p>
               )}
-              <button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? "Đang đăng nhập…" : "Đăng nhập quản trị"}
+              <button type="submit" disabled={isLoggingIn}>
+                {isLoggingIn ? "Đang đăng nhập…" : "Đăng nhập quản trị"}
               </button>
             </form>
+              </>
+            ) : (
+              <>
+                <p className="muted auth-description">
+                  Tài khoản mới sẽ ở trạng thái chờ. Quản trị viên phải kích
+                  hoạt trước khi bạn có thể đăng nhập.
+                </p>
+                <form onSubmit={handleRegistrationSubmit(submitRegistration)} noValidate>
+                  <label htmlFor="register-username">Tên đăng nhập</label>
+                  <input
+                    id="register-username"
+                    autoFocus
+                    autoComplete="username"
+                    aria-invalid={Boolean(registrationErrors.username)}
+                    aria-describedby={
+                      registrationErrors.username
+                        ? "register-username-error"
+                        : "register-username-help"
+                    }
+                    {...registerRegistration("username", {
+                      required: "Vui lòng nhập tên đăng nhập.",
+                      minLength: { value: 3, message: "Tên đăng nhập cần ít nhất 3 ký tự." },
+                      maxLength: { value: 64, message: "Tên đăng nhập không quá 64 ký tự." },
+                      pattern: {
+                        value: /^[A-Za-z0-9._-]+$/,
+                        message: "Chỉ dùng chữ không dấu, số, dấu chấm, gạch dưới hoặc gạch ngang.",
+                      },
+                    })}
+                  />
+                  <span id="register-username-help" className="field-help">
+                    Từ 3–64 ký tự; không dùng khoảng trắng hoặc chữ có dấu.
+                  </span>
+                  {registrationErrors.username?.message && (
+                    <span id="register-username-error" className="field-error">
+                      {registrationErrors.username.message}
+                    </span>
+                  )}
+
+                  <label htmlFor="register-password">Mật khẩu</label>
+                  <input
+                    id="register-password"
+                    type={showPasswords ? "text" : "password"}
+                    autoComplete="new-password"
+                    aria-invalid={Boolean(registrationErrors.password)}
+                    aria-describedby={
+                      registrationErrors.password
+                        ? "register-password-error"
+                        : "register-password-help"
+                    }
+                    {...registerRegistration("password", {
+                      required: "Vui lòng nhập mật khẩu.",
+                      minLength: { value: 12, message: "Mật khẩu cần ít nhất 12 ký tự." },
+                      maxLength: { value: 256, message: "Mật khẩu không quá 256 ký tự." },
+                    })}
+                  />
+                  <span id="register-password-help" className="field-help">
+                    Dùng tối thiểu 12 ký tự. Có thể dán từ trình quản lý mật khẩu.
+                  </span>
+                  {registrationErrors.password?.message && (
+                    <span id="register-password-error" className="field-error">
+                      {registrationErrors.password.message}
+                    </span>
+                  )}
+
+                  <label htmlFor="register-password-confirm">Nhập lại mật khẩu</label>
+                  <input
+                    id="register-password-confirm"
+                    type={showPasswords ? "text" : "password"}
+                    autoComplete="new-password"
+                    aria-invalid={Boolean(registrationErrors.confirmPassword)}
+                    aria-describedby={
+                      registrationErrors.confirmPassword
+                        ? "register-confirm-error"
+                        : undefined
+                    }
+                    {...registerRegistration("confirmPassword", {
+                      required: "Vui lòng nhập lại mật khẩu.",
+                      validate: (value, values) =>
+                        value === values.password || "Mật khẩu nhập lại chưa khớp.",
+                    })}
+                  />
+                  {registrationErrors.confirmPassword?.message && (
+                    <span id="register-confirm-error" className="field-error">
+                      {registrationErrors.confirmPassword.message}
+                    </span>
+                  )}
+                  <label className="auth-password-toggle">
+                    <input
+                      type="checkbox"
+                      checked={showPasswords}
+                      onChange={(event) => setShowPasswords(event.target.checked)}
+                    />
+                    <span>Hiện mật khẩu</span>
+                  </label>
+                  {error && (
+                    <p className="error" role="alert">
+                      {error}
+                    </p>
+                  )}
+                  <button type="submit" disabled={isRegistering}>
+                    {isRegistering ? "Đang gửi yêu cầu…" : "Gửi yêu cầu đăng ký"}
+                  </button>
+                </form>
+              </>
+            )}
           </section>
         </div>
       )}

@@ -41,3 +41,4 @@ class LoginRateLimiter:
 
 login_account_rate_limiter = LoginRateLimiter()
 login_ip_rate_limiter = LoginRateLimiter(attempts=30)
+registration_ip_rate_limiter = LoginRateLimiter(attempts=5, window_seconds=3600)

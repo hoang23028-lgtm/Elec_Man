@@ -10,6 +10,8 @@ const actions = [
   "",
   "LOGIN_SUCCESS",
   "LOGIN_FAILED",
+  "REGISTRATION_REQUESTED",
+  "REGISTRATION_REQUEST_IGNORED",
   "CREATE_BATCH",
   "UPLOAD_IMAGE",
   "START_BATCH",
@@ -40,6 +42,8 @@ const actions = [
 const actionLabels: Record<string, string> = {
   LOGIN_SUCCESS: "Đăng nhập thành công",
   LOGIN_FAILED: "Đăng nhập thất bại",
+  REGISTRATION_REQUESTED: "Yêu cầu đăng ký tài khoản",
+  REGISTRATION_REQUEST_IGNORED: "Yêu cầu đăng ký không hợp lệ",
   CREATE_BATCH: "Tạo lô dữ liệu",
   UPLOAD_IMAGE: "Tải ảnh lên",
   START_BATCH: "Bắt đầu xử lý lô",

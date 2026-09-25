@@ -1,4 +1,9 @@
-import type { LoginInput, LoginResult } from "@/types/auth";
+import type {
+  LoginInput,
+  LoginResult,
+  RegistrationInput,
+  RegistrationResult,
+} from "@/types/auth";
 import { apiFetch, apiJson } from "@/services/http";
 
 export type CurrentUser = {
@@ -13,6 +18,16 @@ export async function login(input: LoginInput): Promise<LoginResult> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
   }, "Không thể đăng nhập.");
+}
+
+export async function registerAccount(
+  input: RegistrationInput,
+): Promise<RegistrationResult> {
+  return apiJson<RegistrationResult>("/auth/register", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  }, "Không thể gửi yêu cầu đăng ký.");
 }
 
 export async function logout(csrfToken: string): Promise<void> {

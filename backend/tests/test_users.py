@@ -1,6 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
+from app.schemas.auth import RegistrationRequest
 from app.schemas.user import PasswordUpdate, UserCreate, UserUpdate
 
 
@@ -24,3 +25,15 @@ def test_password_requires_at_least_twelve_characters() -> None:
 def test_user_update_requires_at_least_one_change() -> None:
     with pytest.raises(ValidationError):
         UserUpdate()
+
+
+def test_registration_requires_safe_username_and_strong_password() -> None:
+    payload = RegistrationRequest(username=" pending.user ", password="a-secure-password")
+
+    assert payload.username == "pending.user"
+
+
+@pytest.mark.parametrize("password", ["short", "", "12345678901"])
+def test_registration_rejects_short_password(password: str) -> None:
+    with pytest.raises(ValidationError):
+        RegistrationRequest(username="pending.user", password=password)

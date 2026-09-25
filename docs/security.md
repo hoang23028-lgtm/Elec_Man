@@ -4,6 +4,8 @@ Hệ thống sử dụng các tài khoản quản trị viên, mật khẩu băm
 
 Mọi endpoint thay đổi trạng thái có xác thực đều yêu cầu `X-CSRF-Token` được trả về khi đăng nhập. Frontend chỉ giữ token CSRF không phải thông tin đăng nhập này trong bộ nhớ, không lưu vào localStorage. Đăng nhập được giới hạn đồng thời theo IP và tổ hợp IP/tên đăng nhập trong cửa sổ 15 phút. Bộ giới hạn đặt trần số khóa theo dõi để tránh làm cạn bộ nhớ bằng username giả, phù hợp với phạm vi một máy chủ.
 
+Endpoint đăng ký công khai chỉ tạo tài khoản `is_active=false`; tài khoản không thể đăng nhập hoặc truy cập chức năng nghiệp vụ trước khi một quản trị viên hiện hữu kích hoạt tại trang Quản trị. Mỗi IP được gửi tối đa năm yêu cầu trong một giờ. Phản hồi đăng ký luôn giống nhau dù tên đăng nhập đã tồn tại, nhằm hạn chế dò danh sách tài khoản. Mật khẩu đăng ký được băm Argon2id ngay trên backend và không xuất hiện trong log hoặc audit.
+
 Tạo quản trị viên sau khi áp dụng migration:
 
 ```powershell
