@@ -16,6 +16,7 @@ from app.schemas.result import ResultRow, ReviewRequest
 from app.services.customer_service import apply_customer_match, find_customer
 from app.services.job_service import refresh_batch_counters
 from app.services.meter_value import normalize_meter_reading, parse_meter_value
+from app.services.reviewed_image_service import archive_reviewed_image, remove_reviewed_image
 
 
 def _apply_result_filters(statement, image_status: str | None, search: str | None):
@@ -174,6 +175,14 @@ def review_result(
     reading.reviewed_by = user.id
     reading.reviewed_at = datetime.now(UTC)
     image.status = ImageStatus.CONFIRMED if payload.action == "CONFIRM" else ImageStatus.REJECTED
+    reviewed_image_path = None
+    removed_reviewed_image_path = None
+    if payload.action == "CONFIRM":
+        reviewed_image_path = archive_reviewed_image(
+            image, reading.final_customer_id, reading.reviewed_at
+        )
+    else:
+        removed_reviewed_image_path = remove_reviewed_image(image)
     db.flush()
     refresh_batch_counters(db, image.batch_id)
     db.add(
@@ -208,6 +217,8 @@ def review_result(
                 "matched_customer_id": (
                     str(reading.matched_customer_id) if reading.matched_customer_id else None
                 ),
+                "reviewed_image_path": reviewed_image_path,
+                "removed_reviewed_image_path": removed_reviewed_image_path,
             },
             ip_address=ip_address,
         )

@@ -16,6 +16,7 @@ from app.models.system_setting import SystemSetting
 from app.models.user import User
 from app.services.customer_service import apply_customer_match, find_customer
 from app.services.meter_value import normalize_meter_reading, parse_meter_value
+from app.services.reviewed_image_service import archive_reviewed_image
 
 DEFAULT_AUTO_CONFIRM_THRESHOLD = 0.9
 
@@ -249,6 +250,9 @@ def mark_job_completed(db: Session, job_id: UUID, result_json: dict) -> None:
         image.status = ImageStatus.CONFIRMED
         reading.review_status = "CONFIRMED"
         reading.reviewed_at = datetime.now(UTC)
+        reviewed_image_path = archive_reviewed_image(
+            image, reading.final_customer_id, reading.reviewed_at
+        )
         db.add(
             AuditLog(
                 user_id=None,
@@ -263,6 +267,7 @@ def mark_job_completed(db: Session, job_id: UUID, result_json: dict) -> None:
                     "matched_customer_id": str(matched_customer.id),
                     "meter_reading": reading.final_meter_reading,
                     "model_version": result_json.get("model_version"),
+                    "reviewed_image_path": reviewed_image_path,
                 },
                 ip_address=None,
             )

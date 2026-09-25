@@ -24,6 +24,8 @@ storage/failed/*
 !storage/failed/.gitkeep
 storage/exports/*
 !storage/exports/.gitkeep
+storage/reviewed/*
+!storage/reviewed/.gitkeep
 models/*
 !models/.gitkeep
 logs/

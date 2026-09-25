@@ -33,6 +33,7 @@ class ImageRecord(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     stored_filename: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     relative_path: Mapped[str] = mapped_column(String(500), unique=True, nullable=False)
     thumbnail_path: Mapped[str] = mapped_column(String(500), nullable=False)
+    reviewed_path: Mapped[str | None] = mapped_column(String(500), unique=True)
     file_size: Mapped[int] = mapped_column(Integer, nullable=False)
     mime_type: Mapped[str] = mapped_column(String(64), nullable=False)
     sha256: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
