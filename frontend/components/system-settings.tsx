@@ -99,7 +99,7 @@ export function SystemSettings({ csrfToken }: { csrfToken: string }) {
     <section className="panel full-span" aria-labelledby="settings-title">
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Quản trị</p>
+          <p className="eyebrow">Vòng đời mô hình</p>
           <h2 id="settings-title">Cấu hình hệ thống</h2>
         </div>
         <span className="badge">Mọi thay đổi đều được ghi nhận</span>

@@ -97,7 +97,7 @@ const pages = [
     eyebrow: "Chính sách hệ thống",
     title: "Quản trị hệ thống",
     description:
-      "Quản lý tài khoản, mật khẩu, ngưỡng vận hành và chính sách hệ thống.",
+      "Quản lý tài khoản, dữ liệu khách hàng và báo cáo theo kỳ.",
   },
   {
     id: "model-lifecycle",
@@ -105,7 +105,7 @@ const pages = [
     eyebrow: "Quản trị AI",
     title: "Vòng đời mô hình",
     description:
-      "Đánh giá, đăng ký, xác minh và kích hoạt các gói mô hình được kiểm soát.",
+      "Cấu hình chính sách AI, huấn luyện, đánh giá và kích hoạt các gói mô hình.",
   },
   {
     id: "traceability",
@@ -469,11 +469,11 @@ export default function HomePage() {
                   <MonthlyExport csrfToken={csrfToken} />
                   <CustomerDataManagement csrfToken={csrfToken} />
                   <AccountManagement csrfToken={csrfToken} />
-                  <SystemSettings csrfToken={csrfToken} />
                 </>
               )}
               {csrfToken && displayedPage === "model-lifecycle" && (
                 <>
+                  <SystemSettings csrfToken={csrfToken} />
                   <TrainingPipeline csrfToken={csrfToken} />
                   <ModelOperations csrfToken={csrfToken} />
                 </>
