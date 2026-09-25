@@ -52,6 +52,13 @@ const MonthlyExport = dynamic(
     ),
   { loading: loadingPanel, ssr: false },
 );
+const MonthlyReadingHistory = dynamic(
+  () =>
+    import("@/features/administration/monthly-reading-history").then(
+      (module) => module.MonthlyReadingHistory,
+    ),
+  { loading: loadingPanel, ssr: false },
+);
 const TrainingPipeline = dynamic(
   () =>
     import("@/features/model-lifecycle/training-pipeline").then(
@@ -466,6 +473,7 @@ export default function HomePage() {
               )}
               {csrfToken && displayedPage === "administration" && (
                 <>
+                  <MonthlyReadingHistory />
                   <MonthlyExport csrfToken={csrfToken} />
                   <CustomerDataManagement csrfToken={csrfToken} />
                   <AccountManagement csrfToken={csrfToken} />

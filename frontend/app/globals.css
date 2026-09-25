@@ -1085,6 +1085,12 @@ a {
   gap: var(--space-lg);
   margin-top: var(--space-xl);
 }
+.monthly-history-panel .dashboard-filters {
+  margin-top: var(--space-xl);
+}
+.monthly-history-metrics {
+  margin-top: var(--space-2xl);
+}
 .monthly-export-form label {
   display: grid;
   min-width: min(100%, 17rem);
