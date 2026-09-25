@@ -57,3 +57,6 @@ def test_trained_model_activation_requires_full_coverage_and_accuracy() -> None:
 
     record.metrics_json = {"digit_coverage": 1.0, "validation_digit_accuracy": 0.9}
     _validate_activation_metrics(record)
+
+    record.model_type = "meter_digit_hog_softmax"
+    _validate_activation_metrics(record)

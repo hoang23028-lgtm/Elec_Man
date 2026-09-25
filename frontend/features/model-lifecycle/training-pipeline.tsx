@@ -67,8 +67,9 @@ export function TrainingPipeline({ csrfToken }: { csrfToken: string }) {
           <p className="eyebrow">Pipeline dữ liệu</p>
           <h2 id="training-title">Huấn luyện từ ảnh đã kiểm duyệt</h2>
           <p className="muted">
-            Ảnh tải lên được OCR và kiểm duyệt. Khi đủ mẫu, hệ thống tự tạo dataset,
-            chia train/validation, huấn luyện và đăng ký model ở trạng thái thử nghiệm.
+            Tải ảnh tại trang Vận hành, sửa và xác nhận nhãn. Khi đủ mẫu, hệ thống
+            tăng cường dữ liệu, trích xuất HOG, huấn luyện bộ phân loại softmax chuyên
+            biệt và đăng ký mô hình ở trạng thái thử nghiệm.
           </p>
         </div>
         <button type="button" onClick={() => void start()} disabled={busy || active || !dataset?.ready}>
@@ -87,7 +88,8 @@ export function TrainingPipeline({ csrfToken }: { csrfToken: string }) {
         {dataset?.auto_start_enabled
           ? `Tự động huấn luyện đang bật. Còn ${Math.max(0, (dataset.minimum_samples ?? 0) - (dataset.eligible_samples ?? 0))} mẫu để đạt ngưỡng.`
           : "Tự động huấn luyện đang tắt. Có thể bật trong Cấu hình hệ thống."}
-        {" "}Chỉ mẫu được con người xác nhận mới được sử dụng.
+        {" "}Chỉ ảnh duy nhất có mã khách hàng và số điện được con người xác nhận
+        mới được dùng làm nhãn huấn luyện.
       </p>
       <div className="table-wrap training-table">
         <table>

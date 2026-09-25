@@ -9,6 +9,10 @@ from app.models.model_registry import ModelRecord
 
 _cached_id = None
 _cached_pipeline: DevelopmentPipeline | None = None
+SUPPORTED_METER_MODEL_TYPES = (
+    "meter_digit_hog_softmax",
+    "meter_digit_centroid",
+)
 
 
 def _digest(path) -> str:
@@ -25,7 +29,7 @@ def current_pipeline() -> DevelopmentPipeline:
         record = db.scalar(
             select(ModelRecord)
             .where(
-                ModelRecord.model_type == "meter_digit_centroid",
+                ModelRecord.model_type.in_(SUPPORTED_METER_MODEL_TYPES),
                 ModelRecord.status == "ACTIVE",
             )
             .order_by(ModelRecord.activated_at.desc())

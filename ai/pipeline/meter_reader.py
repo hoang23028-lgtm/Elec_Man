@@ -5,11 +5,11 @@ import numpy as np
 
 from ai.pipeline.rapid import TextLine, read_lines
 from ai.pipeline.tesseract import enhanced_variants, read
-from ai.training.digit_model import DigitCentroidModel, reading_features
+from ai.training.digit_model import DigitModel, reading_features
 
 
 class MeterReader:
-    def __init__(self, trained_model: DigitCentroidModel | None = None) -> None:
+    def __init__(self, trained_model: DigitModel | None = None) -> None:
         self.trained_model = trained_model
 
     def read(
@@ -30,7 +30,9 @@ class MeterReader:
                 if score > best[1]:
                     best = (group, round(score, 4))
         if best[0] and self.trained_model is not None:
-            features = reading_features(image, len(best[0]))
+            features = reading_features(
+                image, len(best[0]), self.trained_model.feature_mode
+            )
             trained_value, trained_confidence = self.trained_model.predict_features(
                 features
             )

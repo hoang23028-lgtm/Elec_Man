@@ -1,11 +1,10 @@
-from collections import defaultdict
 from datetime import UTC, datetime
 from hashlib import sha256
 
 import numpy as np
 from sqlalchemy import select
 
-from ai.training.digit_model import sample_features
+from ai.training.digit_model import DigitHogSoftmaxModel, sample_features
 from app.core.config import get_settings
 from app.core.database import SessionLocal
 from app.models.audit_log import AuditLog
@@ -61,51 +60,64 @@ def train_run(run_id) -> None:
         training_rows, validation_rows = rows[:-1], rows[-1:]
 
     _set_stage(run_id, "EXTRACTING_FEATURES", 25)
-    grouped: dict[int, list[np.ndarray]] = defaultdict(list)
+    training_features: list[np.ndarray] = []
+    training_targets: list[int] = []
     for image, reading in training_rows:
         path = settings.storage_root / image.relative_path
-        for label, feature in sample_features(path, reading.final_meter_reading or ""):
-            grouped[label].append(feature)
-    if len(grouped) < 2:
+        for label, feature in sample_features(
+            path, reading.final_meter_reading or "", augment=True
+        ):
+            training_targets.append(label)
+            training_features.append(feature)
+    if len(set(training_targets)) < 2:
         raise ValueError("Dữ liệu chưa tạo được đặc trưng cho ít nhất hai chữ số.")
 
-    labels = np.array(sorted(grouped), dtype=np.int64)
-    centroids = np.stack(
-        [np.mean(grouped[int(label)], axis=0) for label in labels]
-    ).astype(np.float32)
+    model = DigitHogSoftmaxModel.train(
+        training_features,
+        training_targets,
+        seed=int(dataset_hash[:8], 16),
+    )
     _set_stage(run_id, "VALIDATING", 65)
     correct = total = 0
     for image, reading in validation_rows:
-        for expected, feature in sample_features(
+        validation_samples = sample_features(
             settings.storage_root / image.relative_path,
             reading.final_meter_reading or "",
-        ):
-            distances = np.mean((centroids - feature) ** 2, axis=1)
-            predicted = int(labels[int(np.argmin(distances))])
-            correct += int(predicted == expected)
-            total += 1
+        )
+        if not validation_samples:
+            continue
+        expected = "".join(str(label) for label, _ in validation_samples)
+        predicted, _ = model.predict_features(
+            [feature for _, feature in validation_samples]
+        )
+        correct += sum(
+            left == right for left, right in zip(expected, predicted, strict=True)
+        )
+        total += len(expected)
 
     version = f"{datetime.now(UTC):%Y%m%d-%H%M%S}-{str(run_id)[:8]}"
-    relative_path = f"meter_digit_centroid/{version}/model.npz"
+    relative_path = f"meter_digit_hog_softmax/{version}/model.npz"
     target = settings.models_root / relative_path
     target.parent.mkdir(parents=True, exist_ok=True)
-    np.savez_compressed(target, labels=labels, centroids=centroids)
+    model.save(target)
     digest = sha256(target.read_bytes()).hexdigest()
     metrics = {
         "validation_digit_accuracy": round(correct / total, 4) if total else None,
         "validation_digits": total,
-        "digit_classes": labels.tolist(),
-        "digit_coverage": round(len(labels) / 10, 4),
+        "digit_classes": model.labels.tolist(),
+        "digit_coverage": round(len(model.labels) / 10, 4),
+        "training_digits": len(training_features),
         "training_images": len(training_rows),
         "validation_images": len(validation_rows),
-        "algorithm": "normalized-pixel-nearest-centroid-v1",
+        "algorithm": "hog-softmax-v1",
+        "augmentation_factor": 5,
     }
     _set_stage(run_id, "REGISTERING_MODEL", 90)
     with SessionLocal() as db:
         run = db.get(TrainingRun, run_id)
         model = ModelRecord(
-            model_name="meter-digit-centroid",
-            model_type="meter_digit_centroid",
+            model_name="meter-digit-specialized",
+            model_type="meter_digit_hog_softmax",
             version=version,
             file_path=relative_path,
             metrics_json=metrics,

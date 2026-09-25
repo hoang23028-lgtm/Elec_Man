@@ -13,6 +13,11 @@ from app.models.model_registry import ModelRecord
 from app.models.user import User
 from app.schemas.model_registry import ModelCreate, ModelRow
 
+METER_DIGIT_MODEL_TYPES = {
+    "meter_digit_centroid",
+    "meter_digit_hog_softmax",
+}
+
 
 def _row(record: ModelRecord) -> ModelRow:
     return ModelRow(
@@ -58,7 +63,7 @@ def _verified_model_path(relative_path: str, claimed_sha256: str) -> Path:
 
 
 def _validate_activation_metrics(record: ModelRecord) -> None:
-    if record.model_type != "meter_digit_centroid":
+    if record.model_type not in METER_DIGIT_MODEL_TYPES:
         return
     coverage = float(record.metrics_json.get("digit_coverage") or 0)
     accuracy = float(record.metrics_json.get("validation_digit_accuracy") or 0)
@@ -116,9 +121,14 @@ def activate_model(db: Session, model_id: object, user: User, ip_address: str | 
     _verified_model_path(record.file_path, record.sha256)
     _validate_activation_metrics(record)
     previous_status = record.status
+    model_types = (
+        METER_DIGIT_MODEL_TYPES
+        if record.model_type in METER_DIGIT_MODEL_TYPES
+        else {record.model_type}
+    )
     db.execute(
         update(ModelRecord)
-        .where(ModelRecord.model_type == record.model_type, ModelRecord.status == "ACTIVE")
+        .where(ModelRecord.model_type.in_(model_types), ModelRecord.status == "ACTIVE")
         .values(status="ARCHIVED")
     )
     record.status = "ACTIVE"

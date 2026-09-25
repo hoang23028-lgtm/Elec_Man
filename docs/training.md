@@ -10,6 +10,10 @@ Các xác nhận thủ công do ứng dụng ghi lại là nguồn nhãn huấn 
 
 Trainer chạy trong container độc lập. Mặc định, khi có ít nhất 20 mẫu đã kiểm duyệt và thêm tối thiểu 10 mẫu kể từ lần thành công gần nhất, hệ thống tự tạo phiên huấn luyện. Dataset được sắp xếp và chia train/validation ổn định theo SHA-256 để hạn chế rò rỉ giữa các tập. Có thể theo dõi hoặc tạo phiên thủ công tại trang **Vòng đời mô hình**.
 
-Phiên bản đầu huấn luyện bộ phân loại chữ số nearest-centroid trên vùng bánh số nguyên, lưu artifact `.npz` không sử dụng pickle, tính checksum SHA-256 và đăng ký model ở trạng thái `TESTING`. Quản trị viên phải xem chỉ số validation và độ phủ chữ số trước khi kích hoạt. Worker kiểm tra checksum và tự nạp model `ACTIVE` cho tác vụ tiếp theo; RapidOCR/Tesseract vẫn là phương án cơ sở.
+Pipeline chuyên biệt cắt vùng bánh số nguyên theo nhãn đã xác nhận, tăng cường từng ảnh bằng dịch chuyển ngang và thay đổi tương phản, sau đó trích xuất đặc trưng HOG. Bộ phân loại softmax được huấn luyện với chuẩn hóa đặc trưng và trọng số cân bằng lớp để hạn chế thiên lệch về những chữ số xuất hiện nhiều. Artifact `.npz` chỉ chứa mảng số, không sử dụng pickle; hệ thống tính checksum SHA-256 và đăng ký model ở trạng thái `TESTING`.
+
+Quản trị viên phải xem độ chính xác validation và độ phủ chữ số trước khi kích hoạt. Model chỉ được kích hoạt khi tập huấn luyện phủ đủ chữ số `0–9` và độ chính xác chữ số trên validation đạt ít nhất 90%. Worker xác minh checksum rồi tự nạp model `ACTIVE` cho tác vụ tiếp theo; artifact nearest-centroid cũ vẫn được hỗ trợ để không làm gián đoạn bản triển khai, còn RapidOCR/Tesseract tiếp tục là phương án cơ sở.
+
+Quy trình sử dụng trên giao diện là: **Vận hành → tải ảnh → xử lý OCR → sửa và xác nhận kết quả → Vòng đời mô hình → Huấn luyện ngay → xem đánh giá → Kích hoạt**. Chỉ tải ảnh chưa tạo ra nhãn đáng tin cậy; bước xác nhận thủ công là bắt buộc trước khi ảnh được đưa vào dataset.
 
 Ngưỡng 20 mẫu chỉ giúp chạy thử pipeline, không chứng minh chất lượng sản xuất. Cần hàng trăm đến hàng nghìn ảnh đa dạng, đủ chữ số 0–9 và tập kiểm thử độc lập trước khi tin cậy tự động xác nhận.
