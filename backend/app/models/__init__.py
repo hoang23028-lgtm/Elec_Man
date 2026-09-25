@@ -3,6 +3,7 @@
 from app.models.ai_result import AiResult
 from app.models.audit_log import AuditLog
 from app.models.batch import Batch
+from app.models.confirmed_monthly_reading import ConfirmedMonthlyReading
 from app.models.customer import Customer
 from app.models.image import ImageRecord
 from app.models.manual_correction import ManualCorrection
@@ -18,6 +19,7 @@ __all__ = [
     "AiResult",
     "AuditLog",
     "Batch",
+    "ConfirmedMonthlyReading",
     "Customer",
     "ImageRecord",
     "ManualCorrection",

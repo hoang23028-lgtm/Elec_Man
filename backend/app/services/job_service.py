@@ -14,6 +14,7 @@ from app.models.meter_reading import MeterReading
 from app.models.processing_job import JobStatus, ProcessingJob
 from app.models.system_setting import SystemSetting
 from app.models.user import User
+from app.services.confirmed_reading_service import save_confirmed_monthly_reading
 from app.services.customer_service import apply_customer_match, find_customer
 from app.services.meter_value import normalize_meter_reading, parse_meter_value
 from app.services.reviewed_image_service import archive_reviewed_image
@@ -250,8 +251,11 @@ def mark_job_completed(db: Session, job_id: UUID, result_json: dict) -> None:
         image.status = ImageStatus.CONFIRMED
         reading.review_status = "CONFIRMED"
         reading.reviewed_at = datetime.now(UTC)
+        confirmed_record, replaced_official_values = save_confirmed_monthly_reading(
+            db, image, reading, matched_customer, None
+        )
         reviewed_image_path = archive_reviewed_image(
-            image, reading.final_customer_id, reading.reviewed_at
+            image, matched_customer.customer_code, reading.reviewed_at
         )
         db.add(
             AuditLog(
@@ -268,6 +272,9 @@ def mark_job_completed(db: Session, job_id: UUID, result_json: dict) -> None:
                     "meter_reading": reading.final_meter_reading,
                     "model_version": result_json.get("model_version"),
                     "reviewed_image_path": reviewed_image_path,
+                    "confirmed_monthly_record_id": str(confirmed_record.id),
+                    "reading_month": confirmed_record.reading_month.isoformat(),
+                    "official_record_previous_values": replaced_official_values,
                 },
                 ip_address=None,
             )

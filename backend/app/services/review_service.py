@@ -13,6 +13,10 @@ from app.models.manual_correction import ManualCorrection
 from app.models.meter_reading import MeterReading
 from app.models.user import User
 from app.schemas.result import ResultRow, ReviewRequest
+from app.services.confirmed_reading_service import (
+    remove_confirmed_monthly_reading,
+    save_confirmed_monthly_reading,
+)
 from app.services.customer_service import apply_customer_match, find_customer
 from app.services.job_service import refresh_batch_counters
 from app.services.meter_value import normalize_meter_reading, parse_meter_value
@@ -126,6 +130,11 @@ def review_result(
         )
     final_meter = normalized_meter or payload.final_meter_reading
     matched_customer = find_customer(db, payload.final_customer_id)
+    if payload.action == "CONFIRM" and matched_customer is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Mã khách hàng phải tồn tại trong cơ sở dữ liệu trước khi xác nhận.",
+        )
     final_customer = (
         matched_customer.customer_code if matched_customer else payload.final_customer_id
     )
@@ -177,11 +186,18 @@ def review_result(
     image.status = ImageStatus.CONFIRMED if payload.action == "CONFIRM" else ImageStatus.REJECTED
     reviewed_image_path = None
     removed_reviewed_image_path = None
+    confirmed_record = None
+    replaced_official_values: dict = {}
+    removed_confirmed_record_id = None
     if payload.action == "CONFIRM":
+        confirmed_record, replaced_official_values = save_confirmed_monthly_reading(
+            db, image, reading, matched_customer, user.id
+        )
         reviewed_image_path = archive_reviewed_image(
-            image, reading.final_customer_id, reading.reviewed_at
+            image, matched_customer.customer_code, reading.reviewed_at
         )
     else:
+        removed_confirmed_record_id = remove_confirmed_monthly_reading(db, image.id)
         removed_reviewed_image_path = remove_reviewed_image(image)
     db.flush()
     refresh_batch_counters(db, image.batch_id)
@@ -219,6 +235,16 @@ def review_result(
                 ),
                 "reviewed_image_path": reviewed_image_path,
                 "removed_reviewed_image_path": removed_reviewed_image_path,
+                "confirmed_monthly_record_id": (
+                    str(confirmed_record.id) if confirmed_record else None
+                ),
+                "reading_month": (
+                    confirmed_record.reading_month.isoformat() if confirmed_record else None
+                ),
+                "official_record_previous_values": replaced_official_values,
+                "removed_confirmed_record_id": (
+                    str(removed_confirmed_record_id) if removed_confirmed_record_id else None
+                ),
             },
             ip_address=ip_address,
         )

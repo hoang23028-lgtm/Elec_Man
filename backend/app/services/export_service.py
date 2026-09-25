@@ -9,12 +9,12 @@ from uuid import uuid4
 from openpyxl import Workbook
 from openpyxl.cell import WriteOnlyCell
 from openpyxl.styles import Font, PatternFill
-from sqlalchemy import extract, func, select
+from sqlalchemy import extract, select
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
+from app.models.confirmed_monthly_reading import ConfirmedMonthlyReading
 from app.models.customer import Customer
-from app.models.meter_reading import MeterReading
 
 EXPORT_FILENAME_PATTERN = re.compile(
     r"^bao-cao-doi-chieu-(\d{4})(\d{2})\d{2}T\d{6}Z-[0-9a-f]{8}"
@@ -59,47 +59,32 @@ def resolve_export_path(filename: str) -> Path | None:
     return path if path.is_relative_to(root) and path.is_file() else None
 
 
-def _report_row(reading: MeterReading, customer: Customer | None) -> dict[str, str | int | None]:
-    reading_value = reading.reading_value
+def _report_row(
+    reading: ConfirmedMonthlyReading, customer: Customer
+) -> dict[str, str | int | None]:
+    reading_value = reading.meter_reading
     return {
-        "ma_khach_hang": customer.customer_code if customer else reading.final_customer_id,
-        "ho_ten": customer.full_name if customer else None,
-        "dia_chi": customer.address if customer else None,
-        "tuyen_dien": customer.electricity_route if customer else None,
-        "so_seri_cong_to": customer.meter_serial if customer else None,
+        "ma_khach_hang": customer.customer_code,
+        "ho_ten": customer.full_name,
+        "dia_chi": customer.address,
+        "tuyen_dien": customer.electricity_route,
+        "so_seri_cong_to": customer.meter_serial,
         "chi_so_khoi_tao": (
             int(reading_value) if isinstance(reading_value, Decimal) else reading_value
         ),
-        "muc_dich_su_dung": customer.usage_purpose if customer else None,
+        "muc_dich_su_dung": customer.usage_purpose,
     }
 
 
 def create_final_exports(db: Session, month: int, year: int) -> ExportBundle:
-    reading_at = func.coalesce(MeterReading.reviewed_at, MeterReading.created_at)
-    ranked_readings = (
-        select(
-            MeterReading.id.label("reading_id"),
-            func.row_number()
-            .over(
-                partition_by=MeterReading.final_customer_id,
-                order_by=(reading_at.desc(), MeterReading.id.desc()),
-            )
-            .label("position"),
-        )
-        .where(
-            MeterReading.review_status == "CONFIRMED",
-            MeterReading.final_customer_id.is_not(None),
-            extract("month", reading_at) == month,
-            extract("year", reading_at) == year,
-        )
-        .subquery()
-    )
     statement = (
-        select(MeterReading, Customer)
-        .join(ranked_readings, ranked_readings.c.reading_id == MeterReading.id)
-        .outerjoin(Customer, Customer.id == MeterReading.matched_customer_id)
-        .where(ranked_readings.c.position == 1)
-        .order_by(MeterReading.final_customer_id)
+        select(ConfirmedMonthlyReading, Customer)
+        .join(Customer, Customer.id == ConfirmedMonthlyReading.customer_id)
+        .where(
+            extract("month", ConfirmedMonthlyReading.reading_month) == month,
+            extract("year", ConfirmedMonthlyReading.reading_month) == year,
+        )
+        .order_by(ConfirmedMonthlyReading.customer_code)
         .execution_options(yield_per=1000)
     )
     now = datetime.now(UTC)

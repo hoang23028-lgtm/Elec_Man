@@ -22,7 +22,7 @@ def test_export_path_rejects_unexpected_filename_without_scanning_storage() -> N
 
 
 def test_final_export_creates_matching_json_and_excel(monkeypatch, tmp_path) -> None:
-    reading = SimpleNamespace(final_customer_id="PN2.001", reading_value=Decimal("63751"))
+    reading = SimpleNamespace(meter_reading=Decimal("63751"))
     customer = SimpleNamespace(
         customer_code="PN2.001",
         full_name="Nguyễn Văn A",

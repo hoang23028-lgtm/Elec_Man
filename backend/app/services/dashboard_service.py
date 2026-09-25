@@ -6,9 +6,9 @@ from sqlalchemy import Integer, String, case, cast, distinct, extract, func, sel
 from sqlalchemy.orm import Session
 
 from app.models.batch import Batch
+from app.models.confirmed_monthly_reading import ConfirmedMonthlyReading
 from app.models.customer import Customer
 from app.models.image import ImageRecord
-from app.models.meter_reading import MeterReading
 from app.models.processing_job import JobStatus, ProcessingJob
 from app.schemas.dashboard import (
     BillingDashboard,
@@ -42,31 +42,26 @@ def statistics(db: Session) -> dict:
 
 
 def _billing_source():
-    reading_at = func.coalesce(MeterReading.reviewed_at, MeterReading.created_at)
-    ordering = (reading_at.asc(), MeterReading.id.asc())
+    reading_at = ConfirmedMonthlyReading.confirmed_at
+    ordering = (ConfirmedMonthlyReading.reading_month.asc(), ConfirmedMonthlyReading.id.asc())
     return (
         select(
-            MeterReading.id.label("reading_id"),
-            MeterReading.final_customer_id.label("customer_id"),
-            MeterReading.final_meter_reading.label("current_reading"),
-            MeterReading.reading_value.label("current_value"),
+            ConfirmedMonthlyReading.id.label("reading_id"),
+            ConfirmedMonthlyReading.customer_code.label("customer_id"),
+            cast(ConfirmedMonthlyReading.meter_reading, String).label("current_reading"),
+            ConfirmedMonthlyReading.meter_reading.label("current_value"),
             Customer.initial_reading.label("initial_value"),
             Customer.usage_purpose.label("usage_purpose"),
             reading_at.label("reading_at"),
-            func.lag(MeterReading.final_meter_reading)
-            .over(partition_by=MeterReading.final_customer_id, order_by=ordering)
+            ConfirmedMonthlyReading.reading_month.label("reading_month"),
+            func.lag(cast(ConfirmedMonthlyReading.meter_reading, String))
+            .over(partition_by=ConfirmedMonthlyReading.customer_id, order_by=ordering)
             .label("previous_reading"),
-            func.lag(MeterReading.reading_value)
-            .over(partition_by=MeterReading.final_customer_id, order_by=ordering)
+            func.lag(ConfirmedMonthlyReading.meter_reading)
+            .over(partition_by=ConfirmedMonthlyReading.customer_id, order_by=ordering)
             .label("previous_value"),
         )
-        .where(
-            MeterReading.review_status == "CONFIRMED",
-            MeterReading.final_customer_id.is_not(None),
-            MeterReading.final_meter_reading.is_not(None),
-            MeterReading.reading_value.is_not(None),
-        )
-        .outerjoin(Customer, Customer.id == MeterReading.matched_customer_id)
+        .join(Customer, Customer.id == ConfirmedMonthlyReading.customer_id)
         .cte("confirmed_meter_history")
     )
 
@@ -86,9 +81,9 @@ def _apply_billing_filters(statement, source, customer_id, month, year):
     if customer_id and customer_id.strip():
         statement = statement.where(source.c.customer_id.ilike(f"%{customer_id.strip()}%"))
     if month is not None:
-        statement = statement.where(extract("month", source.c.reading_at) == month)
+        statement = statement.where(extract("month", source.c.reading_month) == month)
     if year is not None:
-        statement = statement.where(extract("year", source.c.reading_at) == year)
+        statement = statement.where(extract("year", source.c.reading_month) == year)
     return statement
 
 
@@ -123,6 +118,7 @@ def billing_dashboard(
             select(
                 source.c.reading_id,
                 source.c.reading_at,
+                source.c.reading_month,
                 source.c.usage_purpose,
                 consumption,
             ).select_from(source),
@@ -134,7 +130,7 @@ def billing_dashboard(
     ).all()
     calculated_bills = {
         row.reading_id: calculate_electricity_bill(
-            Decimal(row.consumption), row.usage_purpose or "", row.reading_at
+            Decimal(row.consumption), row.usage_purpose or "", row.reading_month
         )
         for row in bill_inputs
         if row.consumption is not None
@@ -154,6 +150,7 @@ def billing_dashboard(
             source.c.customer_id,
             source.c.current_reading,
             source.c.reading_at,
+            source.c.reading_month,
             func.coalesce(source.c.previous_reading, cast(source.c.initial_value, String)).label(
                 "previous_reading"
             ),
@@ -175,7 +172,7 @@ def billing_dashboard(
         lambda: {"record_count": 0, "consumption": Decimal("0"), "before_vat": 0, "vat": 0}
     )
     for row in bill_inputs:
-        key = (row.reading_at.year, row.reading_at.month)
+        key = (row.reading_month.year, row.reading_month.month)
         group = trend_groups[key]
         group["record_count"] += 1
         if row.consumption is not None:
@@ -186,9 +183,9 @@ def billing_dashboard(
             group["vat"] += bill.vat_amount
     available_years = list(
         db.scalars(
-            select(cast(extract("year", source.c.reading_at), Integer))
+            select(cast(extract("year", source.c.reading_month), Integer))
             .distinct()
-            .order_by(cast(extract("year", source.c.reading_at), Integer).desc())
+            .order_by(cast(extract("year", source.c.reading_month), Integer).desc())
         )
     )
 
@@ -210,8 +207,8 @@ def billing_dashboard(
                 reading_id=row.reading_id,
                 customer_id=row.customer_id,
                 reading_at=row.reading_at,
-                month=row.reading_at.month,
-                year=row.reading_at.year,
+                month=row.reading_month.month,
+                year=row.reading_month.year,
                 previous_reading=row.previous_reading,
                 current_reading=row.current_reading,
                 consumption_kwh=float(row.consumption) if row.consumption is not None else None,
