@@ -141,7 +141,20 @@ export function ReadingRegionAnnotator({ imageUrl, imageAlt, value, onChange }: 
     continueResizing(event);
     resizeRef.current = null;
     setResizingCorner(null);
-    event.currentTarget.releasePointerCapture(event.pointerId);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  }
+
+  function cancelResizing(event: PointerEvent<HTMLButtonElement>) {
+    const session = resizeRef.current;
+    if (!session) return;
+    onChange(session.initial);
+    resizeRef.current = null;
+    setResizingCorner(null);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
   }
 
   function adjustCornerWithKeyboard(event: KeyboardEvent<HTMLButtonElement>, corner: Corner) {
@@ -220,7 +233,7 @@ export function ReadingRegionAnnotator({ imageUrl, imageAlt, value, onChange }: 
                 onPointerDown={(event) => beginResizing(event, corner)}
                 onPointerMove={continueResizing}
                 onPointerUp={endResizing}
-                onPointerCancel={endResizing}
+                onPointerCancel={cancelResizing}
                 onKeyDown={(event) => adjustCornerWithKeyboard(event, corner)}
               />
             ))}
