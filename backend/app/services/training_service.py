@@ -32,6 +32,11 @@ def eligible_clause():
         MeterReading.reviewed_by.is_not(None),
         MeterReading.final_customer_id.is_not(None),
         MeterReading.final_meter_reading.is_not(None),
+        MeterReading.reading_bbox_x.is_not(None),
+        MeterReading.reading_bbox_y.is_not(None),
+        MeterReading.reading_bbox_width.is_not(None),
+        MeterReading.reading_bbox_height.is_not(None),
+        MeterReading.bbox_reviewed_by.is_not(None),
     )
 
 

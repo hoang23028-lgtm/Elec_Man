@@ -60,9 +60,28 @@ def _augment_crop(image: np.ndarray) -> list[np.ndarray]:
     return variants
 
 
-def digit_crops(image: np.ndarray, digit_count: int) -> list[np.ndarray]:
+def digit_crops(
+    image: np.ndarray,
+    digit_count: int,
+    reading_bbox: tuple[float, float, float, float] | None = None,
+) -> list[np.ndarray]:
     prepared = prepare_for_detection(image)
-    region = MeterDetector().detect(prepared).reading_region
+    if reading_bbox is None:
+        region = MeterDetector().detect(prepared).reading_region
+    else:
+        image_height, image_width = prepared.shape[:2]
+        normalized_x, normalized_y, normalized_width, normalized_height = reading_bbox
+        x = max(0, min(image_width - 1, round(normalized_x * image_width)))
+        y = max(0, min(image_height - 1, round(normalized_y * image_height)))
+        right = max(
+            x + 1,
+            min(image_width, round((normalized_x + normalized_width) * image_width)),
+        )
+        bottom = max(
+            y + 1,
+            min(image_height, round((normalized_y + normalized_height) * image_height)),
+        )
+        region = (x, y, right - x, bottom - y)
     if region is None:
         return []
     x, y, width, height = region
@@ -76,13 +95,17 @@ def digit_crops(image: np.ndarray, digit_count: int) -> list[np.ndarray]:
 
 
 def sample_features(
-    path: Path, reading: str, *, augment: bool = False
+    path: Path,
+    reading: str,
+    *,
+    augment: bool = False,
+    reading_bbox: tuple[float, float, float, float] | None = None,
 ) -> list[tuple[int, np.ndarray]]:
     image = cv2.imread(str(path), cv2.IMREAD_COLOR)
     digits = "".join(character for character in reading if character.isdigit())
     if image is None or not 4 <= len(digits) <= 8:
         return []
-    crops = digit_crops(image, len(digits))
+    crops = digit_crops(image, len(digits), reading_bbox)
     if len(crops) != len(digits):
         return []
     samples: list[tuple[int, np.ndarray]] = []

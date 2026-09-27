@@ -3,10 +3,20 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 
 import { Pagination } from "@/components/pagination";
-import { getResultsPage, reviewResult, type Result } from "@/services/results";
+import { ReadingRegionAnnotator } from "@/components/reading-region-annotator";
+import {
+  getResultsPage,
+  reviewResult,
+  type ReadingBoundingBox,
+  type Result,
+} from "@/services/results";
 import { usePolling } from "@/hooks/use-polling";
 
-type Draft = { customer: string; reading: string };
+type Draft = {
+  customer: string;
+  reading: string;
+  readingBbox: ReadingBoundingBox | null;
+};
 type Props = { csrfToken: string; refreshKey?: number };
 type ImagePreview = { imageId: string; filename: string };
 
@@ -16,6 +26,7 @@ function initialDraft(row: Result): Draft {
   return {
     customer: row.final_customer_id ?? row.customer_id_ai ?? "",
     reading: row.final_meter_reading ?? row.meter_reading_ai ?? "",
+    readingBbox: row.reading_bbox,
   };
 }
 
@@ -110,10 +121,20 @@ export function OperationsResults({ csrfToken, refreshKey = 0 }: Props) {
     });
   }
 
-  function updateDraft(id: string, field: keyof Draft, value: string) {
+  function updateDraft(id: string, field: "customer" | "reading", value: string) {
     setDrafts((current) => ({
       ...current,
-      [id]: { ...(current[id] ?? { customer: "", reading: "" }), [field]: value },
+      [id]: { ...(current[id] ?? { customer: "", reading: "", readingBbox: null }), [field]: value },
+    }));
+  }
+
+  function updateReadingBbox(id: string, value: ReadingBoundingBox | null) {
+    setDrafts((current) => ({
+      ...current,
+      [id]: {
+        ...(current[id] ?? { customer: "", reading: "", readingBbox: null }),
+        readingBbox: value,
+      },
     }));
   }
 
@@ -129,6 +150,7 @@ export function OperationsResults({ csrfToken, refreshKey = 0 }: Props) {
         action,
         draft.customer.trim(),
         draft.reading.trim(),
+        draft.readingBbox,
       );
       setMessage(
         action === "CONFIRM"
@@ -224,6 +246,14 @@ export function OperationsResults({ csrfToken, refreshKey = 0 }: Props) {
             </label>
           </div>
           <div className="result-actions">
+            <button
+              type="button"
+              className="secondary"
+              onClick={(event) => openImagePreview(row, event.currentTarget)}
+              disabled={busy}
+            >
+              {draft.readingBbox ? "Sửa vùng chỉ số" : "Khoanh vùng chỉ số"}
+            </button>
             {editableConfirmed ? (
               <button
                 type="button"
@@ -363,12 +393,12 @@ export function OperationsResults({ csrfToken, refreshKey = 0 }: Props) {
               Đóng
             </button>
           </div>
-          <div className="image-preview-canvas">
-            {/* Full-resolution authenticated preview must load in the browser. */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={`/api/v1/images/${imagePreview.imageId}/preview`}
-              alt={`Ảnh đồng hồ ${imagePreview.filename}`}
+          <div className="image-preview-canvas annotation-canvas">
+            <ReadingRegionAnnotator
+              imageUrl={`/api/v1/images/${imagePreview.imageId}/preview`}
+              imageAlt={`Ảnh đồng hồ ${imagePreview.filename}`}
+              value={drafts[imagePreview.imageId]?.readingBbox ?? null}
+              onChange={(value) => updateReadingBbox(imagePreview.imageId, value)}
             />
           </div>
         </dialog>

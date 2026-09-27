@@ -15,6 +15,15 @@ from app.models.training_run import TrainingRun
 from app.services.training_service import eligible_clause
 
 
+def _reading_bbox(reading: MeterReading) -> tuple[float, float, float, float]:
+    return (
+        float(reading.reading_bbox_x),
+        float(reading.reading_bbox_y),
+        float(reading.reading_bbox_width),
+        float(reading.reading_bbox_height),
+    )
+
+
 def _set_stage(run_id, stage: str, progress: int) -> None:
     with SessionLocal() as db:
         run = db.get(TrainingRun, run_id)
@@ -48,7 +57,8 @@ def train_run(run_id) -> None:
         raise ValueError("Không đủ mẫu hợp lệ để huấn luyện.")
     dataset_hash = sha256(
         "".join(
-            f"{image.sha256}:{reading.final_meter_reading}" for image, reading in rows
+            f"{image.sha256}:{reading.final_meter_reading}:{_reading_bbox(reading)}"
+            for image, reading in rows
         ).encode()
     ).hexdigest()
     validation_rows = [row for row in rows if int(row[0].sha256[:2], 16) % 5 == 0]
@@ -65,7 +75,10 @@ def train_run(run_id) -> None:
     for image, reading in training_rows:
         path = settings.storage_root / image.relative_path
         for label, feature in sample_features(
-            path, reading.final_meter_reading or "", augment=True
+            path,
+            reading.final_meter_reading or "",
+            augment=True,
+            reading_bbox=_reading_bbox(reading),
         ):
             training_targets.append(label)
             training_features.append(feature)
@@ -83,6 +96,7 @@ def train_run(run_id) -> None:
         validation_samples = sample_features(
             settings.storage_root / image.relative_path,
             reading.final_meter_reading or "",
+            reading_bbox=_reading_bbox(reading),
         )
         if not validation_samples:
             continue

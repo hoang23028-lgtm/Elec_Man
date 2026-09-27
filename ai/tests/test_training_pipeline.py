@@ -19,6 +19,16 @@ def test_digit_crops_follow_verified_integer_length() -> None:
     assert all(crop.size > 0 for crop in crops)
 
 
+def test_digit_crops_use_human_verified_region() -> None:
+    image = np.zeros((100, 200, 3), dtype=np.uint8)
+    image[:, 100:] = 255
+
+    crops = digit_crops(image, 5, (0.5, 0.0, 0.5, 1.0))
+
+    assert len(crops) == 5
+    assert all(float(crop.mean()) == 255 for crop in crops)
+
+
 def test_hog_features_have_stable_shape() -> None:
     image = np.full((400, 600, 3), 180, dtype=np.uint8)
 

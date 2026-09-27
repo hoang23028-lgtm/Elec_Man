@@ -1,4 +1,10 @@
 import { apiFetch, paginatedJson } from "@/services/http";
+export type ReadingBoundingBox = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
 export type Result = {
   image_id: string;
   original_filename: string;
@@ -14,6 +20,7 @@ export type Result = {
   customer_match_status: string;
   matched_customer_name: string | null;
   matched_meter_serial: string | null;
+  reading_bbox: ReadingBoundingBox | null;
 };
 export type ResultQuery = {
   offset?: number;
@@ -38,6 +45,7 @@ export async function reviewResult(
   action: "CONFIRM" | "REJECT",
   customer: string,
   reading: string,
+  readingBbox: ReadingBoundingBox | null,
 ): Promise<void> {
   await apiFetch(`/results/${id}/review`, {
     method: "PUT",
@@ -46,6 +54,7 @@ export async function reviewResult(
       action,
       final_customer_id: customer || null,
       final_meter_reading: reading || null,
+      reading_bbox: readingBbox,
     }),
   }, "Kiểm duyệt thất bại.");
 }

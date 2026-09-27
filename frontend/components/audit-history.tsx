@@ -121,6 +121,8 @@ const detailLabels: Record<string, string> = {
   customer_id_after: "Mã khách hàng sau thay đổi",
   meter_reading_before: "Số điện trước thay đổi",
   meter_reading_after: "Số điện sau thay đổi",
+  reading_bbox_before: "Vùng chỉ số trước thay đổi",
+  reading_bbox_after: "Vùng chỉ số sau thay đổi",
   folder_name: "Tên thư mục",
   status: "Trạng thái",
   original_filename: "Tên ảnh gốc",
@@ -170,6 +172,11 @@ function formatDetailValue(value: unknown): string {
   if (typeof value === "string") return value;
   if (Array.isArray(value)) return value.map(formatDetailValue).join(", ");
   if (typeof value === "object") {
+    const box = value as { x?: unknown; y?: unknown; width?: unknown; height?: unknown };
+    if ([box.x, box.y, box.width, box.height].every((coordinate) => typeof coordinate === "number")) {
+      const percentage = (coordinate: unknown) => `${Math.round((coordinate as number) * 1000) / 10}%`;
+      return `Trái ${percentage(box.x)} · Trên ${percentage(box.y)} · Rộng ${percentage(box.width)} · Cao ${percentage(box.height)}`;
+    }
     const change = value as { old?: unknown; new?: unknown };
     if ("old" in change || "new" in change) {
       return `${formatDetailValue(change.old)} → ${formatDetailValue(change.new)}`;
@@ -195,6 +202,12 @@ function AuditDetails({ details }: { details: Record<string, unknown> }) {
       before: details.meter_reading_before,
       after: details.meter_reading_after,
     },
+    {
+      key: "reading_bbox",
+      label: "Vùng chỉ số",
+      before: details.reading_bbox_before,
+      after: details.reading_bbox_after,
+    },
   ].filter(
     (change) =>
       (change.before !== undefined || change.after !== undefined) &&
@@ -205,6 +218,8 @@ function AuditDetails({ details }: { details: Record<string, unknown> }) {
     "customer_id_after",
     "meter_reading_before",
     "meter_reading_after",
+    "reading_bbox_before",
+    "reading_bbox_after",
   ]);
   const metadataEntries = entries.filter(([key]) => !changeKeys.has(key));
   return (

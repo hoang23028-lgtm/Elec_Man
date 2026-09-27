@@ -1,3 +1,4 @@
+import json
 from datetime import UTC, datetime
 from uuid import UUID
 
@@ -12,7 +13,7 @@ from app.models.image import ImageRecord, ImageStatus
 from app.models.manual_correction import ManualCorrection
 from app.models.meter_reading import MeterReading
 from app.models.user import User
-from app.schemas.result import ResultRow, ReviewRequest
+from app.schemas.result import ReadingBoundingBox, ResultRow, ReviewRequest
 from app.services.confirmed_reading_service import (
     remove_confirmed_monthly_reading,
     save_confirmed_monthly_reading,
@@ -82,6 +83,20 @@ def list_results(
             customer_match_status=(reading.customer_match_status if reading else "NOT_CHECKED"),
             matched_customer_name=customer.full_name if customer else None,
             matched_meter_serial=customer.meter_serial if customer else None,
+            reading_bbox=(
+                ReadingBoundingBox(
+                    x=reading.reading_bbox_x,
+                    y=reading.reading_bbox_y,
+                    width=reading.reading_bbox_width,
+                    height=reading.reading_bbox_height,
+                )
+                if reading
+                and reading.reading_bbox_x is not None
+                and reading.reading_bbox_y is not None
+                and reading.reading_bbox_width is not None
+                and reading.reading_bbox_height is not None
+                else None
+            ),
         )
         for image, ai_result, reading, customer, _ in rows
     ]
@@ -150,6 +165,21 @@ def review_result(
         old_meter = reading.final_meter_reading
 
     was_confirmed = bool(reading and reading.review_status == "CONFIRMED")
+    old_bbox = (
+        {
+            "x": reading.reading_bbox_x,
+            "y": reading.reading_bbox_y,
+            "width": reading.reading_bbox_width,
+            "height": reading.reading_bbox_height,
+        }
+        if reading.reading_bbox_x is not None
+        and reading.reading_bbox_y is not None
+        and reading.reading_bbox_width is not None
+        and reading.reading_bbox_height is not None
+        else None
+    )
+    bbox_was_submitted = "reading_bbox" in payload.model_fields_set
+    new_bbox = payload.reading_bbox.model_dump() if payload.reading_bbox else None
     corrections = (
         ("customer_id", old_customer, final_customer),
         ("meter_reading", old_meter, final_meter),
@@ -172,6 +202,21 @@ def review_result(
                 )
             )
 
+    if payload.action == "CONFIRM" and bbox_was_submitted and old_bbox != new_bbox:
+        correction_count += 1
+        changed_fields.append("reading_bbox")
+        db.add(
+            ManualCorrection(
+                image_id=image_id,
+                ai_result_id=ai_result.id,
+                field_name="reading_bbox",
+                old_value=json.dumps(old_bbox, ensure_ascii=False, sort_keys=True),
+                new_value=json.dumps(new_bbox, ensure_ascii=False, sort_keys=True),
+                reason=payload.reason,
+                created_by=user.id,
+            )
+        )
+
     reading.final_customer_id = final_customer
     reading.final_meter_reading = final_meter
     reading.reading_value = reading_value if payload.action == "CONFIRM" else None
@@ -183,6 +228,21 @@ def review_result(
     reading.review_status = "CONFIRMED" if payload.action == "CONFIRM" else "REJECTED"
     reading.reviewed_by = user.id
     reading.reviewed_at = datetime.now(UTC)
+    if payload.action == "CONFIRM" and bbox_was_submitted:
+        if payload.reading_bbox:
+            reading.reading_bbox_x = payload.reading_bbox.x
+            reading.reading_bbox_y = payload.reading_bbox.y
+            reading.reading_bbox_width = payload.reading_bbox.width
+            reading.reading_bbox_height = payload.reading_bbox.height
+            reading.bbox_reviewed_by = user.id
+            reading.bbox_reviewed_at = reading.reviewed_at
+        else:
+            reading.reading_bbox_x = None
+            reading.reading_bbox_y = None
+            reading.reading_bbox_width = None
+            reading.reading_bbox_height = None
+            reading.bbox_reviewed_by = None
+            reading.bbox_reviewed_at = None
     image.status = ImageStatus.CONFIRMED if payload.action == "CONFIRM" else ImageStatus.REJECTED
     reviewed_image_path = None
     removed_reviewed_image_path = None
@@ -229,6 +289,17 @@ def review_result(
                 "customer_id_after": reading.final_customer_id,
                 "meter_reading_before": old_meter,
                 "meter_reading_after": reading.final_meter_reading,
+                "reading_bbox_before": old_bbox,
+                "reading_bbox_after": (
+                    {
+                        "x": reading.reading_bbox_x,
+                        "y": reading.reading_bbox_y,
+                        "width": reading.reading_bbox_width,
+                        "height": reading.reading_bbox_height,
+                    }
+                    if reading.reading_bbox_x is not None
+                    else None
+                ),
                 "customer_match_status": reading.customer_match_status,
                 "matched_customer_id": (
                     str(reading.matched_customer_id) if reading.matched_customer_id else None

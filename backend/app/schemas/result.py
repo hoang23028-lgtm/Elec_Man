@@ -1,7 +1,22 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+
+
+class ReadingBoundingBox(BaseModel):
+    """Normalized reading-register coordinates relative to the source image."""
+
+    x: float = Field(ge=0, le=1)
+    y: float = Field(ge=0, le=1)
+    width: float = Field(gt=0, le=1)
+    height: float = Field(gt=0, le=1)
+
+    @model_validator(mode="after")
+    def validate_bounds(self) -> "ReadingBoundingBox":
+        if self.x + self.width > 1.000001 or self.y + self.height > 1.000001:
+            raise ValueError("Vùng chỉ số phải nằm hoàn toàn bên trong ảnh.")
+        return self
 
 
 class ResultRow(BaseModel):
@@ -20,6 +35,7 @@ class ResultRow(BaseModel):
     customer_match_status: str
     matched_customer_name: str | None
     matched_meter_serial: str | None
+    reading_bbox: ReadingBoundingBox | None
 
 
 class ReviewRequest(BaseModel):
@@ -27,6 +43,7 @@ class ReviewRequest(BaseModel):
     final_meter_reading: str | None = Field(default=None, max_length=64)
     action: str = Field(pattern="^(CONFIRM|REJECT)$")
     reason: str | None = Field(default=None, max_length=1000)
+    reading_bbox: ReadingBoundingBox | None = None
 
 
 class ReviewResponse(BaseModel):
