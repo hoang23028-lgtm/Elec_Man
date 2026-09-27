@@ -1064,6 +1064,67 @@ a {
   font-weight: 800;
   white-space: nowrap;
 }
+.reading-resize-handle {
+  position: absolute;
+  z-index: 3;
+  width: 2.75rem;
+  min-height: 2.75rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  padding: 0;
+  pointer-events: auto;
+  touch-action: none;
+}
+.reading-resize-handle::after {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0.9rem;
+  height: 0.9rem;
+  border: 2px solid #0f172a;
+  border-radius: 0.2rem;
+  background: #67e8f9;
+  box-shadow: 0 0 0 2px rgb(255 255 255 / 0.9);
+  content: "";
+  transform: translate(-50%, -50%);
+  transition:
+    background 150ms ease,
+    box-shadow 150ms ease;
+}
+.reading-selection button.reading-resize-handle:hover:not(:disabled),
+.reading-selection button.reading-resize-handle:focus-visible {
+  background: rgb(255 255 255 / 0.18);
+}
+.reading-selection button.reading-resize-handle:hover:not(:disabled)::after,
+.reading-selection button.reading-resize-handle:focus-visible::after {
+  background: #fff;
+  box-shadow: 0 0 0 3px #22d3ee;
+}
+.reading-resize-handle.north-west {
+  top: 0;
+  left: 0;
+  cursor: nwse-resize;
+  transform: translate(-50%, -50%);
+}
+.reading-resize-handle.north-east {
+  top: 0;
+  right: 0;
+  cursor: nesw-resize;
+  transform: translate(50%, -50%);
+}
+.reading-resize-handle.south-east {
+  right: 0;
+  bottom: 0;
+  cursor: nwse-resize;
+  transform: translate(50%, 50%);
+}
+.reading-resize-handle.south-west {
+  bottom: 0;
+  left: 0;
+  cursor: nesw-resize;
+  transform: translate(-50%, 50%);
+}
 .reading-annotator-controls {
   position: sticky;
   top: 0;

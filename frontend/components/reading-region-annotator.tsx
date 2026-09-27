@@ -1,6 +1,6 @@
 "use client";
 
-import { PointerEvent, useRef, useState } from "react";
+import { KeyboardEvent, PointerEvent, useRef, useState } from "react";
 
 import type { ReadingBoundingBox } from "@/services/results";
 
@@ -12,8 +12,11 @@ type Props = {
 };
 
 type Point = { x: number; y: number };
+type Corner = "north-west" | "north-east" | "south-east" | "south-west";
+type ResizeSession = { corner: Corner; initial: ReadingBoundingBox };
 
 const minimumSize = 0.005;
+const keyboardStep = 0.005;
 
 function clamp(value: number, minimum = 0, maximum = 1) {
   return Math.min(maximum, Math.max(minimum, value));
@@ -34,23 +37,63 @@ function boxFromPoints(start: Point, end: Point): ReadingBoundingBox {
   };
 }
 
+function resizeFromCorner(
+  initial: ReadingBoundingBox,
+  corner: Corner,
+  pointer: Point,
+): ReadingBoundingBox {
+  const left = initial.x;
+  const top = initial.y;
+  const right = initial.x + initial.width;
+  const bottom = initial.y + initial.height;
+
+  if (corner === "north-west") {
+    const x = clamp(pointer.x, 0, right - minimumSize);
+    const y = clamp(pointer.y, 0, bottom - minimumSize);
+    return { x: rounded(x), y: rounded(y), width: rounded(right - x), height: rounded(bottom - y) };
+  }
+  if (corner === "north-east") {
+    const nextRight = clamp(pointer.x, left + minimumSize, 1);
+    const y = clamp(pointer.y, 0, bottom - minimumSize);
+    return { x: rounded(left), y: rounded(y), width: rounded(nextRight - left), height: rounded(bottom - y) };
+  }
+  if (corner === "south-east") {
+    const nextRight = clamp(pointer.x, left + minimumSize, 1);
+    const nextBottom = clamp(pointer.y, top + minimumSize, 1);
+    return { x: rounded(left), y: rounded(top), width: rounded(nextRight - left), height: rounded(nextBottom - top) };
+  }
+  const x = clamp(pointer.x, 0, right - minimumSize);
+  const nextBottom = clamp(pointer.y, top + minimumSize, 1);
+  return { x: rounded(x), y: rounded(top), width: rounded(right - x), height: rounded(nextBottom - top) };
+}
+
+function cornerPoint(box: ReadingBoundingBox, corner: Corner): Point {
+  return {
+    x: corner.endsWith("east") ? box.x + box.width : box.x,
+    y: corner.startsWith("south") ? box.y + box.height : box.y,
+  };
+}
+
 export function ReadingRegionAnnotator({ imageUrl, imageAlt, value, onChange }: Props) {
   const surfaceRef = useRef<HTMLDivElement>(null);
   const startRef = useRef<Point | null>(null);
+  const resizeRef = useRef<ResizeSession | null>(null);
   const [drawing, setDrawing] = useState(false);
+  const [resizingCorner, setResizingCorner] = useState<Corner | null>(null);
 
-  function pointerPosition(event: PointerEvent<HTMLDivElement>): Point {
-    const bounds = event.currentTarget.getBoundingClientRect();
+  function pointerPosition(clientX: number, clientY: number): Point {
+    const bounds = surfaceRef.current?.getBoundingClientRect();
+    if (!bounds) return { x: 0, y: 0 };
     return {
-      x: clamp((event.clientX - bounds.left) / bounds.width),
-      y: clamp((event.clientY - bounds.top) / bounds.height),
+      x: clamp((clientX - bounds.left) / bounds.width),
+      y: clamp((clientY - bounds.top) / bounds.height),
     };
   }
 
   function beginDrawing(event: PointerEvent<HTMLDivElement>) {
-    if (event.button !== 0) return;
+    if (event.button !== 0 || event.target !== event.currentTarget) return;
     event.currentTarget.setPointerCapture(event.pointerId);
-    const pointer = pointerPosition(event);
+    const pointer = pointerPosition(event.clientX, event.clientY);
     const start = {
       x: Math.min(1 - minimumSize, pointer.x),
       y: Math.min(1 - minimumSize, pointer.y),
@@ -62,15 +105,57 @@ export function ReadingRegionAnnotator({ imageUrl, imageAlt, value, onChange }: 
 
   function continueDrawing(event: PointerEvent<HTMLDivElement>) {
     if (!drawing || !startRef.current) return;
-    onChange(boxFromPoints(startRef.current, pointerPosition(event)));
+    onChange(boxFromPoints(startRef.current, pointerPosition(event.clientX, event.clientY)));
   }
 
   function endDrawing(event: PointerEvent<HTMLDivElement>) {
     if (!drawing || !startRef.current) return;
-    onChange(boxFromPoints(startRef.current, pointerPosition(event)));
+    onChange(boxFromPoints(startRef.current, pointerPosition(event.clientX, event.clientY)));
     startRef.current = null;
     setDrawing(false);
     event.currentTarget.releasePointerCapture(event.pointerId);
+  }
+
+  function beginResizing(event: PointerEvent<HTMLButtonElement>, corner: Corner) {
+    if (event.button !== 0 || !value) return;
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    resizeRef.current = { corner, initial: value };
+    setResizingCorner(corner);
+  }
+
+  function continueResizing(event: PointerEvent<HTMLButtonElement>) {
+    const session = resizeRef.current;
+    if (!session) return;
+    onChange(
+      resizeFromCorner(
+        session.initial,
+        session.corner,
+        pointerPosition(event.clientX, event.clientY),
+      ),
+    );
+  }
+
+  function endResizing(event: PointerEvent<HTMLButtonElement>) {
+    if (!resizeRef.current) return;
+    continueResizing(event);
+    resizeRef.current = null;
+    setResizingCorner(null);
+    event.currentTarget.releasePointerCapture(event.pointerId);
+  }
+
+  function adjustCornerWithKeyboard(event: KeyboardEvent<HTMLButtonElement>, corner: Corner) {
+    if (!value || !["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) {
+      return;
+    }
+    event.preventDefault();
+    const step = event.shiftKey ? keyboardStep * 4 : keyboardStep;
+    const point = cornerPoint(value, corner);
+    if (event.key === "ArrowLeft") point.x -= step;
+    if (event.key === "ArrowRight") point.x += step;
+    if (event.key === "ArrowUp") point.y -= step;
+    if (event.key === "ArrowDown") point.y += step;
+    onChange(resizeFromCorner(value, corner, point));
   }
 
   function updatePercentage(field: keyof ReadingBoundingBox, rawValue: string) {
@@ -98,7 +183,7 @@ export function ReadingRegionAnnotator({ imageUrl, imageAlt, value, onChange }: 
     <div className="reading-annotator">
       <div
         ref={surfaceRef}
-        className={`reading-annotator-surface${drawing ? " drawing" : ""}`}
+        className={`reading-annotator-surface${drawing ? " drawing" : ""}${resizingCorner ? " resizing" : ""}`}
         onPointerDown={beginDrawing}
         onPointerMove={continueDrawing}
         onPointerUp={endDrawing}
@@ -119,6 +204,26 @@ export function ReadingRegionAnnotator({ imageUrl, imageAlt, value, onChange }: 
             }}
           >
             <span>Vùng chỉ số</span>
+            {(
+              [
+                ["north-west", "Góc trên trái"],
+                ["north-east", "Góc trên phải"],
+                ["south-east", "Góc dưới phải"],
+                ["south-west", "Góc dưới trái"],
+              ] as Array<[Corner, string]>
+            ).map(([corner, label]) => (
+              <button
+                key={corner}
+                type="button"
+                className={`reading-resize-handle ${corner}`}
+                aria-label={`${label}. Kéo hoặc dùng các phím mũi tên để điều chỉnh`}
+                onPointerDown={(event) => beginResizing(event, corner)}
+                onPointerMove={continueResizing}
+                onPointerUp={endResizing}
+                onPointerCancel={endResizing}
+                onKeyDown={(event) => adjustCornerWithKeyboard(event, corner)}
+              />
+            ))}
           </div>
         )}
       </div>
@@ -128,7 +233,8 @@ export function ReadingRegionAnnotator({ imageUrl, imageAlt, value, onChange }: 
           <h4>Khoanh vùng dãy số điện</h4>
           <p className="muted">
             Kéo từ góc trên trái đến góc dưới phải của các số màu đen. Không lấy bánh số đỏ
-            sau dấu phẩy.
+            sau dấu phẩy. Sau khi tạo khung, kéo một trong bốn góc để tinh chỉnh. Có thể chọn
+            từng góc và dùng phím mũi tên; giữ Shift để điều chỉnh nhanh hơn.
           </p>
         </div>
         <div className="reading-coordinate-grid">
