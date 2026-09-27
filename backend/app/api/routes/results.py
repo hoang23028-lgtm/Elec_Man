@@ -6,8 +6,19 @@ from sqlalchemy.orm import Session
 from app.api.pagination import validate_pagination
 from app.core.database import get_db
 from app.models.user import User
-from app.schemas.result import ResultRow, ReviewRequest, ReviewResponse
+from app.schemas.result import (
+    RecognitionRequest,
+    RecognitionResponse,
+    RecognitionStatusResponse,
+    ResultRow,
+    ReviewRequest,
+    ReviewResponse,
+)
 from app.security.dependencies import get_current_user, require_csrf
+from app.services.region_recognition_service import (
+    queue_region_recognition,
+    region_recognition_status,
+)
 from app.services.review_service import list_results, review_result
 
 router = APIRouter()
@@ -45,3 +56,34 @@ def review(
     return ReviewResponse(
         image_id=image_id, review_status=record.review_status, reviewed_at=record.reviewed_at
     )
+
+
+@router.post(
+    "/{image_id}/recognize-reading",
+    response_model=RecognitionResponse,
+    status_code=202,
+    dependencies=[Depends(require_csrf)],
+)
+def recognize_reading(
+    image_id: UUID,
+    payload: RecognitionRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> RecognitionResponse:
+    return queue_region_recognition(
+        db,
+        image_id,
+        payload.reading_bbox,
+        user,
+        request.client.host if request.client else None,
+    )
+
+
+@router.get("/{image_id}/recognize-reading", response_model=RecognitionStatusResponse)
+def recognize_reading_status(
+    image_id: UUID,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+) -> RecognitionStatusResponse:
+    return region_recognition_status(db, image_id)

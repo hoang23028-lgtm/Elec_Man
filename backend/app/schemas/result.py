@@ -22,6 +22,8 @@ class ReadingBoundingBox(BaseModel):
 class ResultRow(BaseModel):
     image_id: UUID
     original_filename: str
+    image_width: int
+    image_height: int
     image_status: str
     ai_result_id: UUID
     customer_id_ai: str | None
@@ -36,6 +38,7 @@ class ResultRow(BaseModel):
     matched_customer_name: str | None
     matched_meter_serial: str | None
     reading_bbox: ReadingBoundingBox | None
+    ai_reading_bbox: ReadingBoundingBox | None
 
 
 class ReviewRequest(BaseModel):
@@ -50,3 +53,19 @@ class ReviewResponse(BaseModel):
     image_id: UUID
     review_status: str
     reviewed_at: datetime
+
+
+class RecognitionRequest(BaseModel):
+    reading_bbox: ReadingBoundingBox
+
+
+class RecognitionResponse(BaseModel):
+    image_id: UUID
+    job_id: UUID
+    status: str
+
+
+class RecognitionStatusResponse(RecognitionResponse):
+    meter_reading_ai: str | None
+    meter_confidence: float | None
+    error_message: str | None

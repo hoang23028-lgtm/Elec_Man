@@ -8,6 +8,8 @@ export type ReadingBoundingBox = {
 export type Result = {
   image_id: string;
   original_filename: string;
+  image_width: number;
+  image_height: number;
   image_status: string;
   ai_status: string;
   customer_id_ai: string | null;
@@ -21,6 +23,15 @@ export type Result = {
   matched_customer_name: string | null;
   matched_meter_serial: string | null;
   reading_bbox: ReadingBoundingBox | null;
+  ai_reading_bbox: ReadingBoundingBox | null;
+};
+export type RecognitionStatus = {
+  image_id: string;
+  job_id: string;
+  status: string;
+  meter_reading_ai: string | null;
+  meter_confidence: number | null;
+  error_message: string | null;
 };
 export type ResultQuery = {
   offset?: number;
@@ -57,4 +68,25 @@ export async function reviewResult(
       reading_bbox: readingBbox,
     }),
   }, "Kiểm duyệt thất bại.");
+}
+
+export async function recognizeReading(
+  id: string,
+  csrf: string,
+  readingBbox: ReadingBoundingBox,
+): Promise<void> {
+  await apiFetch(`/results/${id}/recognize-reading`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+    body: JSON.stringify({ reading_bbox: readingBbox }),
+  }, "Không thể đưa vùng chỉ số vào hàng đợi nhận diện.");
+}
+
+export async function getRecognitionStatus(id: string): Promise<RecognitionStatus> {
+  const response = await apiFetch(
+    `/results/${id}/recognize-reading`,
+    undefined,
+    "Không thể kiểm tra trạng thái nhận diện.",
+  );
+  return response.json() as Promise<RecognitionStatus>;
 }

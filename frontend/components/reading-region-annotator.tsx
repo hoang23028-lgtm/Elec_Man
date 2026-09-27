@@ -8,7 +8,12 @@ type Props = {
   imageUrl: string;
   imageAlt: string;
   value: ReadingBoundingBox | null;
+  automaticValue: ReadingBoundingBox | null;
   onChange: (value: ReadingBoundingBox | null) => void;
+  onRecognize: () => void;
+  recognizing: boolean;
+  recognitionStatus: string | null;
+  canRecognize: boolean;
 };
 
 type Point = { x: number; y: number };
@@ -74,7 +79,17 @@ function cornerPoint(box: ReadingBoundingBox, corner: Corner): Point {
   };
 }
 
-export function ReadingRegionAnnotator({ imageUrl, imageAlt, value, onChange }: Props) {
+export function ReadingRegionAnnotator({
+  imageUrl,
+  imageAlt,
+  value,
+  automaticValue,
+  onChange,
+  onRecognize,
+  recognizing,
+  recognitionStatus,
+  canRecognize,
+}: Props) {
   const surfaceRef = useRef<HTMLDivElement>(null);
   const startRef = useRef<Point | null>(null);
   const resizeRef = useRef<ResizeSession | null>(null);
@@ -206,6 +221,19 @@ export function ReadingRegionAnnotator({ imageUrl, imageAlt, value, onChange }: 
         {/* The authenticated image is loaded directly in the browser. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={imageUrl} alt={imageAlt} draggable={false} />
+        {automaticValue && (
+          <div
+            className="automatic-reading-selection"
+            style={{
+              left: `${automaticValue.x * 100}%`,
+              top: `${automaticValue.y * 100}%`,
+              width: `${automaticValue.width * 100}%`,
+              height: `${automaticValue.height * 100}%`,
+            }}
+          >
+            <span>Vùng tự động</span>
+          </div>
+        )}
         {value && (
           <div
             className="reading-selection"
@@ -216,7 +244,7 @@ export function ReadingRegionAnnotator({ imageUrl, imageAlt, value, onChange }: 
               height: `${value.height * 100}%`,
             }}
           >
-            <span>Vùng chỉ số</span>
+            <span>Vùng người dùng</span>
             {(
               [
                 ["north-west", "Góc trên trái"],
@@ -266,13 +294,31 @@ export function ReadingRegionAnnotator({ imageUrl, imageAlt, value, onChange }: 
             </label>
           ))}
         </div>
-        <button type="button" className="secondary" onClick={() => onChange(null)} disabled={!value}>
-          Xóa vùng đã chọn
-        </button>
+        <div className="reading-annotator-actions">
+          <button
+            type="button"
+            onClick={onRecognize}
+            disabled={!value || recognizing || !canRecognize}
+          >
+            {recognizing ? "Đang xác định chỉ số…" : "Xác định chỉ số"}
+          </button>
+          <button
+            type="button"
+            className="secondary"
+            onClick={() => onChange(null)}
+            disabled={!value || recognizing}
+          >
+            Xóa vùng đã chọn
+          </button>
+        </div>
         <p className={`annotation-status ${value ? "complete" : ""}`} role="status">
-          {value
-            ? "Đã có vùng chỉ số. Đóng cửa sổ và bấm Lưu thay đổi hoặc Xác nhận."
-            : "Chưa có vùng chỉ số — ảnh này sẽ chưa được dùng để huấn luyện."}
+          {recognitionStatus ??
+            (!canRecognize
+              ? "Chỉ có thể xác định lại chỉ số khi kết quả đang ở danh sách Cần xử lý."
+              : null) ??
+            (value
+              ? "Đã có vùng chỉ số. Bấm Xác định chỉ số để OCR lại theo vùng màu đỏ."
+              : "Chưa có vùng chỉ số — ảnh này sẽ chưa được dùng để huấn luyện.")}
         </p>
       </aside>
     </div>

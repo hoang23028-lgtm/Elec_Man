@@ -16,4 +16,6 @@ Quản trị viên phải xem độ chính xác validation và độ phủ chữ
 
 Quy trình sử dụng trên giao diện là: **Vận hành → tải ảnh → xử lý OCR → mở ảnh → khoanh đúng dãy bánh số màu đen (không lấy bánh đỏ sau dấu phẩy) → sửa mã khách hàng/số điện → xác nhận → Vòng đời mô hình → Huấn luyện ngay → xem đánh giá → Kích hoạt**. Có thể kéo chuột/cảm ứng, điều chỉnh độc lập bằng bốn tay nắm ở các góc hoặc nhập bốn tọa độ phần trăm bằng bàn phím. Khi một tay nắm được chọn, dùng phím mũi tên để tinh chỉnh và giữ `Shift` để di chuyển nhanh hơn. Chỉ tải ảnh chưa tạo ra nhãn đáng tin cậy; vùng chỉ số và kết quả phải được con người xác nhận trước khi ảnh được đưa vào dataset. Mọi lần thay đổi vùng đều được ghi nhật ký với giá trị trước và sau.
 
+Trong cửa sổ khoanh vùng, khung xanh là vùng hệ thống tự phát hiện và khung đỏ là vùng do người dùng xác định. Nút **Xác định chỉ số** gửi vùng đỏ tới worker OCR và cập nhật số điện đề xuất, nhưng luôn giữ ảnh trong danh sách **Cần xử lý** cho đến khi người dùng bấm **Xác nhận**.
+
 Ngưỡng 20 mẫu chỉ giúp chạy thử pipeline, không chứng minh chất lượng sản xuất. Cần hàng trăm đến hàng nghìn ảnh đa dạng, đủ chữ số 0–9 và tập kiểm thử độc lập trước khi tin cậy tự động xác nhận.

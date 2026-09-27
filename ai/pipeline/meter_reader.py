@@ -13,7 +13,10 @@ class MeterReader:
         self.trained_model = trained_model
 
     def read(
-        self, image: np.ndarray, lines: list[TextLine] | None = None
+        self,
+        image: np.ndarray,
+        lines: list[TextLine] | None = None,
+        reading_bbox: tuple[float, float, float, float] | None = None,
     ) -> tuple[str | None, float]:
         best: tuple[str | None, float] = (None, 0.0)
         for line in lines if lines is not None else read_lines(image):
@@ -31,7 +34,10 @@ class MeterReader:
                     best = (group, round(score, 4))
         if best[0] and self.trained_model is not None:
             features = reading_features(
-                image, len(best[0]), self.trained_model.feature_mode
+                image,
+                len(best[0]),
+                self.trained_model.feature_mode,
+                reading_bbox,
             )
             trained_value, trained_confidence = self.trained_model.predict_features(
                 features

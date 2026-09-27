@@ -31,3 +31,14 @@ def test_auto_confirm_requires_numeric_meter_reading() -> None:
     }
 
     assert should_auto_confirm(result, 0.9) is False
+
+
+def test_human_region_recognition_never_auto_confirms() -> None:
+    result = {
+        "customer_id_ai": "KH004",
+        "meter_reading_ai": "63751",
+        "final_confidence": 0.99,
+        "human_region_requested": True,
+    }
+
+    assert should_auto_confirm(result, 0.9) is False

@@ -24,6 +24,27 @@ from app.services.meter_value import normalize_meter_reading, parse_meter_value
 from app.services.reviewed_image_service import archive_reviewed_image, remove_reviewed_image
 
 
+def _normalized_ai_reading_bbox(
+    image: ImageRecord, ai_result: AiResult
+) -> ReadingBoundingBox | None:
+    region = (ai_result.raw_result_json.get("regions") or {}).get("reading")
+    if not isinstance(region, list | tuple) or len(region) != 4:
+        return None
+    scale = min(1.0, 1600 / max(image.width, image.height))
+    prepared_width = round(image.width * scale)
+    prepared_height = round(image.height * scale)
+    try:
+        x, y, width, height = (float(value) for value in region)
+        return ReadingBoundingBox(
+            x=x / prepared_width,
+            y=y / prepared_height,
+            width=width / prepared_width,
+            height=height / prepared_height,
+        )
+    except (TypeError, ValueError, ZeroDivisionError):
+        return None
+
+
 def _apply_result_filters(statement, image_status: str | None, search: str | None):
     if image_status:
         statement = statement.where(ImageRecord.status == image_status)
@@ -68,6 +89,8 @@ def list_results(
         ResultRow(
             image_id=image.id,
             original_filename=image.original_filename,
+            image_width=image.width,
+            image_height=image.height,
             image_status=image.status,
             ai_result_id=ai_result.id,
             customer_id_ai=ai_result.customer_id_ai,
@@ -97,6 +120,7 @@ def list_results(
                 and reading.reading_bbox_height is not None
                 else None
             ),
+            ai_reading_bbox=_normalized_ai_reading_bbox(image, ai_result),
         )
         for image, ai_result, reading, customer, _ in rows
     ]

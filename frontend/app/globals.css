@@ -944,8 +944,11 @@ a {
   box-shadow: var(--shadow-sm);
 }
 .result-preview {
+  position: relative;
   display: block;
-  min-height: 12rem;
+  align-self: start;
+  width: 100%;
+  min-height: 0;
   overflow: hidden;
   border: 0;
   border-radius: 0;
@@ -960,7 +963,22 @@ a {
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: fill;
+}
+.result-region-overlay {
+  position: absolute;
+  z-index: 2;
+  border: 2px solid;
+  pointer-events: none;
+}
+.result-region-overlay.automatic {
+  border-color: #16a34a;
+  background: rgb(22 163 74 / 0.13);
+}
+.result-region-overlay.human {
+  z-index: 3;
+  border-color: #dc2626;
+  background: rgb(220 38 38 / 0.12);
 }
 .image-preview-dialog {
   width: min(92rem, calc(100vw - 2rem));
@@ -1047,8 +1065,8 @@ a {
 .reading-selection {
   position: absolute;
   z-index: 2;
-  border: 3px solid #22d3ee;
-  background: rgb(34 211 238 / 0.16);
+  border: 3px solid #dc2626;
+  background: rgb(220 38 38 / 0.14);
   box-shadow: 0 0 0 1px rgb(15 23 42 / 0.7), inset 0 0 0 1px rgb(255 255 255 / 0.55);
   pointer-events: none;
 }
@@ -1057,7 +1075,27 @@ a {
   top: -1.8rem;
   left: -0.2rem;
   border-radius: 0.3rem;
-  background: #0e7490;
+  background: #b91c1c;
+  color: #fff;
+  padding: 0.2rem 0.45rem;
+  font-size: 0.7rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.automatic-reading-selection {
+  position: absolute;
+  z-index: 1;
+  border: 3px solid #16a34a;
+  background: rgb(22 163 74 / 0.12);
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.75);
+  pointer-events: none;
+}
+.automatic-reading-selection span {
+  position: absolute;
+  right: -0.2rem;
+  bottom: -1.8rem;
+  border-radius: 0.3rem;
+  background: #15803d;
   color: #fff;
   padding: 0.2rem 0.45rem;
   font-size: 0.7rem;
@@ -1084,7 +1122,7 @@ a {
   height: 0.9rem;
   border: 2px solid #0f172a;
   border-radius: 0.2rem;
-  background: #67e8f9;
+  background: #fca5a5;
   box-shadow: 0 0 0 2px rgb(255 255 255 / 0.9);
   content: "";
   transform: translate(-50%, -50%);
@@ -1099,7 +1137,7 @@ a {
 .reading-selection button.reading-resize-handle:hover:not(:disabled)::after,
 .reading-selection button.reading-resize-handle:focus-visible::after {
   background: #fff;
-  box-shadow: 0 0 0 3px #22d3ee;
+  box-shadow: 0 0 0 3px #ef4444;
 }
 .reading-resize-handle.north-west {
   top: 0;
@@ -1155,7 +1193,11 @@ a {
   padding: 0.45rem 0.55rem;
   font-family: "Cascadia Code", Consolas, monospace;
 }
-.reading-annotator-controls > button {
+.reading-annotator-actions {
+  display: grid;
+  gap: var(--space-md);
+}
+.reading-annotator-actions button {
   width: 100%;
 }
 .annotation-status {
@@ -1197,6 +1239,34 @@ a {
   color: #166534;
   font-size: 0.72rem;
   font-weight: 700;
+}
+.region-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+  margin-top: var(--space-md);
+  color: var(--color-muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+.region-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+.region-legend i {
+  width: 0.85rem;
+  height: 0.6rem;
+  border: 2px solid;
+  border-radius: 0.15rem;
+}
+.region-legend i.automatic {
+  border-color: #16a34a;
+  background: rgb(22 163 74 / 0.13);
+}
+.region-legend i.human {
+  border-color: #dc2626;
+  background: rgb(220 38 38 / 0.12);
 }
 
 .result-origin.matched {

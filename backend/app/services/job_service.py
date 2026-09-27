@@ -29,7 +29,8 @@ def should_auto_confirm(result_json: dict, threshold: float) -> bool:
     except (TypeError, ValueError):
         return False
     return bool(
-        confidence > threshold
+        not result_json.get("human_region_requested")
+        and confidence > threshold
         and result_json.get("customer_id_ai")
         and result_json.get("meter_reading_ai")
         and parse_meter_value(result_json.get("meter_reading_ai")) is not None
@@ -219,6 +220,7 @@ def mark_job_completed(db: Session, job_id: UUID, result_json: dict) -> None:
     if record is None or record[0].status != JobStatus.PROCESSING:
         return
     job, image = record
+    human_region_requested = (job.input_json or {}).get("source") == "HUMAN_REVIEW"
     job.status = JobStatus.COMPLETED
     job.completed_at = datetime.now(UTC)
     job.result_json = result_json
@@ -283,8 +285,16 @@ def mark_job_completed(db: Session, job_id: UUID, result_json: dict) -> None:
         image.status = ImageStatus.REVIEW_REQUIRED
     db.add(
         AuditLog(
-            user_id=None,
-            action="PROCESSING_COMPLETED",
+            user_id=(
+                UUID(job.input_json["requested_by"])
+                if human_region_requested and (job.input_json or {}).get("requested_by")
+                else None
+            ),
+            action=(
+                "READING_REGION_RECOGNITION_COMPLETED"
+                if human_region_requested
+                else "PROCESSING_COMPLETED"
+            ),
             target_type="image",
             target_id=str(image.id),
             details_json={
@@ -296,6 +306,9 @@ def mark_job_completed(db: Session, job_id: UUID, result_json: dict) -> None:
                 "confidence": result_json.get("final_confidence"),
                 "processing_time_ms": result_json.get("processing_time_ms"),
                 "auto_confirmed": auto_confirmed,
+                "reading_bbox": (job.input_json or {}).get("reading_bbox"),
+                "meter_reading_after": result_json.get("meter_reading_ai"),
+                "meter_confidence": result_json.get("meter_confidence"),
                 "customer_match_status": (
                     reading.customer_match_status if reading else "NOT_CHECKED"
                 ),
@@ -318,14 +331,17 @@ def mark_job_failure(db: Session, job_id: UUID, error_code: str, error_message: 
     if record is None or record[0].status != JobStatus.PROCESSING:
         return
     job, image = record
+    human_region_requested = (job.input_json or {}).get("source") == "HUMAN_REVIEW"
     now = datetime.now(UTC)
     job.error_code = error_code[:64]
     job.error_message = error_message[:2000]
     if job.attempt_count >= job.max_attempts:
         job.status = JobStatus.FAILED
         job.completed_at = now
-        image.status = ImageStatus.FAILED
-        audit_action = "PROCESSING_FAILED"
+        image.status = ImageStatus.REVIEW_REQUIRED if human_region_requested else ImageStatus.FAILED
+        audit_action = (
+            "READING_REGION_RECOGNITION_FAILED" if human_region_requested else "PROCESSING_FAILED"
+        )
     else:
         job.status = JobStatus.PENDING
         job.next_retry_at = now + timedelta(seconds=min(60, 2**job.attempt_count))

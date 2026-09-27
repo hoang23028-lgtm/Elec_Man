@@ -5,7 +5,9 @@ import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { Pagination } from "@/components/pagination";
 import { ReadingRegionAnnotator } from "@/components/reading-region-annotator";
 import {
+  getRecognitionStatus,
   getResultsPage,
+  recognizeReading,
   reviewResult,
   type ReadingBoundingBox,
   type Result,
@@ -18,9 +20,29 @@ type Draft = {
   readingBbox: ReadingBoundingBox | null;
 };
 type Props = { csrfToken: string; refreshKey?: number };
-type ImagePreview = { imageId: string; filename: string };
+type ImagePreview = {
+  imageId: string;
+  filename: string;
+  automaticBbox: ReadingBoundingBox | null;
+  canRecognize: boolean;
+};
 
 const pageSize = 12;
+const recognitionPollMilliseconds = 1000;
+const recognitionPollAttempts = 120;
+
+function bboxStyle(bbox: ReadingBoundingBox) {
+  return {
+    left: `${bbox.x * 100}%`,
+    top: `${bbox.y * 100}%`,
+    width: `${bbox.width * 100}%`,
+    height: `${bbox.height * 100}%`,
+  };
+}
+
+function wait(milliseconds: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+}
 
 function initialDraft(row: Result): Draft {
   return {
@@ -49,6 +71,8 @@ export function OperationsResults({ csrfToken, refreshKey = 0 }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [imagePreview, setImagePreview] = useState<ImagePreview | null>(null);
+  const [recognizingId, setRecognizingId] = useState<string | null>(null);
+  const [recognitionStatus, setRecognitionStatus] = useState<string | null>(null);
   const previewDialogRef = useRef<HTMLDialogElement>(null);
   const previewTriggerRef = useRef<HTMLButtonElement | null>(null);
 
@@ -107,7 +131,13 @@ export function OperationsResults({ csrfToken, refreshKey = 0 }: Props) {
 
   function openImagePreview(row: Result, trigger: HTMLButtonElement) {
     previewTriggerRef.current = trigger;
-    setImagePreview({ imageId: row.image_id, filename: row.original_filename });
+    setRecognitionStatus(null);
+    setImagePreview({
+      imageId: row.image_id,
+      filename: row.original_filename,
+      automaticBbox: row.ai_reading_bbox,
+      canRecognize: row.image_status === "REVIEW_REQUIRED",
+    });
   }
 
   function closeImagePreview() {
@@ -136,6 +166,52 @@ export function OperationsResults({ csrfToken, refreshKey = 0 }: Props) {
         readingBbox: value,
       },
     }));
+  }
+
+  async function recognizeSelectedReading() {
+    if (!imagePreview) return;
+    const draft = drafts[imagePreview.imageId];
+    if (!draft?.readingBbox) {
+      setRecognitionStatus("Hãy khoanh vùng chỉ số trước khi nhận diện.");
+      return;
+    }
+    setRecognizingId(imagePreview.imageId);
+    setRecognitionStatus("Đã gửi yêu cầu. Hệ thống đang xác định chỉ số trong vùng màu đỏ…");
+    setError(null);
+    try {
+      await recognizeReading(imagePreview.imageId, csrfToken, draft.readingBbox);
+      for (let attempt = 0; attempt < recognitionPollAttempts; attempt += 1) {
+        await wait(recognitionPollMilliseconds);
+        const status = await getRecognitionStatus(imagePreview.imageId);
+        if (status.status === "FAILED") {
+          throw new Error(status.error_message ?? "Không thể nhận diện vùng chỉ số.");
+        }
+        if (status.status === "COMPLETED") {
+          setDrafts((current) => ({
+            ...current,
+            [imagePreview.imageId]: {
+              ...(current[imagePreview.imageId] ?? draft),
+              reading: status.meter_reading_ai ?? "",
+            },
+          }));
+          setRecognitionStatus(
+            status.meter_reading_ai
+              ? `Đã nhận diện: ${status.meter_reading_ai} kWh. Kết quả vẫn chờ bạn xác nhận.`
+              : "Không đọc được chỉ số trong vùng đã chọn. Hãy điều chỉnh vùng và thử lại.",
+          );
+          setMessage("Đã xác định lại chỉ số; kết quả vẫn nằm trong danh sách Cần xử lý.");
+          await load(false);
+          return;
+        }
+      }
+      throw new Error("Quá thời gian chờ nhận diện. Tác vụ vẫn tiếp tục chạy trong nền.");
+    } catch (reason) {
+      const detail = reason instanceof Error ? reason.message : "Không thể xác định chỉ số.";
+      setRecognitionStatus(detail);
+      setError(detail);
+    } finally {
+      setRecognizingId(null);
+    }
   }
 
   async function submitReview(row: Result, action: "CONFIRM" | "REJECT") {
@@ -181,12 +257,13 @@ export function OperationsResults({ csrfToken, refreshKey = 0 }: Props) {
 
   function renderCard(row: Result, editableConfirmed = false) {
     const draft = drafts[row.image_id] ?? initialDraft(row);
-    const busy = busyId === row.image_id;
+    const busy = busyId === row.image_id || recognizingId === row.image_id;
     return (
       <article className="result-card" key={row.image_id}>
         <button
           type="button"
           className="result-preview"
+          style={{ aspectRatio: `${row.image_width} / ${row.image_height}` }}
           onClick={(event) => openImagePreview(row, event.currentTarget)}
           aria-label={`Phóng lớn ảnh ${row.original_filename}`}
         >
@@ -197,6 +274,20 @@ export function OperationsResults({ csrfToken, refreshKey = 0 }: Props) {
             alt={`Ảnh đồng hồ ${row.original_filename}`}
             loading="lazy"
           />
+          {row.ai_reading_bbox && (
+            <span
+              className="result-region-overlay automatic"
+              style={bboxStyle(row.ai_reading_bbox)}
+              aria-hidden="true"
+            />
+          )}
+          {draft.readingBbox && (
+            <span
+              className="result-region-overlay human"
+              style={bboxStyle(draft.readingBbox)}
+              aria-hidden="true"
+            />
+          )}
         </button>
         <div className="result-card-body">
           <div className="result-card-heading">
@@ -209,6 +300,10 @@ export function OperationsResults({ csrfToken, refreshKey = 0 }: Props) {
             >
               {confidenceLabel(row.final_confidence)}
             </span>
+          </div>
+          <div className="region-legend" aria-label="Chú thích vùng nhận diện">
+            <span><i className="automatic" aria-hidden="true" />Tự động</span>
+            <span><i className="human" aria-hidden="true" />Người dùng</span>
           </div>
           {editableConfirmed && (
             <>
@@ -398,7 +493,12 @@ export function OperationsResults({ csrfToken, refreshKey = 0 }: Props) {
               imageUrl={`/api/v1/images/${imagePreview.imageId}/preview`}
               imageAlt={`Ảnh đồng hồ ${imagePreview.filename}`}
               value={drafts[imagePreview.imageId]?.readingBbox ?? null}
+              automaticValue={imagePreview.automaticBbox}
               onChange={(value) => updateReadingBbox(imagePreview.imageId, value)}
+              onRecognize={() => void recognizeSelectedReading()}
+              recognizing={recognizingId === imagePreview.imageId}
+              recognitionStatus={recognitionStatus}
+              canRecognize={imagePreview.canRecognize}
             />
           </div>
         </dialog>

@@ -116,10 +116,13 @@ def sample_features(
 
 
 def reading_features(
-    image: np.ndarray, digit_count: int, feature_mode: str = "hog"
+    image: np.ndarray,
+    digit_count: int,
+    feature_mode: str = "hog",
+    reading_bbox: tuple[float, float, float, float] | None = None,
 ) -> list[np.ndarray]:
     extractor = _raw_feature if feature_mode == "raw" else _hog_feature
-    return [extractor(crop) for crop in digit_crops(image, digit_count)]
+    return [extractor(crop) for crop in digit_crops(image, digit_count, reading_bbox)]
 
 
 class DigitModel(Protocol):
