@@ -2,9 +2,11 @@ from datetime import UTC, datetime
 from hashlib import sha256
 
 import numpy as np
+import cv2
 from sqlalchemy import select
 
 from ai.training.digit_model import DigitHogSoftmaxModel, sample_features
+from ai.training.region_model import ReadingRegionRegressor, region_features
 from app.core.config import get_settings
 from app.core.database import SessionLocal
 from app.models.audit_log import AuditLog
@@ -33,6 +35,14 @@ def _reading_polygon(reading: MeterReading) -> tuple[tuple[float, float], ...] |
         return tuple((float(point["x"]), float(point["y"])) for point in points)
     except (KeyError, TypeError, ValueError):
         return None
+
+
+def _region_target(reading: MeterReading) -> np.ndarray:
+    polygon = _reading_polygon(reading)
+    if polygon is None:
+        x, y, width, height = _reading_bbox(reading)
+        polygon = ((x, y), (x + width, y), (x + width, y + height), (x, y + height))
+    return np.asarray(polygon, dtype=np.float32)
 
 
 def _set_stage(run_id, stage: str, progress: int) -> None:
@@ -72,7 +82,18 @@ def train_run(run_id) -> None:
             for image, reading in rows
         ).encode()
     ).hexdigest()
-    validation_rows = [row for row in rows if int(row[0].sha256[:2], 16) % 5 == 0]
+    validation_rows = [
+        row
+        for row in rows
+        if int(
+            sha256((row[1].final_customer_id or row[0].sha256).encode()).hexdigest()[
+                :2
+            ],
+            16,
+        )
+        % 5
+        == 0
+    ]
     if not validation_rows:
         validation_rows = [rows[-1]]
     validation_ids = {image.id for image, _ in validation_rows}
@@ -83,8 +104,22 @@ def train_run(run_id) -> None:
     _set_stage(run_id, "EXTRACTING_FEATURES", 25)
     training_features: list[np.ndarray] = []
     training_targets: list[int] = []
+    region_training_features: list[np.ndarray] = []
+    region_training_targets: list[np.ndarray] = []
+    reading_lengths: list[int] = []
     for image, reading in training_rows:
         path = settings.storage_root / image.relative_path
+        source = cv2.imread(str(path), cv2.IMREAD_COLOR)
+        if source is not None:
+            region_training_features.append(region_features(source))
+            region_training_targets.append(_region_target(reading))
+        digits = "".join(
+            character
+            for character in (reading.final_meter_reading or "")
+            if character.isdigit()
+        )
+        if digits:
+            reading_lengths.append(len(digits))
         for label, feature in sample_features(
             path,
             reading.final_meter_reading or "",
@@ -103,7 +138,30 @@ def train_run(run_id) -> None:
         seed=int(dataset_hash[:8], 16),
     )
     _set_stage(run_id, "VALIDATING", 65)
+    region_model = ReadingRegionRegressor.train(
+        region_training_features,
+        region_training_targets,
+    )
+    region_errors: list[float] = []
+    for image, reading in validation_rows:
+        source = cv2.imread(
+            str(settings.storage_root / image.relative_path), cv2.IMREAD_COLOR
+        )
+        prediction = region_model.predict(source) if source is not None else None
+        if prediction is None:
+            region_errors.append(1.0)
+            continue
+        predicted_polygon, _ = prediction
+        region_errors.append(
+            float(
+                np.mean(np.abs(np.asarray(predicted_polygon) - _region_target(reading)))
+            )
+        )
+    region_error = float(np.mean(region_errors)) if region_errors else 1.0
+    region_model = region_model.with_validation_error(region_error)
+    model = model.with_training_metadata(reading_lengths, region_model)
     correct = total = 0
+    exact_readings = evaluated_readings = 0
     for image, reading in validation_rows:
         validation_samples = sample_features(
             settings.storage_root / image.relative_path,
@@ -117,6 +175,8 @@ def train_run(run_id) -> None:
         predicted, _ = model.predict_features(
             [feature for _, feature in validation_samples]
         )
+        evaluated_readings += 1
+        exact_readings += int(predicted == expected)
         correct += sum(
             left == right for left, right in zip(expected, predicted, strict=True)
         )
@@ -130,14 +190,21 @@ def train_run(run_id) -> None:
     digest = sha256(target.read_bytes()).hexdigest()
     metrics = {
         "validation_digit_accuracy": round(correct / total, 4) if total else None,
+        "validation_reading_exact_accuracy": (
+            round(exact_readings / evaluated_readings, 4)
+            if evaluated_readings
+            else None
+        ),
+        "validation_region_mean_error": round(region_error, 4),
+        "validation_region_accuracy": round(max(0.0, 1.0 - region_error * 4.0), 4),
         "validation_digits": total,
         "digit_classes": model.labels.tolist(),
         "digit_coverage": round(len(model.labels) / 10, 4),
         "training_digits": len(training_features),
         "training_images": len(training_rows),
         "validation_images": len(validation_rows),
-        "algorithm": "hog-softmax-v1",
-        "augmentation_factor": 5,
+        "algorithm": "region-ridge-hog-softmax-v2",
+        "augmentation_factor": 10,
     }
     _set_stage(run_id, "REGISTERING_MODEL", 90)
     with SessionLocal() as db:

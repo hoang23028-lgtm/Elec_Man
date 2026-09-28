@@ -8,6 +8,7 @@ import numpy as np
 from ai.pipeline.detector import MeterDetector
 from ai.pipeline.geometry import perspective_crop
 from ai.pipeline.preprocessing import prepare_for_detection
+from ai.training.region_model import ReadingRegionRegressor
 
 WIDTH = 20
 HEIGHT = 32
@@ -56,8 +57,22 @@ def _augment_crop(image: np.ndarray) -> list[np.ndarray]:
         [
             cv2.convertScaleAbs(image, alpha=0.85, beta=0),
             cv2.convertScaleAbs(image, alpha=1.15, beta=0),
+            cv2.convertScaleAbs(image, alpha=1.0, beta=-22),
+            cv2.convertScaleAbs(image, alpha=1.0, beta=22),
+            cv2.GaussianBlur(image, (3, 3), 0),
         ]
     )
+    center = (width / 2, height / 2)
+    for angle in (-2.0, 2.0):
+        variants.append(
+            cv2.warpAffine(
+                image,
+                cv2.getRotationMatrix2D(center, angle, 1.0),
+                (width, height),
+                flags=cv2.INTER_LINEAR,
+                borderMode=cv2.BORDER_REPLICATE,
+            )
+        )
     return variants
 
 
@@ -142,6 +157,12 @@ class DigitModel(Protocol):
 
     def predict_features(self, features: list[np.ndarray]) -> tuple[str, float]: ...
 
+    def candidate_lengths(self) -> tuple[int, ...]: ...
+
+    def predict_region(
+        self, image: np.ndarray
+    ) -> tuple[tuple[tuple[float, float], ...], float] | None: ...
+
 
 @dataclass(frozen=True)
 class DigitCentroidModel:
@@ -168,6 +189,14 @@ class DigitCentroidModel:
             confidences.append(max(0.0, min(0.99, 1.0 - float(distances[best]) * 3.0)))
         return "".join(predictions), float(np.mean(confidences))
 
+    def candidate_lengths(self) -> tuple[int, ...]:
+        return (5, 6, 4, 7, 8)
+
+    def predict_region(
+        self, image: np.ndarray
+    ) -> tuple[tuple[tuple[float, float], ...], float] | None:
+        return None
+
 
 @dataclass(frozen=True)
 class DigitHogSoftmaxModel:
@@ -177,6 +206,9 @@ class DigitHogSoftmaxModel:
     bias: np.ndarray
     mean: np.ndarray
     scale: np.ndarray
+    reading_lengths: np.ndarray | None = None
+    reading_length_counts: np.ndarray | None = None
+    region_model: ReadingRegionRegressor | None = None
 
     @classmethod
     def train(
@@ -234,12 +266,54 @@ class DigitHogSoftmaxModel:
     @classmethod
     def load(cls, path: Path) -> "DigitHogSoftmaxModel":
         with np.load(path, allow_pickle=False) as data:
+            region_model = None
+            if {
+                "region_weights",
+                "region_bias",
+                "region_mean",
+                "region_scale",
+                "region_distance_threshold",
+                "region_validation_error",
+            }.issubset(data.files):
+                region_model = ReadingRegionRegressor(
+                    data["region_weights"].astype(np.float32),
+                    data["region_bias"].astype(np.float32),
+                    data["region_mean"].astype(np.float32),
+                    data["region_scale"].astype(np.float32),
+                    float(data["region_distance_threshold"][0]),
+                    float(data["region_validation_error"][0]),
+                )
+                if (
+                    region_model.weights.ndim != 2
+                    or region_model.weights.shape
+                    != (region_model.mean.size, region_model.bias.size)
+                    or region_model.bias.shape != (8,)
+                    or region_model.mean.ndim != 1
+                    or region_model.scale.shape != region_model.mean.shape
+                    or not np.all(np.isfinite(region_model.weights))
+                    or not np.all(np.isfinite(region_model.bias))
+                    or not np.all(np.isfinite(region_model.mean))
+                    or not np.all(np.isfinite(region_model.scale))
+                    or np.any(region_model.scale <= 0)
+                    or not np.isfinite(region_model.distance_threshold)
+                    or region_model.distance_threshold <= 0
+                    or not np.isfinite(region_model.validation_error)
+                    or region_model.validation_error < 0
+                ):
+                    raise ValueError("Artifact mô hình vùng chỉ số không hợp lệ.")
             model = cls(
                 data["labels"].astype(np.int64),
                 data["weights"].astype(np.float32),
                 data["bias"].astype(np.float32),
                 data["mean"].astype(np.float32),
                 data["scale"].astype(np.float32),
+                data["reading_lengths"].astype(np.int64)
+                if "reading_lengths" in data.files
+                else None,
+                data["reading_length_counts"].astype(np.int64)
+                if "reading_length_counts" in data.files
+                else None,
+                region_model,
             )
         if (
             model.weights.ndim != 2
@@ -258,13 +332,51 @@ class DigitHogSoftmaxModel:
         return model
 
     def save(self, path: Path) -> None:
-        np.savez_compressed(
-            path,
-            labels=self.labels,
-            weights=self.weights,
-            bias=self.bias,
-            mean=self.mean,
-            scale=self.scale,
+        payload: dict[str, np.ndarray] = {
+            "labels": self.labels,
+            "weights": self.weights,
+            "bias": self.bias,
+            "mean": self.mean,
+            "scale": self.scale,
+        }
+        if self.reading_lengths is not None:
+            payload["reading_lengths"] = self.reading_lengths
+        if self.reading_length_counts is not None:
+            payload["reading_length_counts"] = self.reading_length_counts
+        if self.region_model is not None:
+            payload.update(
+                {
+                    "region_weights": self.region_model.weights,
+                    "region_bias": self.region_model.bias,
+                    "region_mean": self.region_model.mean,
+                    "region_scale": self.region_model.scale,
+                    "region_distance_threshold": np.array(
+                        [self.region_model.distance_threshold], dtype=np.float32
+                    ),
+                    "region_validation_error": np.array(
+                        [self.region_model.validation_error], dtype=np.float32
+                    ),
+                }
+            )
+        np.savez_compressed(path, **payload)
+
+    def with_training_metadata(
+        self,
+        reading_lengths: list[int],
+        region_model: ReadingRegionRegressor,
+    ) -> "DigitHogSoftmaxModel":
+        lengths, counts = np.unique(
+            np.asarray(reading_lengths, dtype=np.int64), return_counts=True
+        )
+        return DigitHogSoftmaxModel(
+            self.labels,
+            self.weights,
+            self.bias,
+            self.mean,
+            self.scale,
+            lengths,
+            counts,
+            region_model,
         )
 
     def predict_features(self, features: list[np.ndarray]) -> tuple[str, float]:
@@ -281,6 +393,19 @@ class DigitHogSoftmaxModel:
         prediction = "".join(str(int(self.labels[index])) for index in best)
         confidence = float(np.mean(probabilities[np.arange(best.size), best]))
         return prediction, max(0.0, min(0.99, confidence))
+
+    def candidate_lengths(self) -> tuple[int, ...]:
+        if self.reading_lengths is None or self.reading_length_counts is None:
+            return (5, 6, 4, 7, 8)
+        order = np.argsort(-self.reading_length_counts)
+        return tuple(int(self.reading_lengths[index]) for index in order)
+
+    def predict_region(
+        self, image: np.ndarray
+    ) -> tuple[tuple[tuple[float, float], ...], float] | None:
+        return (
+            self.region_model.predict(image) if self.region_model is not None else None
+        )
 
 
 def load_digit_model(path: Path) -> DigitModel:

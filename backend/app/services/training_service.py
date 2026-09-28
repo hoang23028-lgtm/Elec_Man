@@ -14,8 +14,8 @@ from app.schemas.training import DatasetSummary, TrainingOverview, TrainingRunRo
 
 _TRAINING_DEFAULTS = {
     "training_auto_start": 1,
-    "training_min_samples": 20,
-    "training_min_new_samples": 10,
+    "training_min_samples": 200,
+    "training_min_new_samples": 25,
 }
 
 
@@ -36,6 +36,7 @@ def eligible_clause():
         MeterReading.reading_bbox_y.is_not(None),
         MeterReading.reading_bbox_width.is_not(None),
         MeterReading.reading_bbox_height.is_not(None),
+        MeterReading.reading_polygon_json.is_not(None),
         MeterReading.bbox_reviewed_by.is_not(None),
     )
 

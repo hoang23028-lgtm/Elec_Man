@@ -200,6 +200,16 @@ export function ModelOperations({ csrfToken }: { csrfToken: string }) {
                         ? `${Math.round(record.metrics.digit_coverage * 10)}/10 chữ số`
                         : "Chưa có độ phủ"}
                     </small>
+                    {typeof record.metrics.validation_reading_exact_accuracy === "number" && (
+                      <small>
+                        {`${Math.round(record.metrics.validation_reading_exact_accuracy * 1000) / 10}% đúng toàn bộ chỉ số`}
+                      </small>
+                    )}
+                    {typeof record.metrics.validation_region_accuracy === "number" && (
+                      <small>
+                        {`${Math.round(record.metrics.validation_region_accuracy * 1000) / 10}% chính xác vùng`}
+                      </small>
+                    )}
                   </td>
                   <td>
                     <button

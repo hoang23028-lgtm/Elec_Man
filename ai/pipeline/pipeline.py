@@ -27,9 +27,9 @@ class DevelopmentPipeline:
             "SPECIALIZED_METER_DIGIT_MODEL" if digit_model_path else "OCR_BASELINE"
         )
         self.model_version = model_version or "meter-ocr-baseline-v2-integer"
-        self.detector = MeterDetector()
         self.customer_ocr = CustomerOcr()
         trained_model = load_digit_model(digit_model_path) if digit_model_path else None
+        self.detector = MeterDetector(trained_model)
         self.meter_reader = MeterReader(trained_model)
 
     def process(
@@ -44,9 +44,8 @@ class DevelopmentPipeline:
             raise ValueError("OpenCV không thể giải mã hình ảnh.")
         quality = assess_image_quality(source)
         prepared = prepare_for_detection(source)
-        detection = self.detector.detect(prepared)
-
         lines = read_lines(prepared)
+        detection = self.detector.detect(prepared, lines)
         customer_id, customer_confidence = self.customer_ocr.read(prepared, lines)
         human_reading_region = None
         selected_polygon = reading_polygon or (
@@ -59,6 +58,23 @@ class DevelopmentPipeline:
                 for x, y in selected_polygon
             ]
             reading_crop = perspective_crop(prepared, selected_polygon)
+            crop_lines = read_lines(reading_crop)
+            meter_reading, meter_confidence = self.meter_reader.read(
+                reading_crop,
+                crop_lines,
+                (0.0, 0.0, 1.0, 1.0),
+            )
+        elif detection.reading_polygon is not None:
+            reading_crop = perspective_crop(prepared, detection.reading_polygon)
+            crop_lines = read_lines(reading_crop)
+            meter_reading, meter_confidence = self.meter_reader.read(
+                reading_crop,
+                crop_lines,
+                (0.0, 0.0, 1.0, 1.0),
+            )
+        elif detection.reading_region is not None:
+            x, y, width, height = detection.reading_region
+            reading_crop = prepared[y : y + height, x : x + width]
             crop_lines = read_lines(reading_crop)
             meter_reading, meter_confidence = self.meter_reader.read(
                 reading_crop,
@@ -90,6 +106,9 @@ class DevelopmentPipeline:
             "final_confidence": final_confidence,
             "status": "REVIEW",
             "human_region_requested": selected_polygon is not None,
+            "detection_source": "HUMAN_REVIEW"
+            if selected_polygon is not None
+            else detection.source,
             "quality": quality,
             "validation": validation,
             "ocr_lines": len(lines),
@@ -97,6 +116,7 @@ class DevelopmentPipeline:
                 "meter": detection.meter_region,
                 "customer": detection.customer_region,
                 "reading": detection.reading_region,
+                "reading_polygon": detection.reading_polygon,
                 "human_reading": human_reading_region,
             },
             "processing_time_ms": round((perf_counter() - started) * 1000),

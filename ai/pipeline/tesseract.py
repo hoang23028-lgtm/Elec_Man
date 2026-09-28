@@ -74,7 +74,11 @@ def enhanced_variants(image: np.ndarray) -> list[np.ndarray]:
     if scale > 1.0:
         gray = cv2.resize(gray, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
     clahe = cv2.createCLAHE(clipLimit=2.5, tileGridSize=(8, 8)).apply(gray)
-    threshold = cv2.adaptiveThreshold(
-        clahe, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 31, 9
+    sharpened = cv2.addWeighted(
+        clahe, 1.7, cv2.GaussianBlur(clahe, (0, 0), 2.0), -0.7, 0
     )
-    return [clahe, threshold]
+    _, otsu = cv2.threshold(sharpened, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    threshold = cv2.adaptiveThreshold(
+        sharpened, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 31, 9
+    )
+    return [sharpened, otsu, threshold]

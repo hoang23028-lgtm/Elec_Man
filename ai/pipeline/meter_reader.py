@@ -32,25 +32,35 @@ class MeterReader:
                 )
                 if score > best[1]:
                     best = (group, round(score, 4))
-        if best[0] and self.trained_model is not None:
-            features = reading_features(
-                image,
-                len(best[0]),
-                self.trained_model.feature_mode,
-                reading_bbox,
-            )
-            trained_value, trained_confidence = self.trained_model.predict_features(
-                features
-            )
-            if trained_value and trained_confidence > best[1]:
-                return trained_value, round(trained_confidence, 4)
-        if best[0]:
+        trained_best: tuple[str | None, float] = (None, 0.0)
+        if self.trained_model is not None:
+            lengths = list(self.trained_model.candidate_lengths())
+            if best[0]:
+                lengths.insert(0, len(best[0]))
+            for digit_count in dict.fromkeys(lengths):
+                if not 4 <= digit_count <= 8:
+                    continue
+                features = reading_features(
+                    image,
+                    digit_count,
+                    self.trained_model.feature_mode,
+                    reading_bbox,
+                )
+                trained_value, trained_confidence = self.trained_model.predict_features(
+                    features
+                )
+                if trained_value and trained_confidence > trained_best[1]:
+                    trained_best = trained_value, round(trained_confidence, 4)
+            if trained_best[0] and trained_best[1] >= max(0.7, best[1]):
+                return trained_best
+        if best[0] and best[1] >= 0.72:
             return best
 
         variants = enhanced_variants(image)
         # Mechanical wheels are usually light digits on a dark strip, so test
         # both polarities. The red decimal wheel is intentionally ignored.
         variants.extend([cv2.bitwise_not(item) for item in variants])
+        tesseract_candidates: dict[str, list[float]] = {}
         for variant in variants:
             for psm in (6, 7, 11, 13):
                 candidate = read(variant, psm=psm, whitelist="0123456789.,")
@@ -61,9 +71,13 @@ class MeterReader:
                         0.94,
                         0.45 + candidate.confidence * 0.45 + min(digits, 6) * 0.015,
                     )
-                    if score > best[1]:
-                        best = (group, round(score, 4))
-        return best
+                    tesseract_candidates.setdefault(group, []).append(score)
+        for group, scores in tesseract_candidates.items():
+            consensus_bonus = min(0.09, max(0, len(scores) - 1) * 0.03)
+            score = min(0.94, max(scores) + consensus_bonus)
+            if score > best[1]:
+                best = group, round(score, 4)
+        return trained_best if trained_best[1] > best[1] else best
 
     @staticmethod
     def _integer_groups(text: str) -> list[str]:

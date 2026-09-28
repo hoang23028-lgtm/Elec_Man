@@ -67,12 +67,23 @@ def _validate_activation_metrics(record: ModelRecord) -> None:
         return
     coverage = float(record.metrics_json.get("digit_coverage") or 0)
     accuracy = float(record.metrics_json.get("validation_digit_accuracy") or 0)
+    exact_accuracy = float(record.metrics_json.get("validation_reading_exact_accuracy") or 0)
+    region_accuracy = float(record.metrics_json.get("validation_region_accuracy") or 0)
+    algorithm = str(record.metrics_json.get("algorithm") or "")
     if coverage < 1.0 or accuracy < 0.9:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=(
                 "Model huấn luyện chỉ được kích hoạt khi phủ đủ chữ số 0–9 "
                 "và độ chính xác validation đạt ít nhất 90%."
+            ),
+        )
+    if algorithm.endswith("v2") and (exact_accuracy < 0.85 or region_accuracy < 0.8):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=(
+                "Model chuyên biệt chỉ được kích hoạt khi đọc đúng toàn bộ chỉ số "
+                "ít nhất 85% và độ chính xác vùng đạt ít nhất 80%."
             ),
         )
 

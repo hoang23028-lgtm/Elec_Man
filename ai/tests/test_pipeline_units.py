@@ -1,7 +1,11 @@
 import unittest
 
+import numpy as np
+
 from ai.pipeline.customer_ocr import CustomerOcr
+from ai.pipeline.detector import MeterDetector
 from ai.pipeline.meter_reader import MeterReader
+from ai.pipeline.rapid import TextLine
 from ai.pipeline.validator import validate
 
 
@@ -36,6 +40,42 @@ class MeterReaderTests(unittest.TestCase):
     def test_ignores_digits_after_decimal_separator(self) -> None:
         self.assertEqual(MeterReader._integer_groups("63751.3 kWh"), ["63751"])
         self.assertEqual(MeterReader._integer_groups("05068,4 kWh"), ["05068"])
+
+    def test_specialized_model_can_read_without_generic_ocr_result(self) -> None:
+        class SpecializedModel:
+            feature_mode = "raw"
+
+            @staticmethod
+            def candidate_lengths() -> tuple[int, ...]:
+                return (5,)
+
+            @staticmethod
+            def predict_features(features):
+                return ("12345", 0.96) if len(features) == 5 else ("", 0.0)
+
+        image = np.full((40, 200, 3), 128, dtype=np.uint8)
+        value, confidence = MeterReader(SpecializedModel()).read(
+            image, [], (0.0, 0.0, 1.0, 1.0)
+        )
+
+        self.assertEqual(value, "12345")
+        self.assertGreater(confidence, 0.9)
+
+
+class MeterDetectorTests(unittest.TestCase):
+    def test_prefers_numeric_ocr_line_over_fixed_ratio(self) -> None:
+        image = np.zeros((300, 500, 3), dtype=np.uint8)
+        line = TextLine(
+            ((120.0, 130.0), (350.0, 130.0), (350.0, 170.0), (120.0, 170.0)),
+            "063751",
+            0.91,
+        )
+
+        detection = MeterDetector().detect(image, [line])
+
+        self.assertEqual(detection.source, "SCENE_OCR")
+        self.assertLess(detection.reading_region[0], 120)
+        self.assertGreater(detection.reading_region[2], 230)
 
 
 if __name__ == "__main__":

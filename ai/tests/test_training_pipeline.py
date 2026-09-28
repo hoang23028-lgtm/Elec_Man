@@ -12,6 +12,7 @@ from ai.training.digit_model import (
     load_digit_model,
     reading_features,
 )
+from ai.training.region_model import ReadingRegionRegressor, region_features
 
 
 def test_digit_crops_follow_verified_integer_length() -> None:
@@ -103,3 +104,50 @@ def test_loader_keeps_legacy_centroid_artifacts_compatible(tmp_path: Path) -> No
 
     assert isinstance(model, DigitCentroidModel)
     assert model.feature_mode == "raw"
+
+
+def test_region_regressor_learns_verified_four_corners() -> None:
+    images = [
+        np.full((80, 120, 3), value, dtype=np.uint8) for value in (80, 100, 120, 140)
+    ]
+    target = np.array(
+        [[0.2, 0.3], [0.8, 0.25], [0.78, 0.55], [0.22, 0.6]], dtype=np.float32
+    )
+    model = ReadingRegionRegressor.train(
+        [region_features(image) for image in images],
+        [target.copy() for _ in images],
+    ).with_validation_error(0.02)
+
+    prediction = model.predict(images[1])
+
+    assert prediction is not None
+    polygon, confidence = prediction
+    assert np.mean(np.abs(np.asarray(polygon) - target)) < 0.02
+    assert confidence >= 0.9
+
+
+def test_specialized_model_round_trips_region_metadata(tmp_path: Path) -> None:
+    digit_model = DigitHogSoftmaxModel.train(
+        [np.zeros(4, dtype=np.float32)] * 4 + [np.ones(4, dtype=np.float32)] * 4,
+        [0] * 4 + [1] * 4,
+        seed=7,
+        epochs=20,
+    )
+    images = [np.full((80, 120, 3), value, dtype=np.uint8) for value in (80, 120, 160)]
+    target = np.array(
+        [[0.2, 0.3], [0.8, 0.25], [0.78, 0.55], [0.22, 0.6]], dtype=np.float32
+    )
+    region_model = ReadingRegionRegressor.train(
+        [region_features(image) for image in images],
+        [target.copy() for _ in images],
+    ).with_validation_error(0.02)
+    model = digit_model.with_training_metadata([5, 5, 6], region_model)
+    path = tmp_path / "region-model.npz"
+    model.save(path)
+
+    loaded = load_digit_model(path)
+    prediction = loaded.predict_region(images[1])
+
+    assert loaded.candidate_lengths() == (5, 6)
+    assert prediction is not None
+    assert np.mean(np.abs(np.asarray(prediction[0]) - target)) < 0.02
