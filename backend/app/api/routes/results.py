@@ -74,7 +74,7 @@ def recognize_reading(
     return queue_region_recognition(
         db,
         image_id,
-        payload.reading_bbox,
+        payload.reading_polygon,
         user,
         request.client.host if request.client else None,
     )

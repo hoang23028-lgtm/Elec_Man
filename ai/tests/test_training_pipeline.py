@@ -1,7 +1,9 @@
 from pathlib import Path
 
+import cv2
 import numpy as np
 
+from ai.pipeline.geometry import perspective_crop
 from ai.training.digit_model import (
     DigitCentroidModel,
     DigitHogSoftmaxModel,
@@ -27,6 +29,21 @@ def test_digit_crops_use_human_verified_region() -> None:
 
     assert len(crops) == 5
     assert all(float(crop.mean()) == 255 for crop in crops)
+
+
+def test_perspective_crop_rectifies_four_point_region() -> None:
+    image = np.zeros((100, 200, 3), dtype=np.uint8)
+    vertices = np.array([[40, 30], [170, 20], [160, 70], [30, 80]], dtype=np.int32)
+    cv2.fillConvexPoly(image, vertices, (255, 255, 255))
+
+    crop = perspective_crop(
+        image,
+        ((0.2, 0.3), (0.85, 0.2), (0.8, 0.7), (0.15, 0.8)),
+    )
+
+    assert crop.shape[1] >= 130
+    assert crop.shape[0] >= 50
+    assert float(crop.mean()) > 245
 
 
 def test_hog_features_have_stable_shape() -> None:

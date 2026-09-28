@@ -307,6 +307,7 @@ def mark_job_completed(db: Session, job_id: UUID, result_json: dict) -> None:
                 "processing_time_ms": result_json.get("processing_time_ms"),
                 "auto_confirmed": auto_confirmed,
                 "reading_bbox": (job.input_json or {}).get("reading_bbox"),
+                "reading_polygon": (job.input_json or {}).get("reading_polygon"),
                 "meter_reading_after": result_json.get("meter_reading_ai"),
                 "meter_confidence": result_json.get("meter_confidence"),
                 "customer_match_status": (

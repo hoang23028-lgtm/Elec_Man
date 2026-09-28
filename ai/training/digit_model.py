@@ -6,6 +6,7 @@ import cv2
 import numpy as np
 
 from ai.pipeline.detector import MeterDetector
+from ai.pipeline.geometry import perspective_crop
 from ai.pipeline.preprocessing import prepare_for_detection
 
 WIDTH = 20
@@ -64,9 +65,14 @@ def digit_crops(
     image: np.ndarray,
     digit_count: int,
     reading_bbox: tuple[float, float, float, float] | None = None,
+    reading_polygon: tuple[tuple[float, float], ...] | None = None,
 ) -> list[np.ndarray]:
     prepared = prepare_for_detection(image)
-    if reading_bbox is None:
+    strip = None
+    if reading_polygon is not None:
+        strip = perspective_crop(prepared, reading_polygon)
+        region = None
+    elif reading_bbox is None:
         region = MeterDetector().detect(prepared).reading_region
     else:
         image_height, image_width = prepared.shape[:2]
@@ -82,10 +88,11 @@ def digit_crops(
             min(image_height, round((normalized_y + normalized_height) * image_height)),
         )
         region = (x, y, right - x, bottom - y)
-    if region is None:
+    if strip is None and region is None:
         return []
-    x, y, width, height = region
-    strip = prepared[y : y + height, x : x + width]
+    if strip is None:
+        x, y, width, height = region
+        strip = prepared[y : y + height, x : x + width]
     if strip.size == 0 or digit_count <= 0:
         return []
     # The detector returns the mechanical register strip. Split by the verified
@@ -100,12 +107,13 @@ def sample_features(
     *,
     augment: bool = False,
     reading_bbox: tuple[float, float, float, float] | None = None,
+    reading_polygon: tuple[tuple[float, float], ...] | None = None,
 ) -> list[tuple[int, np.ndarray]]:
     image = cv2.imread(str(path), cv2.IMREAD_COLOR)
     digits = "".join(character for character in reading if character.isdigit())
     if image is None or not 4 <= len(digits) <= 8:
         return []
-    crops = digit_crops(image, len(digits), reading_bbox)
+    crops = digit_crops(image, len(digits), reading_bbox, reading_polygon)
     if len(crops) != len(digits):
         return []
     samples: list[tuple[int, np.ndarray]] = []
@@ -120,9 +128,13 @@ def reading_features(
     digit_count: int,
     feature_mode: str = "hog",
     reading_bbox: tuple[float, float, float, float] | None = None,
+    reading_polygon: tuple[tuple[float, float], ...] | None = None,
 ) -> list[np.ndarray]:
     extractor = _raw_feature if feature_mode == "raw" else _hog_feature
-    return [extractor(crop) for crop in digit_crops(image, digit_count, reading_bbox)]
+    return [
+        extractor(crop)
+        for crop in digit_crops(image, digit_count, reading_bbox, reading_polygon)
+    ]
 
 
 class DigitModel(Protocol):

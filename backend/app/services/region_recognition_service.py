@@ -15,7 +15,7 @@ from app.models.meter_reading import MeterReading
 from app.models.processing_job import JobStatus, ProcessingJob
 from app.models.user import User
 from app.schemas.result import (
-    ReadingBoundingBox,
+    ReadingPolygon,
     RecognitionResponse,
     RecognitionStatusResponse,
 )
@@ -42,7 +42,7 @@ def _bbox_dict(reading: MeterReading | None) -> dict | None:
 def queue_region_recognition(
     db: Session,
     image_id: UUID,
-    bbox: ReadingBoundingBox,
+    polygon: ReadingPolygon,
     user: User,
     ip_address: str | None,
 ) -> RecognitionResponse:
@@ -72,22 +72,26 @@ def queue_region_recognition(
         reading = MeterReading(image_id=image.id, ai_result_id=ai_result.id)
         db.add(reading)
     old_bbox = _bbox_dict(reading)
+    old_polygon = reading.reading_polygon_json
+    new_polygon = polygon.model_dump()
+    bbox = polygon.bounding_box()
     new_bbox = bbox.model_dump()
     now = datetime.now(UTC)
     reading.reading_bbox_x = bbox.x
     reading.reading_bbox_y = bbox.y
     reading.reading_bbox_width = bbox.width
     reading.reading_bbox_height = bbox.height
+    reading.reading_polygon_json = new_polygon
     reading.bbox_reviewed_by = user.id
     reading.bbox_reviewed_at = now
-    if old_bbox != new_bbox:
+    if old_polygon != new_polygon:
         db.add(
             ManualCorrection(
                 image_id=image.id,
                 ai_result_id=ai_result.id,
-                field_name="reading_bbox",
-                old_value=json.dumps(old_bbox, ensure_ascii=False, sort_keys=True),
-                new_value=json.dumps(new_bbox, ensure_ascii=False, sort_keys=True),
+                field_name="reading_polygon",
+                old_value=json.dumps(old_polygon, ensure_ascii=False, sort_keys=True),
+                new_value=json.dumps(new_polygon, ensure_ascii=False, sort_keys=True),
                 reason="Khoanh vùng để xác định lại chỉ số",
                 created_by=user.id,
             )
@@ -101,6 +105,7 @@ def queue_region_recognition(
     job.error_message = None
     job.result_json = None
     job.input_json = {
+        "reading_polygon": new_polygon,
         "reading_bbox": new_bbox,
         "source": "HUMAN_REVIEW",
         "requested_by": str(user.id),
@@ -120,6 +125,8 @@ def queue_region_recognition(
                 "original_filename": image.original_filename,
                 "reading_bbox_before": old_bbox,
                 "reading_bbox_after": new_bbox,
+                "reading_polygon_before": old_polygon,
+                "reading_polygon_after": new_polygon,
                 "meter_reading_before": ai_result.meter_reading_ai,
                 "new_status": "PENDING",
             },

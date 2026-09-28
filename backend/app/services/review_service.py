@@ -13,7 +13,7 @@ from app.models.image import ImageRecord, ImageStatus
 from app.models.manual_correction import ManualCorrection
 from app.models.meter_reading import MeterReading
 from app.models.user import User
-from app.schemas.result import ReadingBoundingBox, ResultRow, ReviewRequest
+from app.schemas.result import ReadingBoundingBox, ReadingPolygon, ResultRow, ReviewRequest
 from app.services.confirmed_reading_service import (
     remove_confirmed_monthly_reading,
     save_confirmed_monthly_reading,
@@ -43,6 +43,33 @@ def _normalized_ai_reading_bbox(
         )
     except (TypeError, ValueError, ZeroDivisionError):
         return None
+
+
+def _stored_reading_polygon(reading: MeterReading | None) -> ReadingPolygon | None:
+    if reading and reading.reading_polygon_json:
+        try:
+            return ReadingPolygon.model_validate(reading.reading_polygon_json)
+        except (TypeError, ValueError):
+            return None
+    if (
+        reading
+        and reading.reading_bbox_x is not None
+        and reading.reading_bbox_y is not None
+        and reading.reading_bbox_width is not None
+        and reading.reading_bbox_height is not None
+    ):
+        left, top = reading.reading_bbox_x, reading.reading_bbox_y
+        right = left + reading.reading_bbox_width
+        bottom = top + reading.reading_bbox_height
+        return ReadingPolygon(
+            points=[
+                {"x": left, "y": top},
+                {"x": right, "y": top},
+                {"x": right, "y": bottom},
+                {"x": left, "y": bottom},
+            ]
+        )
+    return None
 
 
 def _apply_result_filters(statement, image_status: str | None, search: str | None):
@@ -120,6 +147,7 @@ def list_results(
                 and reading.reading_bbox_height is not None
                 else None
             ),
+            reading_polygon=_stored_reading_polygon(reading),
             ai_reading_bbox=_normalized_ai_reading_bbox(image, ai_result),
         )
         for image, ai_result, reading, customer, _ in rows
@@ -202,8 +230,14 @@ def review_result(
         and reading.reading_bbox_height is not None
         else None
     )
+    old_polygon = reading.reading_polygon_json
     bbox_was_submitted = "reading_bbox" in payload.model_fields_set
-    new_bbox = payload.reading_bbox.model_dump() if payload.reading_bbox else None
+    polygon_was_submitted = "reading_polygon" in payload.model_fields_set
+    new_polygon = payload.reading_polygon.model_dump() if payload.reading_polygon else None
+    submitted_bbox = (
+        payload.reading_polygon.bounding_box() if payload.reading_polygon else payload.reading_bbox
+    )
+    new_bbox = submitted_bbox.model_dump() if submitted_bbox else None
     corrections = (
         ("customer_id", old_customer, final_customer),
         ("meter_reading", old_meter, final_meter),
@@ -241,6 +275,21 @@ def review_result(
             )
         )
 
+    if payload.action == "CONFIRM" and polygon_was_submitted and old_polygon != new_polygon:
+        correction_count += 1
+        changed_fields.append("reading_polygon")
+        db.add(
+            ManualCorrection(
+                image_id=image_id,
+                ai_result_id=ai_result.id,
+                field_name="reading_polygon",
+                old_value=json.dumps(old_polygon, ensure_ascii=False, sort_keys=True),
+                new_value=json.dumps(new_polygon, ensure_ascii=False, sort_keys=True),
+                reason=payload.reason,
+                created_by=user.id,
+            )
+        )
+
     reading.final_customer_id = final_customer
     reading.final_meter_reading = final_meter
     reading.reading_value = reading_value if payload.action == "CONFIRM" else None
@@ -252,12 +301,13 @@ def review_result(
     reading.review_status = "CONFIRMED" if payload.action == "CONFIRM" else "REJECTED"
     reading.reviewed_by = user.id
     reading.reviewed_at = datetime.now(UTC)
-    if payload.action == "CONFIRM" and bbox_was_submitted:
-        if payload.reading_bbox:
-            reading.reading_bbox_x = payload.reading_bbox.x
-            reading.reading_bbox_y = payload.reading_bbox.y
-            reading.reading_bbox_width = payload.reading_bbox.width
-            reading.reading_bbox_height = payload.reading_bbox.height
+    if payload.action == "CONFIRM" and (bbox_was_submitted or polygon_was_submitted):
+        if submitted_bbox:
+            reading.reading_bbox_x = submitted_bbox.x
+            reading.reading_bbox_y = submitted_bbox.y
+            reading.reading_bbox_width = submitted_bbox.width
+            reading.reading_bbox_height = submitted_bbox.height
+            reading.reading_polygon_json = new_polygon if polygon_was_submitted else old_polygon
             reading.bbox_reviewed_by = user.id
             reading.bbox_reviewed_at = reading.reviewed_at
         else:
@@ -265,6 +315,7 @@ def review_result(
             reading.reading_bbox_y = None
             reading.reading_bbox_width = None
             reading.reading_bbox_height = None
+            reading.reading_polygon_json = None
             reading.bbox_reviewed_by = None
             reading.bbox_reviewed_at = None
     image.status = ImageStatus.CONFIRMED if payload.action == "CONFIRM" else ImageStatus.REJECTED
@@ -324,6 +375,8 @@ def review_result(
                     if reading.reading_bbox_x is not None
                     else None
                 ),
+                "reading_polygon_before": old_polygon,
+                "reading_polygon_after": reading.reading_polygon_json,
                 "customer_match_status": reading.customer_match_status,
                 "matched_customer_id": (
                     str(reading.matched_customer_id) if reading.matched_customer_id else None

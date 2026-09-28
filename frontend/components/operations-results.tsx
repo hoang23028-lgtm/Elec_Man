@@ -10,6 +10,7 @@ import {
   recognizeReading,
   reviewResult,
   type ReadingBoundingBox,
+  type ReadingPolygon,
   type Result,
 } from "@/services/results";
 import { usePolling } from "@/hooks/use-polling";
@@ -17,7 +18,7 @@ import { usePolling } from "@/hooks/use-polling";
 type Draft = {
   customer: string;
   reading: string;
-  readingBbox: ReadingBoundingBox | null;
+  readingPolygon: ReadingPolygon | null;
 };
 type Props = { csrfToken: string; refreshKey?: number };
 type ImagePreview = {
@@ -40,6 +41,10 @@ function bboxStyle(bbox: ReadingBoundingBox) {
   };
 }
 
+function polygonPoints(polygon: ReadingPolygon) {
+  return polygon.points.map((point) => `${point.x * 100},${point.y * 100}`).join(" ");
+}
+
 function wait(milliseconds: number) {
   return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
 }
@@ -48,7 +53,7 @@ function initialDraft(row: Result): Draft {
   return {
     customer: row.final_customer_id ?? row.customer_id_ai ?? "",
     reading: row.final_meter_reading ?? row.meter_reading_ai ?? "",
-    readingBbox: row.reading_bbox,
+    readingPolygon: row.reading_polygon,
   };
 }
 
@@ -154,16 +159,16 @@ export function OperationsResults({ csrfToken, refreshKey = 0 }: Props) {
   function updateDraft(id: string, field: "customer" | "reading", value: string) {
     setDrafts((current) => ({
       ...current,
-      [id]: { ...(current[id] ?? { customer: "", reading: "", readingBbox: null }), [field]: value },
+      [id]: { ...(current[id] ?? { customer: "", reading: "", readingPolygon: null }), [field]: value },
     }));
   }
 
-  function updateReadingBbox(id: string, value: ReadingBoundingBox | null) {
+  function updateReadingPolygon(id: string, value: ReadingPolygon | null) {
     setDrafts((current) => ({
       ...current,
       [id]: {
-        ...(current[id] ?? { customer: "", reading: "", readingBbox: null }),
-        readingBbox: value,
+        ...(current[id] ?? { customer: "", reading: "", readingPolygon: null }),
+        readingPolygon: value,
       },
     }));
   }
@@ -171,15 +176,15 @@ export function OperationsResults({ csrfToken, refreshKey = 0 }: Props) {
   async function recognizeSelectedReading() {
     if (!imagePreview) return;
     const draft = drafts[imagePreview.imageId];
-    if (!draft?.readingBbox) {
-      setRecognitionStatus("Hãy khoanh vùng chỉ số trước khi nhận diện.");
+    if (!draft?.readingPolygon) {
+      setRecognitionStatus("Hãy chọn đủ bốn góc của vùng chỉ số trước khi nhận diện.");
       return;
     }
     setRecognizingId(imagePreview.imageId);
     setRecognitionStatus("Đã gửi yêu cầu. Hệ thống đang xác định chỉ số trong vùng màu đỏ…");
     setError(null);
     try {
-      await recognizeReading(imagePreview.imageId, csrfToken, draft.readingBbox);
+      await recognizeReading(imagePreview.imageId, csrfToken, draft.readingPolygon);
       for (let attempt = 0; attempt < recognitionPollAttempts; attempt += 1) {
         await wait(recognitionPollMilliseconds);
         const status = await getRecognitionStatus(imagePreview.imageId);
@@ -226,7 +231,7 @@ export function OperationsResults({ csrfToken, refreshKey = 0 }: Props) {
         action,
         draft.customer.trim(),
         draft.reading.trim(),
-        draft.readingBbox,
+        draft.readingPolygon,
       );
       setMessage(
         action === "CONFIRM"
@@ -281,12 +286,10 @@ export function OperationsResults({ csrfToken, refreshKey = 0 }: Props) {
               aria-hidden="true"
             />
           )}
-          {draft.readingBbox && (
-            <span
-              className="result-region-overlay human"
-              style={bboxStyle(draft.readingBbox)}
-              aria-hidden="true"
-            />
+          {draft.readingPolygon && (
+            <svg className="result-region-polygon" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+              <polygon points={polygonPoints(draft.readingPolygon)} />
+            </svg>
           )}
         </button>
         <div className="result-card-body">
@@ -347,7 +350,7 @@ export function OperationsResults({ csrfToken, refreshKey = 0 }: Props) {
               onClick={(event) => openImagePreview(row, event.currentTarget)}
               disabled={busy}
             >
-              {draft.readingBbox ? "Sửa vùng chỉ số" : "Khoanh vùng chỉ số"}
+              {draft.readingPolygon ? "Sửa vùng chỉ số" : "Khoanh vùng chỉ số"}
             </button>
             {editableConfirmed ? (
               <button
@@ -492,9 +495,9 @@ export function OperationsResults({ csrfToken, refreshKey = 0 }: Props) {
             <ReadingRegionAnnotator
               imageUrl={`/api/v1/images/${imagePreview.imageId}/preview`}
               imageAlt={`Ảnh đồng hồ ${imagePreview.filename}`}
-              value={drafts[imagePreview.imageId]?.readingBbox ?? null}
+              value={drafts[imagePreview.imageId]?.readingPolygon ?? null}
               automaticValue={imagePreview.automaticBbox}
-              onChange={(value) => updateReadingBbox(imagePreview.imageId, value)}
+              onChange={(value) => updateReadingPolygon(imagePreview.imageId, value)}
               onRecognize={() => void recognizeSelectedReading()}
               recognizing={recognizingId === imagePreview.imageId}
               recognitionStatus={recognitionStatus}

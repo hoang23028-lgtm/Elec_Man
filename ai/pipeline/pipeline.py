@@ -6,6 +6,7 @@ import cv2
 from ai.pipeline.confidence import calculate
 from ai.pipeline.customer_ocr import CustomerOcr
 from ai.pipeline.detector import MeterDetector
+from ai.pipeline.geometry import normalized_bbox_polygon, perspective_crop
 from ai.pipeline.meter_reader import MeterReader
 from ai.pipeline.preprocessing import prepare_for_detection
 from ai.pipeline.quality import assess_image_quality
@@ -35,6 +36,7 @@ class DevelopmentPipeline:
         self,
         image_path: Path,
         reading_bbox: tuple[float, float, float, float] | None = None,
+        reading_polygon: tuple[tuple[float, float], ...] | None = None,
     ) -> dict:
         started = perf_counter()
         source = cv2.imread(str(image_path), cv2.IMREAD_COLOR)
@@ -47,28 +49,16 @@ class DevelopmentPipeline:
         lines = read_lines(prepared)
         customer_id, customer_confidence = self.customer_ocr.read(prepared, lines)
         human_reading_region = None
-        if reading_bbox is not None:
+        selected_polygon = reading_polygon or (
+            normalized_bbox_polygon(reading_bbox) if reading_bbox is not None else None
+        )
+        if selected_polygon is not None:
             image_height, image_width = prepared.shape[:2]
-            normalized_x, normalized_y, normalized_width, normalized_height = (
-                reading_bbox
-            )
-            x = max(0, min(image_width - 1, round(normalized_x * image_width)))
-            y = max(0, min(image_height - 1, round(normalized_y * image_height)))
-            right = max(
-                x + 1,
-                min(
-                    image_width, round((normalized_x + normalized_width) * image_width)
-                ),
-            )
-            bottom = max(
-                y + 1,
-                min(
-                    image_height,
-                    round((normalized_y + normalized_height) * image_height),
-                ),
-            )
-            human_reading_region = (x, y, right - x, bottom - y)
-            reading_crop = prepared[y:bottom, x:right]
+            human_reading_region = [
+                [round(x * image_width), round(y * image_height)]
+                for x, y in selected_polygon
+            ]
+            reading_crop = perspective_crop(prepared, selected_polygon)
             crop_lines = read_lines(reading_crop)
             meter_reading, meter_confidence = self.meter_reader.read(
                 reading_crop,
@@ -81,7 +71,7 @@ class DevelopmentPipeline:
         final_confidence = calculate(
             customer_confidence,
             meter_confidence,
-            1.0 if reading_bbox is not None else detection.confidence,
+            1.0 if selected_polygon is not None else detection.confidence,
             quality["quality_score"],
             validation["valid"],
         )
@@ -94,12 +84,12 @@ class DevelopmentPipeline:
             "customer_confidence": customer_confidence,
             "meter_confidence": meter_confidence,
             "detection_confidence": 1.0
-            if reading_bbox is not None
+            if selected_polygon is not None
             else detection.confidence,
             "image_quality_score": quality["quality_score"],
             "final_confidence": final_confidence,
             "status": "REVIEW",
-            "human_region_requested": reading_bbox is not None,
+            "human_region_requested": selected_polygon is not None,
             "quality": quality,
             "validation": validation,
             "ocr_lines": len(lines),

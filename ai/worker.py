@@ -29,7 +29,16 @@ def _stop(_: int, __: object) -> None:
 
 def _claim(
     worker_id: str, recover: bool
-) -> tuple[UUID, UUID, Path, tuple[float, float, float, float] | None] | None:
+) -> (
+    tuple[
+        UUID,
+        UUID,
+        Path,
+        tuple[float, float, float, float] | None,
+        tuple[tuple[float, float], ...] | None,
+    ]
+    | None
+):
     """Claim work without keeping a database connection open during OCR."""
     with SessionLocal() as db:
         if recover:
@@ -39,18 +48,29 @@ def _claim(
             return None
         image = db.get(ImageRecord, job.image_id)
         if image is None:
-            return job.id, job.image_id, Path(""), None
+            return job.id, job.image_id, Path(""), None, None
         bbox_payload = (job.input_json or {}).get("reading_bbox")
         reading_bbox = None
         if isinstance(bbox_payload, dict):
             reading_bbox = tuple(
                 float(bbox_payload[key]) for key in ("x", "y", "width", "height")
             )
+        polygon_payload = (job.input_json or {}).get("reading_polygon")
+        reading_polygon = None
+        if isinstance(polygon_payload, dict) and isinstance(
+            polygon_payload.get("points"), list
+        ):
+            points = polygon_payload["points"]
+            if len(points) == 4 and all(isinstance(point, dict) for point in points):
+                reading_polygon = tuple(
+                    (float(point["x"]), float(point["y"])) for point in points
+                )
         return (
             job.id,
             job.image_id,
             get_settings().storage_root / image.relative_path,
             reading_bbox,
+            reading_polygon,
         )
 
 
@@ -87,17 +107,22 @@ def main() -> None:
                 time.sleep(poll_interval)
                 continue
 
-            job_id, image_id, image_path, reading_bbox = job_info
+            job_id, image_id, image_path, reading_bbox, reading_polygon = job_info
             if not image_path.is_file():
                 raise FileNotFoundError("Tệp hình ảnh không khả dụng.")
             processor = current_pipeline()
-            result = processor.process(image_path, reading_bbox)
+            result = processor.process(
+                image_path,
+                reading_bbox=reading_bbox,
+                reading_polygon=reading_polygon,
+            )
             with SessionLocal() as db:
                 store_immutable_ai_result(
                     db,
                     image_id,
                     result,
-                    replace_existing=reading_bbox is not None,
+                    replace_existing=reading_bbox is not None
+                    or reading_polygon is not None,
                 )
                 mark_job_completed(db, job_id, result)
             logger.info(

@@ -5,6 +5,8 @@ export type ReadingBoundingBox = {
   width: number;
   height: number;
 };
+export type ReadingPoint = { x: number; y: number };
+export type ReadingPolygon = { points: ReadingPoint[] };
 export type Result = {
   image_id: string;
   original_filename: string;
@@ -23,6 +25,7 @@ export type Result = {
   matched_customer_name: string | null;
   matched_meter_serial: string | null;
   reading_bbox: ReadingBoundingBox | null;
+  reading_polygon: ReadingPolygon | null;
   ai_reading_bbox: ReadingBoundingBox | null;
 };
 export type RecognitionStatus = {
@@ -56,7 +59,7 @@ export async function reviewResult(
   action: "CONFIRM" | "REJECT",
   customer: string,
   reading: string,
-  readingBbox: ReadingBoundingBox | null,
+  readingPolygon: ReadingPolygon | null,
 ): Promise<void> {
   await apiFetch(`/results/${id}/review`, {
     method: "PUT",
@@ -65,7 +68,7 @@ export async function reviewResult(
       action,
       final_customer_id: customer || null,
       final_meter_reading: reading || null,
-      reading_bbox: readingBbox,
+      reading_polygon: readingPolygon,
     }),
   }, "Kiểm duyệt thất bại.");
 }
@@ -73,12 +76,12 @@ export async function reviewResult(
 export async function recognizeReading(
   id: string,
   csrf: string,
-  readingBbox: ReadingBoundingBox,
+  readingPolygon: ReadingPolygon,
 ): Promise<void> {
   await apiFetch(`/results/${id}/recognize-reading`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
-    body: JSON.stringify({ reading_bbox: readingBbox }),
+    body: JSON.stringify({ reading_polygon: readingPolygon }),
   }, "Không thể đưa vùng chỉ số vào hàng đợi nhận diện.");
 }
 

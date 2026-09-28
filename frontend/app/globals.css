@@ -980,6 +980,20 @@ a {
   border-color: #dc2626;
   background: rgb(220 38 38 / 0.12);
 }
+.result-region-polygon {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.result-region-polygon polygon {
+  fill: rgb(220 38 38 / 0.12);
+  stroke: #dc2626;
+  stroke-width: 1.2;
+  vector-effect: non-scaling-stroke;
+}
 .image-preview-dialog {
   width: min(92rem, calc(100vw - 2rem));
   max-width: none;
@@ -1062,25 +1076,35 @@ a {
   max-height: calc(100vh - 12rem);
   pointer-events: none;
 }
-.reading-selection {
+.reading-polygon-layer {
   position: absolute;
+  inset: 0;
   z-index: 2;
-  border: 3px solid #dc2626;
-  background: rgb(220 38 38 / 0.14);
-  box-shadow: 0 0 0 1px rgb(15 23 42 / 0.7), inset 0 0 0 1px rgb(255 255 255 / 0.55);
+  width: 100%;
+  height: 100%;
+  overflow: visible;
   pointer-events: none;
 }
-.reading-selection span {
+.reading-polygon {
+  fill: none;
+  stroke: #dc2626;
+  stroke-width: 3;
+  vector-effect: non-scaling-stroke;
+}
+.reading-polygon.complete { fill: rgb(220 38 38 / 0.14); }
+.reading-polygon.draft { stroke-dasharray: 8 5; }
+.reading-polygon-label {
   position: absolute;
-  top: -1.8rem;
-  left: -0.2rem;
+  top: 0.35rem;
+  left: 0.35rem;
+  z-index: 4;
   border-radius: 0.3rem;
   background: #b91c1c;
   color: #fff;
   padding: 0.2rem 0.45rem;
   font-size: 0.7rem;
   font-weight: 800;
-  white-space: nowrap;
+  pointer-events: none;
 }
 .automatic-reading-selection {
   position: absolute;
@@ -1102,66 +1126,37 @@ a {
   font-weight: 800;
   white-space: nowrap;
 }
-.reading-resize-handle {
+.reading-point-handle,
+.reading-draft-point {
   position: absolute;
   z-index: 3;
   width: 2.75rem;
   min-height: 2.75rem;
-  border: 0;
+  border: 2px solid #fff;
   border-radius: 999px;
-  background: transparent;
+  background: #dc2626;
+  color: #fff;
   padding: 0;
+  font-size: 0.72rem;
+  font-weight: 800;
   pointer-events: auto;
   touch-action: none;
-}
-.reading-resize-handle::after {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 0.9rem;
-  height: 0.9rem;
-  border: 2px solid #0f172a;
-  border-radius: 0.2rem;
-  background: #fca5a5;
-  box-shadow: 0 0 0 2px rgb(255 255 255 / 0.9);
-  content: "";
   transform: translate(-50%, -50%);
-  transition:
-    background 150ms ease,
-    box-shadow 150ms ease;
+  box-shadow: 0 0 0 2px rgb(15 23 42 / 0.72);
 }
-.reading-selection button.reading-resize-handle:hover:not(:disabled),
-.reading-selection button.reading-resize-handle:focus-visible {
-  background: rgb(255 255 255 / 0.18);
-}
-.reading-selection button.reading-resize-handle:hover:not(:disabled)::after,
-.reading-selection button.reading-resize-handle:focus-visible::after {
+.reading-point-handle { cursor: move; }
+.reading-point-handle:hover:not(:disabled),
+.reading-point-handle:focus-visible {
   background: #fff;
+  color: #b91c1c;
   box-shadow: 0 0 0 3px #ef4444;
 }
-.reading-resize-handle.north-west {
-  top: 0;
-  left: 0;
-  cursor: nwse-resize;
-  transform: translate(-50%, -50%);
-}
-.reading-resize-handle.north-east {
-  top: 0;
-  right: 0;
-  cursor: nesw-resize;
-  transform: translate(50%, -50%);
-}
-.reading-resize-handle.south-east {
-  right: 0;
-  bottom: 0;
-  cursor: nwse-resize;
-  transform: translate(50%, 50%);
-}
-.reading-resize-handle.south-west {
-  bottom: 0;
-  left: 0;
-  cursor: nesw-resize;
-  transform: translate(-50%, 50%);
+.reading-draft-point {
+  display: grid;
+  place-items: center;
+  width: 1.6rem;
+  min-height: 1.6rem;
+  pointer-events: none;
 }
 .reading-annotator-controls {
   position: sticky;
@@ -1176,11 +1171,48 @@ a {
   margin: var(--space-xs) 0 var(--space-md);
   font-size: 1rem;
 }
-.reading-coordinate-grid {
+.reading-coordinate-grid,
+.reading-polygon-coordinates {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-md);
   margin: var(--space-xl) 0;
+}
+.reading-polygon-coordinates fieldset {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-sm);
+  min-width: 0;
+  margin: 0;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.5rem;
+  padding: var(--space-sm);
+}
+.reading-polygon-coordinates legend {
+  color: #334155;
+  padding: 0 var(--space-xs);
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+.reading-polygon-coordinates label {
+  color: #475569;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+.reading-polygon-coordinates input {
+  min-height: 2.25rem;
+  margin-top: var(--space-xs);
+  padding: 0.35rem 0.45rem;
+  font-family: "Cascadia Code", Consolas, monospace;
+}
+.annotation-progress {
+  margin: var(--space-xl) 0;
+  border: 1px dashed #94a3b8;
+  border-radius: 0.5rem;
+  color: #334155;
+  padding: var(--space-md);
+  text-align: center;
+  font-weight: 800;
 }
 .reading-coordinate-grid label {
   color: #475569;

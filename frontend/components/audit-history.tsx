@@ -131,6 +131,9 @@ const detailLabels: Record<string, string> = {
   reading_bbox: "Vùng chỉ số được sử dụng",
   reading_bbox_before: "Vùng chỉ số trước thay đổi",
   reading_bbox_after: "Vùng chỉ số sau thay đổi",
+  reading_polygon: "Vùng bốn điểm được sử dụng",
+  reading_polygon_before: "Bốn góc trước thay đổi",
+  reading_polygon_after: "Bốn góc sau thay đổi",
   folder_name: "Tên thư mục",
   status: "Trạng thái",
   original_filename: "Tên ảnh gốc",
@@ -216,6 +219,12 @@ function AuditDetails({ details }: { details: Record<string, unknown> }) {
       before: details.reading_bbox_before,
       after: details.reading_bbox_after,
     },
+    {
+      key: "reading_polygon",
+      label: "Vùng bốn điểm",
+      before: details.reading_polygon_before,
+      after: details.reading_polygon_after,
+    },
   ].filter(
     (change) =>
       (change.before !== undefined || change.after !== undefined) &&
@@ -228,6 +237,8 @@ function AuditDetails({ details }: { details: Record<string, unknown> }) {
     "meter_reading_after",
     "reading_bbox_before",
     "reading_bbox_after",
+    "reading_polygon_before",
+    "reading_polygon_after",
   ]);
   const metadataEntries = entries.filter(([key]) => !changeKeys.has(key));
   return (

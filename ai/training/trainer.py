@@ -24,6 +24,17 @@ def _reading_bbox(reading: MeterReading) -> tuple[float, float, float, float]:
     )
 
 
+def _reading_polygon(reading: MeterReading) -> tuple[tuple[float, float], ...] | None:
+    payload = reading.reading_polygon_json or {}
+    points = payload.get("points")
+    if not isinstance(points, list) or len(points) != 4:
+        return None
+    try:
+        return tuple((float(point["x"]), float(point["y"])) for point in points)
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
 def _set_stage(run_id, stage: str, progress: int) -> None:
     with SessionLocal() as db:
         run = db.get(TrainingRun, run_id)
@@ -57,7 +68,7 @@ def train_run(run_id) -> None:
         raise ValueError("Không đủ mẫu hợp lệ để huấn luyện.")
     dataset_hash = sha256(
         "".join(
-            f"{image.sha256}:{reading.final_meter_reading}:{_reading_bbox(reading)}"
+            f"{image.sha256}:{reading.final_meter_reading}:{_reading_polygon(reading) or _reading_bbox(reading)}"
             for image, reading in rows
         ).encode()
     ).hexdigest()
@@ -79,6 +90,7 @@ def train_run(run_id) -> None:
             reading.final_meter_reading or "",
             augment=True,
             reading_bbox=_reading_bbox(reading),
+            reading_polygon=_reading_polygon(reading),
         ):
             training_targets.append(label)
             training_features.append(feature)
@@ -97,6 +109,7 @@ def train_run(run_id) -> None:
             settings.storage_root / image.relative_path,
             reading.final_meter_reading or "",
             reading_bbox=_reading_bbox(reading),
+            reading_polygon=_reading_polygon(reading),
         )
         if not validation_samples:
             continue
