@@ -1,6 +1,12 @@
 "use client";
 
-import { KeyboardEvent, PointerEvent, useRef, useState } from "react";
+import {
+  KeyboardEvent,
+  PointerEvent,
+  WheelEvent as ReactWheelEvent,
+  useRef,
+  useState,
+} from "react";
 
 import type { ReadingBoundingBox, ReadingPoint, ReadingPolygon } from "@/services/results";
 
@@ -14,6 +20,10 @@ type Props = {
 type DragSession = { index: number; initial: ReadingPolygon };
 const keyboardStep = 0.005;
 const minimumArea = 0.000025;
+const minimumZoom = 1;
+const maximumZoom = 4;
+const zoomStep = 0.25;
+const cornerLabels = ["Góc trên trái", "Góc trên phải", "Góc dưới phải", "Góc dưới trái"];
 
 function clamp(value: number) { return Math.min(1, Math.max(0, value)); }
 function rounded(value: number) { return Math.round(clamp(value) * 10000) / 10000; }
@@ -61,9 +71,11 @@ function svgPoints(points: ReadingPoint[]) {
 export function ReadingRegionAnnotator({ imageUrl, imageAlt, value, automaticValue,
   onChange, onRecognize, recognizing, recognitionStatus, canRecognize }: Props) {
   const surfaceRef = useRef<HTMLDivElement>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<DragSession | null>(null);
   const [draftPoints, setDraftPoints] = useState<ReadingPoint[]>([]);
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
+  const [zoom, setZoom] = useState(1);
 
   function pointerPosition(clientX: number, clientY: number): ReadingPoint {
     const bounds = surfaceRef.current?.getBoundingClientRect();
@@ -118,31 +130,66 @@ export function ReadingRegionAnnotator({ imageUrl, imageAlt, value, automaticVal
     if (validPolygon(points)) onChange({ points });
   }
   function resetSelection() { setDraftPoints([]); onChange(null); }
+  function applyZoom(requestedZoom: number) {
+    const nextZoom = Math.min(maximumZoom, Math.max(minimumZoom, requestedZoom));
+    if (nextZoom === zoom) return;
+    const viewport = viewportRef.current;
+    const horizontalCenter = viewport ? viewport.scrollLeft + viewport.clientWidth / 2 : 0;
+    const verticalCenter = viewport ? viewport.scrollTop + viewport.clientHeight / 2 : 0;
+    const ratio = nextZoom / zoom;
+    setZoom(nextZoom);
+    if (viewport) {
+      window.requestAnimationFrame(() => {
+        viewport.scrollLeft = horizontalCenter * ratio - viewport.clientWidth / 2;
+        viewport.scrollTop = verticalCenter * ratio - viewport.clientHeight / 2;
+      });
+    }
+  }
+  function zoomWithWheel(event: ReactWheelEvent<HTMLDivElement>) {
+    if (!event.ctrlKey) return;
+    event.preventDefault();
+    applyZoom(zoom + (event.deltaY < 0 ? zoomStep : -zoomStep));
+  }
   const drawingPoints = value?.points ?? draftPoints;
 
   return <div className="reading-annotator">
-    <div ref={surfaceRef} className={`reading-annotator-surface polygon-mode${draggingIndex !== null ? " resizing" : ""}`}
-      onPointerDown={addPoint} aria-label="Bấm lần lượt bốn góc của vùng chứa các chữ số điện">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={imageUrl} alt={imageAlt} draggable={false} />
-      {automaticValue && <div className="automatic-reading-selection" style={{ left: `${automaticValue.x * 100}%`, top: `${automaticValue.y * 100}%`, width: `${automaticValue.width * 100}%`, height: `${automaticValue.height * 100}%` }}><span>Vùng tự động</span></div>}
-      {drawingPoints.length > 0 && <svg className="reading-polygon-layer" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-        {value ? <polygon className="reading-polygon complete" points={svgPoints(drawingPoints)} /> : <polyline className="reading-polygon draft" points={svgPoints(drawingPoints)} />}
-      </svg>}
-      {drawingPoints.map((point, index) => value ? <button key={index} type="button" className="reading-point-handle"
-        style={{ left: `${point.x * 100}%`, top: `${point.y * 100}%` }}
-        aria-label={`Điểm ${index + 1}. Kéo hoặc dùng phím mũi tên để điều chỉnh`}
-        onPointerDown={(event) => beginDragging(event, index)} onPointerMove={continueDragging}
-        onPointerUp={endDragging} onPointerCancel={cancelDragging}
-        onKeyDown={(event) => adjustPointWithKeyboard(event, index)}>{index + 1}</button>
-        : <span key={index} className="reading-draft-point" style={{ left: `${point.x * 100}%`, top: `${point.y * 100}%` }} aria-hidden="true">{index + 1}</span>)}
-      {value && <span className="reading-polygon-label">Vùng người dùng</span>}
+    <div className="reading-annotator-workspace">
+      <div className="reading-zoom-toolbar" aria-label="Điều khiển thu phóng ảnh">
+        <button type="button" onClick={() => applyZoom(zoom - zoomStep)} disabled={zoom <= minimumZoom} aria-label="Thu nhỏ ảnh">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14" /></svg>
+        </button>
+        <output aria-live="polite" aria-label={`Mức thu phóng ${Math.round(zoom * 100)} phần trăm`}>{Math.round(zoom * 100)}%</output>
+        <button type="button" onClick={() => applyZoom(zoom + zoomStep)} disabled={zoom >= maximumZoom} aria-label="Phóng to ảnh">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+        </button>
+        <button type="button" className="reading-zoom-reset" onClick={() => applyZoom(1)} disabled={zoom === 1}>Đặt lại</button>
+        <span>Giữ Ctrl và cuộn chuột để zoom</span>
+      </div>
+      <div ref={viewportRef} className="reading-annotator-viewport" onWheel={zoomWithWheel}>
+        <div ref={surfaceRef} style={{ width: `${zoom * 100}%` }} className={`reading-annotator-surface polygon-mode${draggingIndex !== null ? " resizing" : ""}`}
+          onPointerDown={addPoint} aria-label="Bấm lần lượt bốn góc của vùng chứa các chữ số điện">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={imageUrl} alt={imageAlt} draggable={false} />
+          {automaticValue && <div className="automatic-reading-selection" style={{ left: `${automaticValue.x * 100}%`, top: `${automaticValue.y * 100}%`, width: `${automaticValue.width * 100}%`, height: `${automaticValue.height * 100}%` }}><span>Vùng tự động</span></div>}
+          {drawingPoints.length > 0 && <svg className="reading-polygon-layer" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+            {value ? <polygon className="reading-polygon complete" points={svgPoints(drawingPoints)} /> : <polyline className="reading-polygon draft" points={svgPoints(drawingPoints)} />}
+          </svg>}
+          {drawingPoints.map((point, index) => value ? <button key={index} type="button" className="reading-point-handle"
+            style={{ left: `${point.x * 100}%`, top: `${point.y * 100}%` }}
+            aria-label={`${cornerLabels[index]}. Kéo hoặc dùng phím mũi tên để điều chỉnh`}
+            onPointerDown={(event) => beginDragging(event, index)} onPointerMove={continueDragging}
+            onPointerUp={endDragging} onPointerCancel={cancelDragging}
+            onKeyDown={(event) => adjustPointWithKeyboard(event, index)}><span aria-hidden="true" /></button>
+            : <span key={index} className="reading-draft-point" style={{ left: `${point.x * 100}%`, top: `${point.y * 100}%` }} aria-hidden="true" />)}
+          {value && <span className="reading-polygon-label">Vùng người dùng</span>}
+        </div>
+      </div>
     </div>
     <aside className="reading-annotator-controls" aria-label="Tọa độ vùng chỉ số">
       <div><p className="eyebrow">Nhãn huấn luyện</p><h4>Nối bốn góc của dãy số điện</h4>
         <p className="muted">Bấm lần lượt vào 4 góc quanh các số màu đen; hệ thống tự nối thành vùng. Sau đó kéo từng điểm để xoay chéo hoặc hiệu chỉnh phối cảnh. Không lấy bánh số đỏ sau dấu phẩy. Có thể dùng phím mũi tên; giữ Shift để di chuyển nhanh hơn.</p></div>
       {value ? <div className="reading-polygon-coordinates">{value.points.map((point, index) => <fieldset key={index}>
-        <legend>Điểm {index + 1}</legend>
+        <legend>{cornerLabels[index]}</legend>
         <label>X (%)<input type="number" min={0} max={100} step={0.1} value={Math.round(point.x * 1000) / 10} onChange={(event) => updateCoordinate(index, "x", event.target.value)} /></label>
         <label>Y (%)<input type="number" min={0} max={100} step={0.1} value={Math.round(point.y * 1000) / 10} onChange={(event) => updateCoordinate(index, "y", event.target.value)} /></label>
       </fieldset>)}</div> : <p className="annotation-progress" role="status">Đã chọn {draftPoints.length}/4 điểm</p>}
