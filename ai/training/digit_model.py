@@ -416,6 +416,23 @@ class DigitHogSoftmaxModel:
             region_model,
         )
 
+    def with_reading_lengths(
+        self, reading_lengths: list[int]
+    ) -> "DigitHogSoftmaxModel":
+        lengths, counts = np.unique(
+            np.asarray(reading_lengths, dtype=np.int64), return_counts=True
+        )
+        return DigitHogSoftmaxModel(
+            self.labels,
+            self.weights,
+            self.bias,
+            self.mean,
+            self.scale,
+            lengths,
+            counts,
+            None,
+        )
+
     def predict_features(self, features: list[np.ndarray]) -> tuple[str, float]:
         if not features:
             return "", 0.0

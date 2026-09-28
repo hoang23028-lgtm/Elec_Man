@@ -62,7 +62,7 @@ def test_trained_model_activation_requires_full_coverage_and_accuracy() -> None:
     _validate_activation_metrics(record)
 
 
-def test_v2_model_activation_requires_exact_reading_and_region_accuracy() -> None:
+def test_v2_model_activation_requires_exact_reading_accuracy() -> None:
     record = ModelRecord(
         model_name="specialized",
         model_type="meter_digit_hog_softmax",
@@ -83,4 +83,21 @@ def test_v2_model_activation_requires_exact_reading_and_region_accuracy() -> Non
 
     record.metrics_json["validation_reading_exact_accuracy"] = 0.9
     record.metrics_json["validation_region_accuracy"] = 0.85
+    _validate_activation_metrics(record)
+
+
+def test_region_model_activation_requires_region_accuracy() -> None:
+    record = ModelRecord(
+        model_name="reading-region",
+        model_type="reading_region_ridge",
+        version="v1",
+        file_path="test/region.npz",
+        sha256="0" * 64,
+        status="TESTING",
+        metrics_json={"validation_region_accuracy": 0.79},
+    )
+    with pytest.raises(HTTPException):
+        _validate_activation_metrics(record)
+
+    record.metrics_json["validation_region_accuracy"] = 0.8
     _validate_activation_metrics(record)

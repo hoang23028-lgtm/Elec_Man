@@ -17,6 +17,7 @@ METER_DIGIT_MODEL_TYPES = {
     "meter_digit_centroid",
     "meter_digit_hog_softmax",
 }
+READING_REGION_MODEL_TYPES = {"reading_region_ridge"}
 
 
 def _row(record: ModelRecord) -> ModelRow:
@@ -63,12 +64,19 @@ def _verified_model_path(relative_path: str, claimed_sha256: str) -> Path:
 
 
 def _validate_activation_metrics(record: ModelRecord) -> None:
+    if record.model_type in READING_REGION_MODEL_TYPES:
+        region_accuracy = float(record.metrics_json.get("validation_region_accuracy") or 0)
+        if region_accuracy < 0.8:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Model vùng chỉ số chỉ được kích hoạt khi độ chính xác đạt ít nhất 80%.",
+            )
+        return
     if record.model_type not in METER_DIGIT_MODEL_TYPES:
         return
     coverage = float(record.metrics_json.get("digit_coverage") or 0)
     accuracy = float(record.metrics_json.get("validation_digit_accuracy") or 0)
     exact_accuracy = float(record.metrics_json.get("validation_reading_exact_accuracy") or 0)
-    region_accuracy = float(record.metrics_json.get("validation_region_accuracy") or 0)
     algorithm = str(record.metrics_json.get("algorithm") or "")
     if coverage < 1.0 or accuracy < 0.9:
         raise HTTPException(
@@ -78,12 +86,12 @@ def _validate_activation_metrics(record: ModelRecord) -> None:
                 "và độ chính xác validation đạt ít nhất 90%."
             ),
         )
-    if algorithm.endswith("v2") and (exact_accuracy < 0.85 or region_accuracy < 0.8):
+    if (algorithm.endswith("v2") or algorithm.endswith("v3")) and exact_accuracy < 0.85:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=(
-                "Model chuyên biệt chỉ được kích hoạt khi đọc đúng toàn bộ chỉ số "
-                "ít nhất 85% và độ chính xác vùng đạt ít nhất 80%."
+                "Model đọc số chuyên biệt chỉ được kích hoạt khi đọc đúng toàn bộ "
+                "chỉ số ít nhất 85%."
             ),
         )
 
@@ -135,6 +143,8 @@ def activate_model(db: Session, model_id: object, user: User, ip_address: str | 
     model_types = (
         METER_DIGIT_MODEL_TYPES
         if record.model_type in METER_DIGIT_MODEL_TYPES
+        else READING_REGION_MODEL_TYPES
+        if record.model_type in READING_REGION_MODEL_TYPES
         else {record.model_type}
     )
     db.execute(

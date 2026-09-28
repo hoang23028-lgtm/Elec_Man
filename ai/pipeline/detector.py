@@ -24,6 +24,22 @@ class Detection:
     source: str = "HEURISTIC"
 
 
+@dataclass(frozen=True)
+class MeterLocation:
+    confidence: float
+    meter_region: tuple[int, int, int, int]
+    customer_region: tuple[int, int, int, int]
+    source: str
+
+
+@dataclass(frozen=True)
+class ReadingRegionLocation:
+    confidence: float
+    reading_region: tuple[int, int, int, int]
+    reading_polygon: tuple[tuple[float, float], ...] | None
+    source: str
+
+
 def _polygon_bbox(
     polygon: tuple[tuple[float, float], ...], width: int, height: int
 ) -> tuple[int, int, int, int]:
@@ -67,21 +83,18 @@ def _ocr_reading_candidate(
     return best
 
 
-class MeterDetector:
-    """Locate the reading register using learned corners, OCR evidence, then a safe fallback."""
+class MeterLocatorModel:
+    """Stage 2: locate the complete meter independently from the reading register."""
 
-    def __init__(self, region_predictor: RegionPredictor | None = None) -> None:
-        self.region_predictor = region_predictor
+    name = "meter-locator"
+    version = "contour-baseline-v1"
 
-    def detect(
-        self, image: np.ndarray, lines: list[TextLine] | None = None
-    ) -> Detection:
+    def locate(self, image: np.ndarray) -> MeterLocation:
         height, width = image.shape[:2]
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         edges = cv2.Canny(cv2.GaussianBlur(gray, (5, 5), 0), 45, 135)
         edges = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, np.ones((7, 7), np.uint8))
         contours, _ = cv2.findContours(edges, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-
         best: tuple[float, tuple[int, int, int, int]] | None = None
         image_area = float(width * height)
         for contour in contours:
@@ -96,16 +109,34 @@ class MeterDetector:
             score = area_ratio * 2.0 + center_score
             if best is None or score > best[0]:
                 best = score, (x, y, w, h)
-
         if best is None:
             meter = (0, int(height * 0.12), width, int(height * 0.78))
-            meter_confidence = 0.3
+            confidence = 0.3
+            source = "FULL_IMAGE_FALLBACK"
         else:
             meter = best[1]
-            meter_confidence = min(0.68, 0.45 + best[0] * 0.15)
-        x, y, w, h = meter
+            confidence = min(0.68, 0.45 + best[0] * 0.15)
+            source = "CONTOUR_BASELINE"
+        x, y, _, h = meter
         customer = (0, 0, width, min(height, y + int(h * 0.18)))
+        return MeterLocation(round(confidence, 4), meter, customer, source)
 
+
+class ReadingRegionModel:
+    """Stage 3: locate the digit register from learned corners or bounded fallbacks."""
+
+    def __init__(self, region_predictor: RegionPredictor | None = None) -> None:
+        self.region_predictor = region_predictor
+        self.name = "reading-region-locator"
+        self.version = "trained-keypoints" if region_predictor else "baseline-v1"
+
+    def locate(
+        self,
+        image: np.ndarray,
+        meter: MeterLocation,
+        lines: list[TextLine] | None = None,
+    ) -> ReadingRegionLocation:
+        height, width = image.shape[:2]
         learned = (
             self.region_predictor.predict_region(image)
             if self.region_predictor
@@ -114,10 +145,8 @@ class MeterDetector:
         if learned is not None:
             polygon, confidence = learned
             if confidence >= 0.55:
-                return Detection(
+                return ReadingRegionLocation(
                     confidence,
-                    meter,
-                    customer,
                     _polygon_bbox(polygon, width, height),
                     polygon,
                     "TRAINED_KEYPOINTS",
@@ -126,19 +155,40 @@ class MeterDetector:
         ocr_candidate = _ocr_reading_candidate(lines or [], width, height)
         if ocr_candidate is not None:
             reading, confidence = ocr_candidate
-            return Detection(confidence, meter, customer, reading, None, "SCENE_OCR")
+            return ReadingRegionLocation(confidence, reading, None, "SCENE_OCR")
 
+        x, y, w, h = meter.meter_region
         reading = (
             x + int(w * 0.15),
             y + int(h * 0.22),
             max(1, int(w * 0.72)),
             max(1, int(h * 0.25)),
         )
-        return Detection(
-            round(meter_confidence, 4),
-            meter,
-            customer,
+        return ReadingRegionLocation(
+            meter.confidence,
             reading,
             None,
             "HEURISTIC",
+        )
+
+
+class MeterDetector:
+    """Compatibility facade over the independent stage-2 and stage-3 models."""
+
+    def __init__(self, region_predictor: RegionPredictor | None = None) -> None:
+        self.meter_locator = MeterLocatorModel()
+        self.reading_region_model = ReadingRegionModel(region_predictor)
+
+    def detect(
+        self, image: np.ndarray, lines: list[TextLine] | None = None
+    ) -> Detection:
+        meter = self.meter_locator.locate(image)
+        reading = self.reading_region_model.locate(image, meter, lines)
+        return Detection(
+            reading.confidence,
+            meter.meter_region,
+            meter.customer_region,
+            reading.reading_region,
+            reading.reading_polygon,
+            reading.source,
         )

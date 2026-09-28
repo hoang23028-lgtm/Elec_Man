@@ -132,7 +132,7 @@ def train_run(run_id) -> None:
     if len(set(training_targets)) < 2:
         raise ValueError("Dữ liệu chưa tạo được đặc trưng cho ít nhất hai chữ số.")
 
-    model = DigitHogSoftmaxModel.train(
+    digit_model = DigitHogSoftmaxModel.train(
         training_features,
         training_targets,
         seed=int(dataset_hash[:8], 16),
@@ -159,7 +159,7 @@ def train_run(run_id) -> None:
         )
     region_error = float(np.mean(region_errors)) if region_errors else 1.0
     region_model = region_model.with_validation_error(region_error)
-    model = model.with_training_metadata(reading_lengths, region_model)
+    digit_model = digit_model.with_reading_lengths(reading_lengths)
     correct = total = 0
     exact_readings = evaluated_readings = 0
     for image, reading in validation_rows:
@@ -172,7 +172,7 @@ def train_run(run_id) -> None:
         if not validation_samples:
             continue
         expected = "".join(str(label) for label, _ in validation_samples)
-        predicted, _ = model.predict_features(
+        predicted, _ = digit_model.predict_features(
             [feature for _, feature in validation_samples]
         )
         evaluated_readings += 1
@@ -183,11 +183,16 @@ def train_run(run_id) -> None:
         total += len(expected)
 
     version = f"{datetime.now(UTC):%Y%m%d-%H%M%S}-{str(run_id)[:8]}"
-    relative_path = f"meter_digit_hog_softmax/{version}/model.npz"
-    target = settings.models_root / relative_path
-    target.parent.mkdir(parents=True, exist_ok=True)
-    model.save(target)
-    digest = sha256(target.read_bytes()).hexdigest()
+    digit_relative_path = f"meter_digit_hog_softmax/{version}/model.npz"
+    digit_target = settings.models_root / digit_relative_path
+    digit_target.parent.mkdir(parents=True, exist_ok=True)
+    digit_model.save(digit_target)
+    digit_digest = sha256(digit_target.read_bytes()).hexdigest()
+    region_relative_path = f"reading_region_ridge/{version}/model.npz"
+    region_target = settings.models_root / region_relative_path
+    region_target.parent.mkdir(parents=True, exist_ok=True)
+    region_model.save(region_target)
+    region_digest = sha256(region_target.read_bytes()).hexdigest()
     metrics = {
         "validation_digit_accuracy": round(correct / total, 4) if total else None,
         "validation_reading_exact_accuracy": (
@@ -198,28 +203,38 @@ def train_run(run_id) -> None:
         "validation_region_mean_error": round(region_error, 4),
         "validation_region_accuracy": round(max(0.0, 1.0 - region_error * 4.0), 4),
         "validation_digits": total,
-        "digit_classes": model.labels.tolist(),
-        "digit_coverage": round(len(model.labels) / 10, 4),
+        "digit_classes": digit_model.labels.tolist(),
+        "digit_coverage": round(len(digit_model.labels) / 10, 4),
         "training_digits": len(training_features),
         "training_images": len(training_rows),
         "validation_images": len(validation_rows),
-        "algorithm": "region-ridge-hog-softmax-v2",
+        "algorithm": "four-stage-region-ridge-hog-softmax-v3",
         "augmentation_factor": 10,
     }
     _set_stage(run_id, "REGISTERING_MODEL", 90)
     with SessionLocal() as db:
         run = db.get(TrainingRun, run_id)
-        model = ModelRecord(
+        digit_record = ModelRecord(
             model_name="meter-digit-specialized",
             model_type="meter_digit_hog_softmax",
             version=version,
-            file_path=relative_path,
+            file_path=digit_relative_path,
             metrics_json=metrics,
             status="TESTING",
-            sha256=digest,
+            sha256=digit_digest,
             created_at=datetime.now(UTC),
         )
-        db.add(model)
+        region_record = ModelRecord(
+            model_name="reading-region-specialized",
+            model_type="reading_region_ridge",
+            version=version,
+            file_path=region_relative_path,
+            metrics_json=metrics,
+            status="TESTING",
+            sha256=region_digest,
+            created_at=datetime.now(UTC),
+        )
+        db.add_all((digit_record, region_record))
         db.flush()
         run.status = "COMPLETED"
         run.stage = "COMPLETED"
@@ -229,7 +244,7 @@ def train_run(run_id) -> None:
         run.validation_count = len(validation_rows)
         run.dataset_hash = dataset_hash
         run.metrics_json = metrics
-        run.model_id = model.id
+        run.model_id = digit_record.id
         run.completed_at = datetime.now(UTC)
         db.add(
             AuditLog(
@@ -242,9 +257,11 @@ def train_run(run_id) -> None:
                     "sample_count": len(rows),
                     "training_count": len(training_rows),
                     "validation_count": len(validation_rows),
-                    "model_id": str(model.id),
+                    "model_id": str(digit_record.id),
+                    "region_model_id": str(region_record.id),
                     "model_version": version,
-                    "model_sha256": digest,
+                    "model_sha256": digit_digest,
+                    "region_model_sha256": region_digest,
                     "metrics": metrics,
                 },
                 ip_address=None,

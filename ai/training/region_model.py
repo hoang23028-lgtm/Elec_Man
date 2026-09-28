@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from pathlib import Path
 
 import cv2
 import numpy as np
@@ -57,6 +58,47 @@ class ReadingRegionRegressor:
     scale: np.ndarray
     distance_threshold: float
     validation_error: float = 1.0
+
+    @classmethod
+    def load(cls, path: Path) -> "ReadingRegionRegressor":
+        with np.load(path, allow_pickle=False) as data:
+            model = cls(
+                data["weights"].astype(np.float32),
+                data["bias"].astype(np.float32),
+                data["mean"].astype(np.float32),
+                data["scale"].astype(np.float32),
+                float(data["distance_threshold"][0]),
+                float(data["validation_error"][0]),
+            )
+        if (
+            model.weights.ndim != 2
+            or model.weights.shape != (model.mean.size, 8)
+            or model.bias.shape != (8,)
+            or model.mean.ndim != 1
+            or model.scale.shape != model.mean.shape
+            or not np.all(np.isfinite(model.weights))
+            or not np.all(np.isfinite(model.bias))
+            or not np.all(np.isfinite(model.mean))
+            or not np.all(np.isfinite(model.scale))
+            or np.any(model.scale <= 0)
+            or not np.isfinite(model.distance_threshold)
+            or model.distance_threshold <= 0
+            or not np.isfinite(model.validation_error)
+            or model.validation_error < 0
+        ):
+            raise ValueError("Artifact mô hình vùng chỉ số không hợp lệ.")
+        return model
+
+    def save(self, path: Path) -> None:
+        np.savez_compressed(
+            path,
+            weights=self.weights,
+            bias=self.bias,
+            mean=self.mean,
+            scale=self.scale,
+            distance_threshold=np.array([self.distance_threshold], dtype=np.float32),
+            validation_error=np.array([self.validation_error], dtype=np.float32),
+        )
 
     @classmethod
     def train(

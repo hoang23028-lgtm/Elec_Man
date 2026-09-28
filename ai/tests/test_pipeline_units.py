@@ -3,8 +3,9 @@ import unittest
 import numpy as np
 
 from ai.pipeline.customer_ocr import CustomerOcr
-from ai.pipeline.detector import MeterDetector
+from ai.pipeline.detector import MeterDetector, MeterLocatorModel, ReadingRegionModel
 from ai.pipeline.meter_reader import MeterReader
+from ai.pipeline.preprocessing import ImagePreprocessingModel
 from ai.pipeline.rapid import TextLine
 from ai.pipeline.validator import validate
 
@@ -63,6 +64,18 @@ class MeterReaderTests(unittest.TestCase):
 
 
 class MeterDetectorTests(unittest.TestCase):
+    def test_four_stage_vision_models_run_independently(self) -> None:
+        image = np.full((300, 500, 3), 110, dtype=np.uint8)
+        prepared, confidence, operations = ImagePreprocessingModel().process(image)
+        meter = MeterLocatorModel().locate(prepared)
+        reading = ReadingRegionModel().locate(prepared, meter, [])
+
+        self.assertEqual(prepared.shape, image.shape)
+        self.assertGreater(confidence, 0)
+        self.assertTrue(operations)
+        self.assertEqual(len(meter.meter_region), 4)
+        self.assertEqual(len(reading.reading_region), 4)
+
     def test_prefers_numeric_ocr_line_over_fixed_ratio(self) -> None:
         image = np.zeros((300, 500, 3), dtype=np.uint8)
         line = TextLine(

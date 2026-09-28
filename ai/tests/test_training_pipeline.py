@@ -139,6 +139,25 @@ def test_region_regressor_learns_verified_four_corners() -> None:
     assert confidence >= 0.9
 
 
+def test_region_regressor_round_trip(tmp_path: Path) -> None:
+    images = [np.full((80, 120, 3), value, dtype=np.uint8) for value in (70, 120, 170)]
+    target = np.array(
+        [[0.2, 0.3], [0.8, 0.25], [0.78, 0.55], [0.22, 0.6]], dtype=np.float32
+    )
+    model = ReadingRegionRegressor.train(
+        [region_features(image) for image in images],
+        [target.copy() for _ in images],
+    ).with_validation_error(0.03)
+    path = tmp_path / "reading-region.npz"
+    model.save(path)
+
+    loaded = ReadingRegionRegressor.load(path)
+    prediction = loaded.predict(images[1])
+
+    assert prediction is not None
+    assert np.mean(np.abs(np.asarray(prediction[0]) - target)) < 0.02
+
+
 def test_specialized_model_round_trips_region_metadata(tmp_path: Path) -> None:
     digit_model = DigitHogSoftmaxModel.train(
         [np.zeros(4, dtype=np.float32)] * 4 + [np.ones(4, dtype=np.float32)] * 4,

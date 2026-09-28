@@ -5,14 +5,15 @@ import cv2
 
 from ai.pipeline.confidence import calculate
 from ai.pipeline.customer_ocr import CustomerOcr
-from ai.pipeline.detector import MeterDetector
+from ai.pipeline.detector import Detection, MeterLocatorModel, ReadingRegionModel
 from ai.pipeline.geometry import normalized_bbox_polygon, perspective_crop
 from ai.pipeline.meter_reader import MeterReader
-from ai.pipeline.preprocessing import prepare_for_detection
+from ai.pipeline.preprocessing import ImagePreprocessingModel
 from ai.pipeline.quality import assess_image_quality
 from ai.pipeline.rapid import read_lines
 from ai.pipeline.validator import validate
 from ai.training.digit_model import load_digit_model
+from ai.training.region_model import ReadingRegionRegressor
 
 
 class DevelopmentPipeline:
@@ -21,15 +22,25 @@ class DevelopmentPipeline:
     name = "OCR_BASELINE"
 
     def __init__(
-        self, digit_model_path: Path | None = None, model_version: str | None = None
+        self,
+        digit_model_path: Path | None = None,
+        model_version: str | None = None,
+        region_model_path: Path | None = None,
     ) -> None:
-        self.name = (
-            "SPECIALIZED_METER_DIGIT_MODEL" if digit_model_path else "OCR_BASELINE"
-        )
+        self.name = "FOUR_STAGE_METER_PIPELINE"
         self.model_version = model_version or "meter-ocr-baseline-v2-integer"
         self.customer_ocr = CustomerOcr()
         trained_model = load_digit_model(digit_model_path) if digit_model_path else None
-        self.detector = MeterDetector(trained_model)
+        region_model = (
+            ReadingRegionRegressor.load(region_model_path)
+            if region_model_path
+            else trained_model
+        )
+        self.has_trained_models = trained_model is not None
+        self.has_region_model = region_model is not None
+        self.image_preprocessor = ImagePreprocessingModel()
+        self.meter_locator = MeterLocatorModel()
+        self.reading_region_model = ReadingRegionModel(region_model)
         self.meter_reader = MeterReader(trained_model)
 
     def process(
@@ -43,9 +54,22 @@ class DevelopmentPipeline:
         if source is None:
             raise ValueError("OpenCV không thể giải mã hình ảnh.")
         quality = assess_image_quality(source)
-        prepared = prepare_for_detection(source)
+        prepared, preprocessing_confidence, preprocessing_operations = (
+            self.image_preprocessor.process(source)
+        )
         lines = read_lines(prepared)
-        detection = self.detector.detect(prepared, lines)
+        meter_location = self.meter_locator.locate(prepared)
+        reading_location = self.reading_region_model.locate(
+            prepared, meter_location, lines
+        )
+        detection = Detection(
+            reading_location.confidence,
+            meter_location.meter_region,
+            meter_location.customer_region,
+            reading_location.reading_region,
+            reading_location.reading_polygon,
+            reading_location.source,
+        )
         customer_id, customer_confidence = self.customer_ocr.read(prepared, lines)
         human_reading_region = None
         selected_polygon = reading_polygon or (
@@ -109,6 +133,41 @@ class DevelopmentPipeline:
             "detection_source": "HUMAN_REVIEW"
             if selected_polygon is not None
             else detection.source,
+            "stage_models": {
+                "image_preprocessing": {
+                    "name": self.image_preprocessor.name,
+                    "version": self.image_preprocessor.version,
+                    "confidence": preprocessing_confidence,
+                    "operations": list(preprocessing_operations),
+                    "trained": False,
+                },
+                "meter_location": {
+                    "name": self.meter_locator.name,
+                    "version": self.meter_locator.version,
+                    "confidence": meter_location.confidence,
+                    "source": meter_location.source,
+                    "trained": False,
+                },
+                "reading_region": {
+                    "name": self.reading_region_model.name,
+                    "version": self.reading_region_model.version,
+                    "confidence": 1.0
+                    if selected_polygon is not None
+                    else reading_location.confidence,
+                    "source": "HUMAN_REVIEW"
+                    if selected_polygon is not None
+                    else reading_location.source,
+                    "trained": self.has_region_model,
+                },
+                "meter_reader": {
+                    "name": "specialized-digit-reader"
+                    if self.has_trained_models
+                    else "ocr-reader-baseline",
+                    "version": self.model_version,
+                    "confidence": meter_confidence,
+                    "trained": self.has_trained_models,
+                },
+            },
             "quality": quality,
             "validation": validation,
             "ocr_lines": len(lines),
