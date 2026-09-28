@@ -85,6 +85,22 @@ export async function recognizeReading(
   }, "Không thể đưa vùng chỉ số vào hàng đợi nhận diện.");
 }
 
+export async function saveTrainingLabel(
+  id: string,
+  csrf: string,
+  reading: string,
+  readingPolygon: ReadingPolygon,
+): Promise<void> {
+  await apiFetch(`/results/${id}/training-label`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+    body: JSON.stringify({
+      final_meter_reading: reading,
+      reading_polygon: readingPolygon,
+    }),
+  }, "Không thể lưu nhãn huấn luyện.");
+}
+
 export async function getRecognitionStatus(id: string): Promise<RecognitionStatus> {
   const response = await apiFetch(
     `/results/${id}/recognize-reading`,

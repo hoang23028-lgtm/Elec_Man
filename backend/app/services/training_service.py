@@ -28,9 +28,8 @@ def _training_settings(db: Session) -> dict[str, int]:
 
 def eligible_clause():
     return (
-        MeterReading.review_status == "CONFIRMED",
+        MeterReading.review_status.in_(("CONFIRMED", "LABELED")),
         MeterReading.reviewed_by.is_not(None),
-        MeterReading.final_customer_id.is_not(None),
         MeterReading.final_meter_reading.is_not(None),
         MeterReading.reading_bbox_x.is_not(None),
         MeterReading.reading_bbox_y.is_not(None),
@@ -66,7 +65,7 @@ def dataset_summary(db: Session, training_settings: dict[str, int] | None = None
     uploaded_query = select(func.count(ImageRecord.id)).scalar_subquery()
     confirmed_query = (
         select(func.count(MeterReading.id))
-        .where(MeterReading.review_status == "CONFIRMED")
+        .where(MeterReading.review_status.in_(("CONFIRMED", "LABELED")))
         .scalar_subquery()
     )
     eligible_query = (

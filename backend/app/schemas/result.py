@@ -128,6 +128,11 @@ class RecognitionRequest(BaseModel):
     reading_polygon: ReadingPolygon
 
 
+class TrainingLabelRequest(BaseModel):
+    final_meter_reading: str = Field(min_length=1, max_length=64)
+    reading_polygon: ReadingPolygon
+
+
 class RecognitionResponse(BaseModel):
     image_id: UUID
     job_id: UUID

@@ -36,7 +36,7 @@ const descriptions: Record<string, string> = {
   training_auto_start:
     "Trainer tự tạo phiên mới khi dataset đủ điều kiện và có đủ mẫu mới.",
   training_min_samples:
-    "Chỉ tính ảnh có mã khách hàng, số điện và vùng bốn điểm đã được con người xác nhận; khuyến nghị tối thiểu 200 ảnh đa dạng.",
+    "Chỉ tính ảnh có số điện đúng và vùng bốn điểm đã được người dùng lưu nhãn; khuyến nghị tối thiểu 200 ảnh đa dạng.",
   training_min_new_samples:
     "Tránh huấn luyện lại liên tục khi dataset chỉ tăng một vài ảnh.",
 };

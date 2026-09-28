@@ -13,11 +13,13 @@ from app.schemas.result import (
     ResultRow,
     ReviewRequest,
     ReviewResponse,
+    TrainingLabelRequest,
 )
 from app.security.dependencies import get_current_user, require_csrf
 from app.services.region_recognition_service import (
     queue_region_recognition,
     region_recognition_status,
+    save_training_label,
 )
 from app.services.review_service import list_results, review_result
 
@@ -87,3 +89,30 @@ def recognize_reading_status(
     _: User = Depends(get_current_user),
 ) -> RecognitionStatusResponse:
     return region_recognition_status(db, image_id)
+
+
+@router.post(
+    "/{image_id}/training-label",
+    response_model=ReviewResponse,
+    dependencies=[Depends(require_csrf)],
+)
+def training_label(
+    image_id: UUID,
+    payload: TrainingLabelRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> ReviewResponse:
+    reading = save_training_label(
+        db,
+        image_id,
+        payload.final_meter_reading,
+        payload.reading_polygon,
+        user,
+        request.client.host if request.client else None,
+    )
+    return ReviewResponse(
+        image_id=image_id,
+        review_status=reading.review_status,
+        reviewed_at=reading.reviewed_at,
+    )

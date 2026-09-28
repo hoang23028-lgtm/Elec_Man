@@ -80,7 +80,7 @@ export function TrainingPipeline({ csrfToken }: { csrfToken: string }) {
       {notice && <p className="notice" role="status">{notice}</p>}
       <div className="metrics training-metrics">
         <div><strong>{dataset?.uploaded_images ?? "—"}</strong><span>Ảnh đã tải</span></div>
-        <div><strong>{dataset?.confirmed_images ?? "—"}</strong><span>Đã xác nhận</span></div>
+        <div><strong>{dataset?.confirmed_images ?? "—"}</strong><span>Đã gắn nhãn</span></div>
         <div><strong>{dataset?.eligible_samples ?? "—"}</strong><span>Mẫu đủ điều kiện</span></div>
         <div><strong>{dataset?.minimum_samples ?? "—"}</strong><span>Ngưỡng huấn luyện</span></div>
       </div>
@@ -88,8 +88,8 @@ export function TrainingPipeline({ csrfToken }: { csrfToken: string }) {
         {dataset?.auto_start_enabled
           ? `Tự động huấn luyện đang bật. Còn ${Math.max(0, (dataset.minimum_samples ?? 0) - (dataset.eligible_samples ?? 0))} mẫu để đạt ngưỡng.`
           : "Tự động huấn luyện đang tắt. Có thể bật trong Cấu hình hệ thống."}
-        {" "}Chỉ ảnh duy nhất có mã khách hàng, số điện và vùng bốn góc được con người
-        xác nhận mới được dùng làm nhãn huấn luyện.
+        {" "}Chỉ ảnh duy nhất có số điện đúng và vùng bốn góc đã được người dùng
+        lưu nhãn mới được đưa vào tập huấn luyện; không bắt buộc có mã khách hàng.
       </p>
       <div className="table-wrap training-table">
         <table>

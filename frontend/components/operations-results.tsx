@@ -9,6 +9,7 @@ import {
   getResultsPage,
   recognizeReading,
   reviewResult,
+  saveTrainingLabel,
   type ReadingBoundingBox,
   type ReadingPolygon,
   type Result,
@@ -253,6 +254,31 @@ export function OperationsResults({ csrfToken, refreshKey = 0 }: Props) {
     }
   }
 
+  async function submitTrainingLabel(row: Result) {
+    const draft = drafts[row.image_id] ?? initialDraft(row);
+    if (!draft.readingPolygon || !draft.reading.trim()) {
+      setError("Hãy khoanh đủ bốn góc và nhập chỉ số đúng trước khi lưu nhãn.");
+      return;
+    }
+    setBusyId(row.image_id);
+    setError(null);
+    setMessage(null);
+    try {
+      await saveTrainingLabel(
+        row.image_id,
+        csrfToken,
+        draft.reading.trim(),
+        draft.readingPolygon,
+      );
+      setMessage("Đã lưu vùng bốn điểm và chỉ số đúng làm nhãn huấn luyện.");
+      await load(false);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Không thể lưu nhãn huấn luyện.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   function applySearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setPendingPage(0);
@@ -352,6 +378,17 @@ export function OperationsResults({ csrfToken, refreshKey = 0 }: Props) {
             >
               {draft.readingPolygon ? "Sửa vùng chỉ số" : "Khoanh vùng chỉ số"}
             </button>
+            {!editableConfirmed && (
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => void submitTrainingLabel(row)}
+                disabled={busy || !draft.readingPolygon || !draft.reading.trim()}
+                title="Lưu vùng bốn điểm và chỉ số đúng để huấn luyện; không yêu cầu mã khách hàng"
+              >
+                {row.review_status === "LABELED" ? "Cập nhật nhãn AI" : "Lưu nhãn AI"}
+              </button>
+            )}
             {editableConfirmed ? (
               <button
                 type="button"

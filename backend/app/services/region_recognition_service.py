@@ -20,6 +20,7 @@ from app.schemas.result import (
     RecognitionStatusResponse,
 )
 from app.services.job_service import refresh_batch_counters
+from app.services.meter_value import normalize_meter_reading, parse_meter_value
 
 
 def _bbox_dict(reading: MeterReading | None) -> dict | None:
@@ -165,3 +166,94 @@ def region_recognition_status(db: Session, image_id: UUID) -> RecognitionStatusR
         ),
         error_message=job.error_message if job.status == JobStatus.FAILED else None,
     )
+
+
+def save_training_label(
+    db: Session,
+    image_id: UUID,
+    meter_reading: str,
+    polygon: ReadingPolygon,
+    user: User,
+    ip_address: str | None,
+) -> MeterReading:
+    record = db.execute(
+        select(ImageRecord, AiResult, MeterReading)
+        .join(AiResult, AiResult.image_id == ImageRecord.id)
+        .outerjoin(MeterReading, MeterReading.image_id == ImageRecord.id)
+        .where(ImageRecord.id == image_id)
+        .with_for_update(of=ImageRecord)
+    ).one_or_none()
+    if record is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy kết quả.")
+    image, ai_result, reading = record
+    if image.status != ImageStatus.REVIEW_REQUIRED:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Chỉ có thể lưu nhãn cho kết quả đang chờ xử lý.",
+        )
+    normalized = normalize_meter_reading(meter_reading)
+    if normalized is None or not 4 <= len(normalized) <= 8:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Nhãn chỉ số phải gồm từ 4 đến 8 chữ số nguyên.",
+        )
+    if reading is None:
+        reading = MeterReading(image_id=image.id, ai_result_id=ai_result.id)
+        db.add(reading)
+    old_meter = reading.final_meter_reading
+    old_polygon = reading.reading_polygon_json
+    new_polygon = polygon.model_dump()
+    bbox = polygon.bounding_box()
+    now = datetime.now(UTC)
+    reading.final_meter_reading = normalized
+    reading.reading_value = parse_meter_value(normalized)
+    reading.reading_bbox_x = bbox.x
+    reading.reading_bbox_y = bbox.y
+    reading.reading_bbox_width = bbox.width
+    reading.reading_bbox_height = bbox.height
+    reading.reading_polygon_json = new_polygon
+    reading.bbox_reviewed_by = user.id
+    reading.bbox_reviewed_at = now
+    reading.review_status = "LABELED"
+    reading.reviewed_by = user.id
+    reading.reviewed_at = now
+    for field_name, old_value, new_value in (
+        ("meter_reading", old_meter, normalized),
+        (
+            "reading_polygon",
+            json.dumps(old_polygon, ensure_ascii=False, sort_keys=True),
+            json.dumps(new_polygon, ensure_ascii=False, sort_keys=True),
+        ),
+    ):
+        if old_value != new_value:
+            db.add(
+                ManualCorrection(
+                    image_id=image.id,
+                    ai_result_id=ai_result.id,
+                    field_name=field_name,
+                    old_value=old_value,
+                    new_value=new_value,
+                    reason="Nhãn huấn luyện do người dùng xác nhận",
+                    created_by=user.id,
+                )
+            )
+    db.add(
+        AuditLog(
+            user_id=user.id,
+            action="SAVE_TRAINING_LABEL",
+            target_type="image",
+            target_id=str(image.id),
+            details_json={
+                "original_filename": image.original_filename,
+                "meter_reading_before": old_meter,
+                "meter_reading_after": normalized,
+                "reading_polygon_before": old_polygon,
+                "reading_polygon_after": new_polygon,
+                "new_status": "LABELED",
+            },
+            ip_address=ip_address,
+        )
+    )
+    db.commit()
+    db.refresh(reading)
+    return reading

@@ -15,6 +15,42 @@ HEIGHT = 32
 HOG_FEATURE_SIZE = 756
 
 
+def integer_register_strip(image: np.ndarray) -> np.ndarray:
+    """Remove a red fractional wheel and labels below the mechanical register."""
+    if image.size == 0 or image.ndim != 3 or image.shape[1] < 20:
+        return image
+    height, width = image.shape[:2]
+    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+    red = (
+        ((hsv[:, :, 0] <= 15) | (hsv[:, :, 0] >= 165))
+        & (hsv[:, :, 1] >= 55)
+        & (hsv[:, :, 2] >= 60)
+    )
+    column_counts = red.sum(axis=0)
+    minimum_column_pixels = max(2, round(height * 0.12))
+    columns = np.flatnonzero(
+        (column_counts >= minimum_column_pixels)
+        & (np.arange(width) >= round(width * 0.45))
+    )
+    if columns.size < max(2, round(width * 0.025)):
+        return image
+    groups = np.split(columns, np.where(np.diff(columns) > 1)[0] + 1)
+    group = max(groups, key=lambda item: int(column_counts[item].sum()))
+    if group.size < max(2, round(width * 0.025)):
+        return image
+    fractional_left = int(group[0])
+    if fractional_left <= round(width * 0.5):
+        return image
+    wheel_pixels = np.argwhere(red[:, group])
+    if wheel_pixels.size == 0:
+        return image
+    top = max(0, int(wheel_pixels[:, 0].min()) - round(height * 0.15))
+    bottom = min(height, int(wheel_pixels[:, 0].max()) + 1 + round(height * 0.12))
+    right = max(1, fractional_left - round(width * 0.01))
+    cropped = image[top:bottom, :right]
+    return cropped if cropped.size and cropped.shape[1] >= 20 else image
+
+
 def _normalized_gray(image: np.ndarray) -> np.ndarray:
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if image.ndim == 3 else image
     resized = cv2.resize(gray, (WIDTH, HEIGHT), interpolation=cv2.INTER_AREA)
@@ -110,6 +146,7 @@ def digit_crops(
         strip = prepared[y : y + height, x : x + width]
     if strip.size == 0 or digit_count <= 0:
         return []
+    strip = integer_register_strip(strip)
     # The detector returns the mechanical register strip. Split by the verified
     # integer-wheel count; fractional/red wheels are absent from the label.
     edges = np.linspace(0, strip.shape[1], digit_count + 1, dtype=int)

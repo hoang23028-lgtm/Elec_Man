@@ -5,7 +5,7 @@ import numpy as np
 
 from ai.pipeline.rapid import TextLine, read_lines
 from ai.pipeline.tesseract import enhanced_variants, read
-from ai.training.digit_model import DigitModel, reading_features
+from ai.training.digit_model import DigitModel, integer_register_strip, reading_features
 
 
 class MeterReader:
@@ -18,6 +18,10 @@ class MeterReader:
         lines: list[TextLine] | None = None,
         reading_bbox: tuple[float, float, float, float] | None = None,
     ) -> tuple[str | None, float]:
+        integer_image = integer_register_strip(image)
+        if integer_image.shape != image.shape:
+            image = integer_image
+            lines = read_lines(image)
         best: tuple[str | None, float] = (None, 0.0)
         for line in lines if lines is not None else read_lines(image):
             groups = self._integer_groups(line.text)

@@ -9,6 +9,7 @@ from ai.training.digit_model import (
     DigitHogSoftmaxModel,
     HOG_FEATURE_SIZE,
     digit_crops,
+    integer_register_strip,
     load_digit_model,
     reading_features,
 )
@@ -30,6 +31,18 @@ def test_digit_crops_use_human_verified_region() -> None:
 
     assert len(crops) == 5
     assert all(float(crop.mean()) == 255 for crop in crops)
+
+
+def test_integer_register_strip_removes_red_fractional_wheel() -> None:
+    strip = np.full((40, 120, 3), 120, dtype=np.uint8)
+    strip[5:34, 100:118] = (0, 0, 230)
+
+    integer_strip = integer_register_strip(strip)
+    crops = digit_crops(integer_strip, 5, (0.0, 0.0, 1.0, 1.0))
+
+    assert integer_strip.shape[1] < 100
+    assert len(crops) == 5
+    assert all(float(crop[:, :, 2].mean()) < 180 for crop in crops)
 
 
 def test_perspective_crop_rectifies_four_point_region() -> None:
