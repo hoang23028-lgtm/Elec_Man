@@ -19,7 +19,7 @@ export function Pagination({
   const current = Math.min(Math.max(0, pageIndex), pages - 1);
 
   return (
-    <nav className="pagination" aria-label={ariaLabel}>
+    <nav className="pagination pagination-stable" aria-label={ariaLabel}>
       <button
         className="secondary"
         type="button"
@@ -42,7 +42,7 @@ export function Pagination({
             </option>
           ))}
         </select>
-        <span>/ {pages}{itemSummary ? ` · ${itemSummary}` : ""}</span>
+        <span>/ {pages}</span>
       </label>
       <button
         className="secondary"
@@ -52,6 +52,7 @@ export function Pagination({
       >
         Sau
       </button>
+      {itemSummary && <span className="pagination-summary">{itemSummary}</span>}
     </nav>
   );
 }

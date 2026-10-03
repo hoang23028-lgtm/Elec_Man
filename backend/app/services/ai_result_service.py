@@ -9,6 +9,13 @@ def store_immutable_ai_result(
 ) -> AiResult:
     existing = db.scalar(select(AiResult).where(AiResult.image_id == image_id))
     if existing is not None and replace_existing:
+        if result.get("reading_only"):
+            result["customer_id_ai"] = existing.customer_id_ai
+            result["customer_confidence"] = existing.customer_confidence
+            result["regions"] = {
+                **(existing.raw_result_json.get("regions") or {}),
+                **result.get("regions", {}),
+            }
         existing.model_version = result["model_version"]
         existing.customer_id_ai = result["customer_id_ai"]
         existing.meter_reading_ai = result["meter_reading_ai"]

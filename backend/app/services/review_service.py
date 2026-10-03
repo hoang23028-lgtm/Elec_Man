@@ -8,12 +8,19 @@ from sqlalchemy.orm import Session
 
 from app.models.ai_result import AiResult
 from app.models.audit_log import AuditLog
+from app.models.confirmed_monthly_reading import ConfirmedMonthlyReading
 from app.models.customer import Customer
 from app.models.image import ImageRecord, ImageStatus
 from app.models.manual_correction import ManualCorrection
 from app.models.meter_reading import MeterReading
 from app.models.user import User
-from app.schemas.result import ReadingBoundingBox, ReadingPolygon, ResultRow, ReviewRequest
+from app.schemas.result import (
+    ReadingBoundingBox,
+    ReadingPolygon,
+    ResultRow,
+    ResultStatusCounts,
+    ReviewRequest,
+)
 from app.services.confirmed_reading_service import (
     remove_confirmed_monthly_reading,
     save_confirmed_monthly_reading,
@@ -24,10 +31,10 @@ from app.services.meter_value import normalize_meter_reading, parse_meter_value
 from app.services.reviewed_image_service import archive_reviewed_image, remove_reviewed_image
 
 
-def _normalized_ai_reading_bbox(
-    image: ImageRecord, ai_result: AiResult
+def _normalized_ai_bbox(
+    image: ImageRecord, ai_result: AiResult, region_name: str
 ) -> ReadingBoundingBox | None:
-    region = (ai_result.raw_result_json.get("regions") or {}).get("reading")
+    region = (ai_result.raw_result_json.get("regions") or {}).get(region_name)
     if not isinstance(region, list | tuple) or len(region) != 4:
         return None
     scale = min(1.0, 1600 / max(image.width, image.height))
@@ -43,6 +50,16 @@ def _normalized_ai_reading_bbox(
         )
     except (TypeError, ValueError, ZeroDivisionError):
         return None
+
+
+def _normalized_ai_reading_bbox(
+    image: ImageRecord, ai_result: AiResult
+) -> ReadingBoundingBox | None:
+    return _normalized_ai_bbox(image, ai_result, "reading")
+
+
+def _normalized_ai_meter_bbox(image: ImageRecord, ai_result: AiResult) -> ReadingBoundingBox | None:
+    return _normalized_ai_bbox(image, ai_result, "meter")
 
 
 def _stored_reading_polygon(reading: MeterReading | None) -> ReadingPolygon | None:
@@ -72,7 +89,22 @@ def _stored_reading_polygon(reading: MeterReading | None) -> ReadingPolygon | No
     return None
 
 
-def _apply_result_filters(statement, image_status: str | None, search: str | None):
+def _stored_meter_polygon(reading: MeterReading | None) -> ReadingPolygon | None:
+    if reading and reading.meter_polygon_json:
+        try:
+            return ReadingPolygon.model_validate(reading.meter_polygon_json)
+        except (TypeError, ValueError):
+            return None
+    return None
+
+
+def _apply_result_filters(
+    statement, image_status: str | None, search: str | None, review_status: str | None = None
+):
+    if review_status:
+        statement = statement.where(
+            func.coalesce(MeterReading.review_status, "PENDING") == review_status
+        )
     if image_status:
         statement = statement.where(ImageRecord.status == image_status)
     if not search:
@@ -88,12 +120,62 @@ def _apply_result_filters(statement, image_status: str | None, search: str | Non
     )
 
 
+def get_result_status_counts(db: Session, search: str | None = None) -> ResultStatusCounts:
+    """Return counts using the same status invariants as the operations queues."""
+    effective_review_status = func.coalesce(MeterReading.review_status, "PENDING")
+    statement = (
+        select(
+            func.count(ImageRecord.id)
+            .filter(ImageRecord.status == ImageStatus.REVIEW_REQUIRED)
+            .label("review_required"),
+            func.count(ImageRecord.id)
+            .filter(
+                ImageRecord.status == ImageStatus.REVIEW_REQUIRED,
+                effective_review_status == "PENDING",
+            )
+            .label("pending"),
+            func.count(ImageRecord.id)
+            .filter(
+                ImageRecord.status == ImageStatus.REVIEW_REQUIRED,
+                effective_review_status == "LABELED",
+            )
+            .label("labeled"),
+            func.count(ImageRecord.id)
+            .filter(
+                ImageRecord.status == ImageStatus.CONFIRMED,
+                effective_review_status == "CONFIRMED",
+            )
+            .label("confirmed"),
+            func.count(ImageRecord.id)
+            .filter(
+                ImageRecord.status == ImageStatus.REJECTED,
+                effective_review_status == "REJECTED",
+            )
+            .label("rejected"),
+        )
+        .select_from(ImageRecord)
+        .join(AiResult, AiResult.image_id == ImageRecord.id)
+        .outerjoin(MeterReading, MeterReading.image_id == ImageRecord.id)
+        .outerjoin(Customer, Customer.id == MeterReading.matched_customer_id)
+    )
+    statement = _apply_result_filters(statement, None, search)
+    row = db.execute(statement).one()
+    return ResultStatusCounts(
+        review_required=int(row.review_required or 0),
+        pending=int(row.pending or 0),
+        labeled=int(row.labeled or 0),
+        confirmed=int(row.confirmed or 0),
+        rejected=int(row.rejected or 0),
+    )
+
+
 def list_results(
     db: Session,
     offset: int,
     limit: int,
     image_status: str | None,
     search: str | None,
+    review_status: str | None = None,
 ) -> tuple[list[ResultRow], int]:
     statement = (
         select(
@@ -101,19 +183,24 @@ def list_results(
             AiResult,
             MeterReading,
             Customer,
+            ConfirmedMonthlyReading.reading_month,
             func.count(ImageRecord.id).over().label("total_count"),
         )
         .join(AiResult, AiResult.image_id == ImageRecord.id)
         .outerjoin(MeterReading, MeterReading.image_id == ImageRecord.id)
         .outerjoin(Customer, Customer.id == MeterReading.matched_customer_id)
+        .outerjoin(
+            ConfirmedMonthlyReading, ConfirmedMonthlyReading.source_image_id == ImageRecord.id
+        )
         .order_by(AiResult.created_at.desc())
         .offset(offset)
         .limit(limit)
     )
-    statement = _apply_result_filters(statement, image_status, search)
+    statement = _apply_result_filters(statement, image_status, search, review_status)
     rows = db.execute(statement).all()
     items = [
         ResultRow(
+            reading_month=month,
             image_id=image.id,
             original_filename=image.original_filename,
             image_width=image.width,
@@ -149,8 +236,10 @@ def list_results(
             ),
             reading_polygon=_stored_reading_polygon(reading),
             ai_reading_bbox=_normalized_ai_reading_bbox(image, ai_result),
+            meter_polygon=_stored_meter_polygon(reading),
+            ai_meter_bbox=_normalized_ai_meter_bbox(image, ai_result),
         )
-        for image, ai_result, reading, customer, _ in rows
+        for image, ai_result, reading, customer, month, _ in rows
     ]
     total = int(rows[0].total_count) if rows else 0
     if not rows and offset:
@@ -160,7 +249,9 @@ def list_results(
             .outerjoin(MeterReading, MeterReading.image_id == ImageRecord.id)
             .outerjoin(Customer, Customer.id == MeterReading.matched_customer_id)
         )
-        count_statement = _apply_result_filters(count_statement, image_status, search)
+        count_statement = _apply_result_filters(
+            count_statement, image_status, search, review_status
+        )
         total = int(db.scalar(count_statement) or 0)
     return items, total
 
@@ -177,6 +268,7 @@ def review_result(
         .join(AiResult, AiResult.image_id == ImageRecord.id)
         .outerjoin(MeterReading, MeterReading.image_id == ImageRecord.id)
         .where(ImageRecord.id == image_id)
+        .with_for_update(of=ImageRecord)
     ).one_or_none()
     if record is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy kết quả.")
@@ -231,6 +323,9 @@ def review_result(
         else None
     )
     old_polygon = reading.reading_polygon_json
+    old_meter_polygon = reading.meter_polygon_json
+    meter_was_submitted = "meter_polygon" in payload.model_fields_set
+    new_meter_polygon = payload.meter_polygon.model_dump() if payload.meter_polygon else None
     bbox_was_submitted = "reading_bbox" in payload.model_fields_set
     polygon_was_submitted = "reading_polygon" in payload.model_fields_set
     new_polygon = payload.reading_polygon.model_dump() if payload.reading_polygon else None
@@ -290,6 +385,30 @@ def review_result(
             )
         )
 
+    if payload.action == "CONFIRM" and meter_was_submitted:
+        if old_meter_polygon != new_meter_polygon:
+            correction_count += 1
+            changed_fields.append("meter_polygon")
+            db.add(
+                ManualCorrection(
+                    image_id=image_id,
+                    ai_result_id=ai_result.id,
+                    field_name="meter_polygon",
+                    old_value=json.dumps(old_meter_polygon, ensure_ascii=False, sort_keys=True),
+                    new_value=json.dumps(new_meter_polygon, ensure_ascii=False, sort_keys=True),
+                    reason=payload.reason,
+                    created_by=user.id,
+                )
+            )
+        meter_bbox = payload.meter_polygon.bounding_box() if payload.meter_polygon else None
+        reading.meter_polygon_json = new_meter_polygon
+        reading.meter_bbox_x = meter_bbox.x if meter_bbox else None
+        reading.meter_bbox_y = meter_bbox.y if meter_bbox else None
+        reading.meter_bbox_width = meter_bbox.width if meter_bbox else None
+        reading.meter_bbox_height = meter_bbox.height if meter_bbox else None
+        reading.meter_bbox_reviewed_by = user.id if meter_bbox else None
+        reading.meter_bbox_reviewed_at = datetime.now(UTC) if meter_bbox else None
+
     reading.final_customer_id = final_customer
     reading.final_meter_reading = final_meter
     reading.reading_value = reading_value if payload.action == "CONFIRM" else None
@@ -326,7 +445,7 @@ def review_result(
     removed_confirmed_record_id = None
     if payload.action == "CONFIRM":
         confirmed_record, replaced_official_values = save_confirmed_monthly_reading(
-            db, image, reading, matched_customer, user.id
+            db, image, reading, matched_customer, user.id, payload.reading_month
         )
         reviewed_image_path = archive_reviewed_image(
             image, matched_customer.customer_code, reading.reviewed_at
@@ -377,6 +496,8 @@ def review_result(
                 ),
                 "reading_polygon_before": old_polygon,
                 "reading_polygon_after": reading.reading_polygon_json,
+                "meter_polygon_before": old_meter_polygon,
+                "meter_polygon_after": reading.meter_polygon_json,
                 "customer_match_status": reading.customer_match_status,
                 "matched_customer_id": (
                     str(reading.matched_customer_id) if reading.matched_customer_id else None

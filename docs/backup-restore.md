@@ -16,6 +16,16 @@ ENV_FILE=.env ./scripts/backup.sh
 
 Sao chép thư mục sao lưu hoàn tất sang vùng lưu trữ riêng hoặc NAS. Bản sao chỉ nằm trên máy chủ ứng dụng là chưa đủ an toàn.
 
+Xác minh checksum và khả năng đọc hai kho nén trước khi chuyển bản sao hoặc phục hồi:
+
+```powershell
+.\scripts\verify-backup.ps1 -BackupDirectory .\backups\20260918T120000Z
+```
+
+```bash
+./scripts/verify-backup.sh ./backups/20260918T120000Z
+```
+
 Áp dụng quy tắc 3-2-1: tối thiểu ba bản sao, trên hai loại thiết bị, một bản nằm ngoài máy chủ. Mã hóa thư mục backup ở tầng ổ đĩa hoặc kho lưu trữ vì database dump và ảnh có dữ liệu nghiệp vụ. Giới hạn tài khoản đọc, bật cảnh báo khi script thất bại và kiểm tra `checksums.sha256` sau mỗi lần chuyển. Cấu hình Task Scheduler/cron chạy backup hằng ngày, giữ tối thiểu 7 bản gần nhất và diễn tập khôi phục hằng tháng trên máy không phải production. Script chỉ cung cấp cơ chế sao lưu; việc đặt lịch, chuyển bản sao ra ngoài máy và cảnh báo thất bại là bước vận hành bắt buộc trước khi go-live.
 
 Khôi phục là thao tác phá hủy dữ liệu hiện tại và chủ động yêu cầu công tắc xác nhận rõ ràng. Trước tiên hãy dừng lưu lượng người dùng, xác minh đúng mốc thời gian rồi chạy:

@@ -13,11 +13,9 @@ from app.models.model_registry import ModelRecord
 from app.models.user import User
 from app.schemas.model_registry import ModelCreate, ModelRow
 
-METER_DIGIT_MODEL_TYPES = {
-    "meter_digit_centroid",
-    "meter_digit_hog_softmax",
-}
 READING_REGION_MODEL_TYPES = {"reading_region_ridge"}
+METER_LOCATOR_MODEL_TYPES = {"meter_locator_ridge"}
+SUPPORTED_MODEL_TYPES = READING_REGION_MODEL_TYPES | METER_LOCATOR_MODEL_TYPES
 
 
 def _row(record: ModelRecord) -> ModelRow:
@@ -64,6 +62,14 @@ def _verified_model_path(relative_path: str, claimed_sha256: str) -> Path:
 
 
 def _validate_activation_metrics(record: ModelRecord) -> None:
+    if record.model_type in METER_LOCATOR_MODEL_TYPES:
+        meter_accuracy = float(record.metrics_json.get("validation_meter_region_accuracy") or 0)
+        if meter_accuracy < 0.8:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Model định vị công tơ chỉ được kích hoạt khi độ chính xác đạt ít nhất 80%.",
+            )
+        return
     if record.model_type in READING_REGION_MODEL_TYPES:
         region_accuracy = float(record.metrics_json.get("validation_region_accuracy") or 0)
         if region_accuracy < 0.8:
@@ -72,33 +78,20 @@ def _validate_activation_metrics(record: ModelRecord) -> None:
                 detail="Model vùng chỉ số chỉ được kích hoạt khi độ chính xác đạt ít nhất 80%.",
             )
         return
-    if record.model_type not in METER_DIGIT_MODEL_TYPES:
-        return
-    coverage = float(record.metrics_json.get("digit_coverage") or 0)
-    accuracy = float(record.metrics_json.get("validation_digit_accuracy") or 0)
-    exact_accuracy = float(record.metrics_json.get("validation_reading_exact_accuracy") or 0)
-    algorithm = str(record.metrics_json.get("algorithm") or "")
-    if coverage < 1.0 or accuracy < 0.9:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=(
-                "Model huấn luyện chỉ được kích hoạt khi phủ đủ chữ số 0–9 "
-                "và độ chính xác validation đạt ít nhất 90%."
-            ),
-        )
-    if (algorithm.endswith("v2") or algorithm.endswith("v3")) and exact_accuracy < 0.85:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=(
-                "Model đọc số chuyên biệt chỉ được kích hoạt khi đọc đúng toàn bộ "
-                "chỉ số ít nhất 85%."
-            ),
-        )
+    raise HTTPException(
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+        detail="Loại model này không còn được pipeline hiện tại hỗ trợ.",
+    )
 
 
 def register_model(
     db: Session, payload: ModelCreate, user: User, ip_address: str | None
 ) -> ModelRow:
+    if payload.model_type not in SUPPORTED_MODEL_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Loại mô hình không được pipeline hiện tại hỗ trợ.",
+        )
     _verified_model_path(payload.file_path, payload.sha256)
     record = ModelRecord(
         model_name=payload.model_name.strip(),
@@ -141,10 +134,10 @@ def activate_model(db: Session, model_id: object, user: User, ip_address: str | 
     _validate_activation_metrics(record)
     previous_status = record.status
     model_types = (
-        METER_DIGIT_MODEL_TYPES
-        if record.model_type in METER_DIGIT_MODEL_TYPES
-        else READING_REGION_MODEL_TYPES
+        READING_REGION_MODEL_TYPES
         if record.model_type in READING_REGION_MODEL_TYPES
+        else METER_LOCATOR_MODEL_TYPES
+        if record.model_type in METER_LOCATOR_MODEL_TYPES
         else {record.model_type}
     )
     db.execute(

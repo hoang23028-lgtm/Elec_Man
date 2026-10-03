@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import "./globals.css";
 export const metadata: Metadata = {
-  title: "AI Quản lý đồng hồ điện",
-  description: "Hệ thống nội bộ xử lý hình ảnh đồng hồ điện bằng AI",
+  title: "Quản lý đồng hồ điện",
+  description: "Hệ thống xử lý hình ảnh đồng hồ điện",
 };
 export default function RootLayout({
   children,

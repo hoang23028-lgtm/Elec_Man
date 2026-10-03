@@ -23,10 +23,14 @@ def _get_user(db: Session, user_id: UUID) -> User:
     return user
 
 
-def _active_user_count(db: Session) -> int:
+def _active_admin_count(db: Session) -> int:
     return int(
         db.scalar(
-            select(func.count(User.id)).where(User.is_active.is_(True), User.deleted_at.is_(None))
+            select(func.count(User.id)).where(
+                User.is_active.is_(True),
+                User.role == "ADMIN",
+                User.deleted_at.is_(None),
+            )
         )
         or 0
     )
@@ -89,6 +93,7 @@ def create_user(db: Session, payload: UserCreate, actor: User, ip_address: str |
         username=payload.username,
         password_hash=hash_password(payload.password),
         is_active=payload.is_active,
+        role=payload.role,
     )
     db.add(user)
     try:
@@ -99,7 +104,14 @@ def create_user(db: Session, payload: UserCreate, actor: User, ip_address: str |
             status_code=status.HTTP_409_CONFLICT,
             detail="Tên đăng nhập đã tồn tại.",
         ) from exc
-    _audit(db, actor, "USER_CREATE", user, ip_address, {"is_active": user.is_active})
+    _audit(
+        db,
+        actor,
+        "USER_CREATE",
+        user,
+        ip_address,
+        {"is_active": user.is_active, "role": user.role},
+    )
     _commit_unique_username(db)
     db.refresh(user)
     return UserRow.model_validate(user)
@@ -113,17 +125,25 @@ def update_user(
     ip_address: str | None,
 ) -> UserRow:
     user = _get_user(db, user_id)
+    removes_admin_access = user.role == "ADMIN" and (
+        payload.is_active is False or payload.role == "VIEWER"
+    )
     if payload.is_active is False:
         if user.id == actor.id:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Không thể tự khóa tài khoản đang đăng nhập.",
             )
-        if user.is_active and _active_user_count(db) <= 1:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Phải duy trì ít nhất một tài khoản đang hoạt động.",
-            )
+    if payload.role == "VIEWER" and user.id == actor.id:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Không thể tự hạ quyền tài khoản đang đăng nhập.",
+        )
+    if user.is_active and removes_admin_access and _active_admin_count(db) <= 1:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Phải duy trì ít nhất một quản trị viên đang hoạt động.",
+        )
     changes: dict[str, dict[str, object]] = {}
     if payload.username is not None and payload.username != user.username:
         changes["username"] = {"old": user.username, "new": payload.username}
@@ -133,6 +153,9 @@ def update_user(
         user.is_active = payload.is_active
         if not user.is_active:
             _revoke_sessions(db, user.id)
+    if payload.role is not None and payload.role != user.role:
+        changes["role"] = {"old": user.role, "new": payload.role}
+        user.role = payload.role
     if changes:
         _audit(db, actor, "USER_UPDATE", user, ip_address, changes)
     _commit_unique_username(db)
@@ -162,10 +185,10 @@ def delete_user(db: Session, user_id: UUID, actor: User, ip_address: str | None)
             status_code=status.HTTP_409_CONFLICT,
             detail="Không thể tự xóa tài khoản đang đăng nhập.",
         )
-    if user.is_active and _active_user_count(db) <= 1:
+    if user.is_active and user.role == "ADMIN" and _active_admin_count(db) <= 1:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Phải duy trì ít nhất một tài khoản đang hoạt động.",
+            detail="Phải duy trì ít nhất một quản trị viên đang hoạt động.",
         )
     user.is_active = False
     user.deleted_at = datetime.now(UTC)

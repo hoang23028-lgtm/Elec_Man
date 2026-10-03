@@ -14,6 +14,8 @@ class LoginRequest(BaseModel):
 class LoginResponse(BaseModel):
     csrf_token: str
     expires_at: datetime
+    username: str
+    role: str
 
 
 class RegistrationRequest(BaseModel):
@@ -35,4 +37,5 @@ class RegistrationResponse(BaseModel):
 class CurrentUserResponse(BaseModel):
     id: UUID
     username: str
+    role: str
     last_login_at: datetime | None

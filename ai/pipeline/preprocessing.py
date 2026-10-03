@@ -2,6 +2,14 @@ import cv2
 import numpy as np
 
 
+def load_prepared_image(path) -> np.ndarray | None:
+    """Use the same full-image preprocessing for training and inference."""
+    image = cv2.imread(str(path), cv2.IMREAD_COLOR)
+    if image is None:
+        return None
+    return ImagePreprocessingModel().process(image)[0]
+
+
 class ImagePreprocessingModel:
     """Stage 1: conservative image enhancement with stable geometry."""
 

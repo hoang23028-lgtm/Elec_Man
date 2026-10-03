@@ -46,6 +46,7 @@ def queue_region_recognition(
     polygon: ReadingPolygon,
     user: User,
     ip_address: str | None,
+    integer_digits: int | None = None,
 ) -> RecognitionResponse:
     record = db.execute(
         select(ImageRecord, AiResult, MeterReading, ProcessingJob)
@@ -53,7 +54,7 @@ def queue_region_recognition(
         .outerjoin(MeterReading, MeterReading.image_id == ImageRecord.id)
         .join(ProcessingJob, ProcessingJob.image_id == ImageRecord.id)
         .where(ImageRecord.id == image_id)
-        .with_for_update(of=ProcessingJob)
+        .with_for_update(of=(ProcessingJob, ImageRecord))
     ).one_or_none()
     if record is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy kết quả.")
@@ -78,14 +79,16 @@ def queue_region_recognition(
     bbox = polygon.bounding_box()
     new_bbox = bbox.model_dump()
     now = datetime.now(UTC)
-    reading.reading_bbox_x = bbox.x
-    reading.reading_bbox_y = bbox.y
-    reading.reading_bbox_width = bbox.width
-    reading.reading_bbox_height = bbox.height
-    reading.reading_polygon_json = new_polygon
-    reading.bbox_reviewed_by = user.id
-    reading.bbox_reviewed_at = now
-    if old_polygon != new_polygon:
+    preserve_label = reading.review_status == "LABELED"
+    if not preserve_label:
+        reading.reading_bbox_x = bbox.x
+        reading.reading_bbox_y = bbox.y
+        reading.reading_bbox_width = bbox.width
+        reading.reading_bbox_height = bbox.height
+        reading.reading_polygon_json = new_polygon
+        reading.bbox_reviewed_by = user.id
+        reading.bbox_reviewed_at = now
+    if not preserve_label and old_polygon != new_polygon:
         db.add(
             ManualCorrection(
                 image_id=image.id,
@@ -106,6 +109,7 @@ def queue_region_recognition(
     job.error_message = None
     job.result_json = None
     job.input_json = {
+        "integer_digits": integer_digits,
         "reading_polygon": new_polygon,
         "reading_bbox": new_bbox,
         "source": "HUMAN_REVIEW",
@@ -125,9 +129,12 @@ def queue_region_recognition(
                 "job_id": str(job.id),
                 "original_filename": image.original_filename,
                 "reading_bbox_before": old_bbox,
-                "reading_bbox_after": new_bbox,
+                "reading_bbox_after": old_bbox if preserve_label else new_bbox,
                 "reading_polygon_before": old_polygon,
-                "reading_polygon_after": new_polygon,
+                "reading_polygon_after": old_polygon if preserve_label else new_polygon,
+                "requested_reading_polygon": new_polygon,
+                "training_label_preserved": preserve_label,
+                "integer_digits": integer_digits,
                 "meter_reading_before": ai_result.meter_reading_ai,
                 "new_status": "PENDING",
             },
@@ -168,11 +175,75 @@ def region_recognition_status(db: Session, image_id: UUID) -> RecognitionStatusR
     )
 
 
+def save_meter_region(
+    db: Session,
+    image_id: UUID,
+    polygon: ReadingPolygon,
+    user: User,
+    ip_address: str | None,
+) -> MeterReading:
+    record = db.execute(
+        select(ImageRecord, AiResult, MeterReading)
+        .join(AiResult, AiResult.image_id == ImageRecord.id)
+        .outerjoin(MeterReading, MeterReading.image_id == ImageRecord.id)
+        .where(ImageRecord.id == image_id)
+        .with_for_update(of=ImageRecord)
+    ).one_or_none()
+    if record is None:
+        raise HTTPException(status_code=404, detail="Không tìm thấy kết quả.")
+    image, ai_result, reading = record
+    if image.status != ImageStatus.REVIEW_REQUIRED:
+        raise HTTPException(status_code=409, detail="Chỉ lưu vùng cho ảnh đang chờ xử lý.")
+    if reading is None:
+        reading = MeterReading(
+            image_id=image.id, ai_result_id=ai_result.id, review_status="PENDING"
+        )
+        db.add(reading)
+    previous = reading.meter_polygon_json
+    current = polygon.model_dump()
+    bbox = polygon.bounding_box()
+    reading.meter_polygon_json = current
+    reading.meter_bbox_x, reading.meter_bbox_y = bbox.x, bbox.y
+    reading.meter_bbox_width, reading.meter_bbox_height = bbox.width, bbox.height
+    reading.meter_bbox_reviewed_by = user.id
+    reading.meter_bbox_reviewed_at = datetime.now(UTC)
+    if previous != current:
+        db.add(
+            ManualCorrection(
+                image_id=image.id,
+                ai_result_id=ai_result.id,
+                field_name="meter_polygon",
+                old_value=json.dumps(previous, ensure_ascii=False, sort_keys=True),
+                new_value=json.dumps(current, ensure_ascii=False, sort_keys=True),
+                reason="Lưu riêng vùng toàn bộ công tơ",
+                created_by=user.id,
+            )
+        )
+    db.add(
+        AuditLog(
+            user_id=user.id,
+            action="SAVE_METER_REGION",
+            target_type="image",
+            target_id=str(image.id),
+            details_json={
+                "original_filename": image.original_filename,
+                "meter_polygon_before": previous,
+                "meter_polygon_after": current,
+            },
+            ip_address=ip_address,
+        )
+    )
+    db.commit()
+    db.refresh(reading)
+    return reading
+
+
 def save_training_label(
     db: Session,
     image_id: UUID,
     meter_reading: str,
     polygon: ReadingPolygon,
+    meter_polygon: ReadingPolygon | None,
     user: User,
     ip_address: str | None,
 ) -> MeterReading:
@@ -204,6 +275,9 @@ def save_training_label(
     old_polygon = reading.reading_polygon_json
     new_polygon = polygon.model_dump()
     bbox = polygon.bounding_box()
+    old_meter_polygon = reading.meter_polygon_json
+    new_meter_polygon = meter_polygon.model_dump() if meter_polygon else old_meter_polygon
+    meter_bbox = meter_polygon.bounding_box() if meter_polygon else None
     now = datetime.now(UTC)
     reading.final_meter_reading = normalized
     reading.reading_value = parse_meter_value(normalized)
@@ -214,6 +288,14 @@ def save_training_label(
     reading.reading_polygon_json = new_polygon
     reading.bbox_reviewed_by = user.id
     reading.bbox_reviewed_at = now
+    if meter_bbox is not None:
+        reading.meter_bbox_x = meter_bbox.x
+        reading.meter_bbox_y = meter_bbox.y
+        reading.meter_bbox_width = meter_bbox.width
+        reading.meter_bbox_height = meter_bbox.height
+        reading.meter_polygon_json = new_meter_polygon
+        reading.meter_bbox_reviewed_by = user.id
+        reading.meter_bbox_reviewed_at = now
     reading.review_status = "LABELED"
     reading.reviewed_by = user.id
     reading.reviewed_at = now
@@ -223,6 +305,11 @@ def save_training_label(
             "reading_polygon",
             json.dumps(old_polygon, ensure_ascii=False, sort_keys=True),
             json.dumps(new_polygon, ensure_ascii=False, sort_keys=True),
+        ),
+        (
+            "meter_polygon",
+            json.dumps(old_meter_polygon, ensure_ascii=False, sort_keys=True),
+            json.dumps(new_meter_polygon, ensure_ascii=False, sort_keys=True),
         ),
     ):
         if old_value != new_value:
@@ -249,6 +336,8 @@ def save_training_label(
                 "meter_reading_after": normalized,
                 "reading_polygon_before": old_polygon,
                 "reading_polygon_after": new_polygon,
+                "meter_polygon_before": old_meter_polygon,
+                "meter_polygon_after": new_meter_polygon,
                 "new_status": "LABELED",
             },
             ip_address=ip_address,

@@ -4,33 +4,11 @@ import cv2
 import numpy as np
 
 from ai.pipeline.geometry import perspective_crop
-from ai.training.digit_model import (
-    DigitCentroidModel,
-    DigitHogSoftmaxModel,
-    HOG_FEATURE_SIZE,
-    digit_crops,
-    integer_register_strip,
-    load_digit_model,
-    reading_features,
+from ai.pipeline.register import integer_register_strip
+from ai.training.keypoint_regressor import (
+    KeypointRegionRegressor,
+    extract_region_features,
 )
-from ai.training.region_model import ReadingRegionRegressor, region_features
-
-
-def test_digit_crops_follow_verified_integer_length() -> None:
-    image = np.full((400, 600, 3), 180, dtype=np.uint8)
-    crops = digit_crops(image, 5)
-    assert len(crops) == 5
-    assert all(crop.size > 0 for crop in crops)
-
-
-def test_digit_crops_use_human_verified_region() -> None:
-    image = np.zeros((100, 200, 3), dtype=np.uint8)
-    image[:, 100:] = 255
-
-    crops = digit_crops(image, 5, (0.5, 0.0, 0.5, 1.0))
-
-    assert len(crops) == 5
-    assert all(float(crop.mean()) == 255 for crop in crops)
 
 
 def test_integer_register_strip_removes_red_fractional_wheel() -> None:
@@ -38,11 +16,9 @@ def test_integer_register_strip_removes_red_fractional_wheel() -> None:
     strip[5:34, 100:118] = (0, 0, 230)
 
     integer_strip = integer_register_strip(strip)
-    crops = digit_crops(integer_strip, 5, (0.0, 0.0, 1.0, 1.0))
 
     assert integer_strip.shape[1] < 100
-    assert len(crops) == 5
-    assert all(float(crop[:, :, 2].mean()) < 180 for crop in crops)
+    assert float(integer_strip[:, :, 2].mean()) < 180
 
 
 def test_perspective_crop_rectifies_four_point_region() -> None:
@@ -60,65 +36,6 @@ def test_perspective_crop_rectifies_four_point_region() -> None:
     assert float(crop.mean()) > 245
 
 
-def test_hog_features_have_stable_shape() -> None:
-    image = np.full((400, 600, 3), 180, dtype=np.uint8)
-
-    features = reading_features(image, 5, "hog")
-
-    assert len(features) == 5
-    assert all(feature.shape == (HOG_FEATURE_SIZE,) for feature in features)
-
-
-def test_centroid_model_round_trip(tmp_path: Path) -> None:
-    path = tmp_path / "model.npz"
-    np.savez_compressed(
-        path,
-        labels=np.array([1, 7], dtype=np.int64),
-        centroids=np.stack(
-            [np.zeros(640, dtype=np.float32), np.ones(640, dtype=np.float32)]
-        ),
-    )
-    model = DigitCentroidModel.load(path)
-    prediction, confidence = model.predict_features([np.ones(640, dtype=np.float32)])
-    assert prediction == "7"
-    assert confidence > 0.9
-
-
-def test_specialized_softmax_model_trains_and_round_trips(tmp_path: Path) -> None:
-    zero_samples = [np.array([0.0, 0.1, 0.0, 0.1], dtype=np.float32) for _ in range(8)]
-    one_samples = [np.array([0.9, 1.0, 0.9, 1.0], dtype=np.float32) for _ in range(8)]
-    model = DigitHogSoftmaxModel.train(
-        zero_samples + one_samples,
-        [0] * len(zero_samples) + [1] * len(one_samples),
-        seed=42,
-        epochs=200,
-    )
-    path = tmp_path / "specialized-model.npz"
-    model.save(path)
-
-    loaded = load_digit_model(path)
-    prediction, confidence = loaded.predict_features([zero_samples[0], one_samples[0]])
-
-    assert prediction == "01"
-    assert confidence > 0.9
-
-
-def test_loader_keeps_legacy_centroid_artifacts_compatible(tmp_path: Path) -> None:
-    path = tmp_path / "legacy-model.npz"
-    np.savez_compressed(
-        path,
-        labels=np.array([3, 8], dtype=np.int64),
-        centroids=np.stack(
-            [np.zeros(640, dtype=np.float32), np.ones(640, dtype=np.float32)]
-        ),
-    )
-
-    model = load_digit_model(path)
-
-    assert isinstance(model, DigitCentroidModel)
-    assert model.feature_mode == "raw"
-
-
 def test_region_regressor_learns_verified_four_corners() -> None:
     images = [
         np.full((80, 120, 3), value, dtype=np.uint8) for value in (80, 100, 120, 140)
@@ -126,8 +43,8 @@ def test_region_regressor_learns_verified_four_corners() -> None:
     target = np.array(
         [[0.2, 0.3], [0.8, 0.25], [0.78, 0.55], [0.22, 0.6]], dtype=np.float32
     )
-    model = ReadingRegionRegressor.train(
-        [region_features(image) for image in images],
+    model = KeypointRegionRegressor.train(
+        [extract_region_features(image) for image in images],
         [target.copy() for _ in images],
     ).with_validation_error(0.02)
 
@@ -139,47 +56,52 @@ def test_region_regressor_learns_verified_four_corners() -> None:
     assert confidence >= 0.9
 
 
-def test_region_regressor_round_trip(tmp_path: Path) -> None:
-    images = [np.full((80, 120, 3), value, dtype=np.uint8) for value in (70, 120, 170)]
+def test_region_regressor_round_trip(tmp_path: Path, monkeypatch) -> None:
+    from ai.pipeline.preprocessing import ImagePreprocessingModel
+
+    source_images = [
+        np.full((80, 120, 3), value, dtype=np.uint8) for value in (70, 120, 170)
+    ]
+    images = [ImagePreprocessingModel().process(image)[0] for image in source_images]
     target = np.array(
         [[0.2, 0.3], [0.8, 0.25], [0.78, 0.55], [0.22, 0.6]], dtype=np.float32
     )
-    model = ReadingRegionRegressor.train(
-        [region_features(image) for image in images],
+    model = KeypointRegionRegressor.train(
+        [extract_region_features(image) for image in images],
         [target.copy() for _ in images],
     ).with_validation_error(0.03)
     path = tmp_path / "reading-region.npz"
     model.save(path)
 
-    loaded = ReadingRegionRegressor.load(path)
+    loaded = KeypointRegionRegressor.load(path)
     prediction = loaded.predict(images[1])
 
     assert prediction is not None
     assert np.mean(np.abs(np.asarray(prediction[0]) - target)) < 0.02
 
+    from ai.pipeline.localization import MeterLocator, ReadingRegionLocator
 
-def test_specialized_model_round_trips_region_metadata(tmp_path: Path) -> None:
-    digit_model = DigitHogSoftmaxModel.train(
-        [np.zeros(4, dtype=np.float32)] * 4 + [np.ones(4, dtype=np.float32)] * 4,
-        [0] * 4 + [1] * 4,
-        seed=7,
-        epochs=20,
+    meter = MeterLocator(loaded).locate(images[1])
+    region = ReadingRegionLocator(loaded).locate(images[1], meter)
+    assert meter.source == "TRAINED_METER_KEYPOINTS"
+    assert region.source == "TRAINED_KEYPOINTS"
+    assert region.reading_polygon is not None
+
+    from ai.pipeline import meter_pipeline as pipeline_module
+
+    monkeypatch.setattr(pipeline_module, "read_lines", lambda _: [])
+    pipeline = pipeline_module.MeterReadingPipeline(
+        region_model_path=path, meter_model_path=path
     )
-    images = [np.full((80, 120, 3), value, dtype=np.uint8) for value in (80, 120, 160)]
-    target = np.array(
-        [[0.2, 0.3], [0.8, 0.25], [0.78, 0.55], [0.22, 0.6]], dtype=np.float32
+    monkeypatch.setattr(
+        pipeline.customer_code_reader, "read", lambda *_, **__: ("PN2.001", 0.9)
     )
-    region_model = ReadingRegionRegressor.train(
-        [region_features(image) for image in images],
-        [target.copy() for _ in images],
-    ).with_validation_error(0.02)
-    model = digit_model.with_training_metadata([5, 5, 6], region_model)
-    path = tmp_path / "region-model.npz"
-    model.save(path)
-
-    loaded = load_digit_model(path)
-    prediction = loaded.predict_region(images[1])
-
-    assert loaded.candidate_lengths() == (5, 6)
-    assert prediction is not None
-    assert np.mean(np.abs(np.asarray(prediction[0]) - target)) < 0.02
+    monkeypatch.setattr(pipeline.meter_reader, "read", lambda *_, **__: ("01234", 0.89))
+    image_path = tmp_path / "meter.png"
+    assert cv2.imwrite(str(image_path), source_images[1])
+    result = pipeline.process(image_path)
+    assert (
+        result["stage_models"]["meter_location"]["source"] == "TRAINED_METER_KEYPOINTS"
+    )
+    assert result["stage_models"]["reading_region"]["source"] == "TRAINED_KEYPOINTS"
+    assert result["meter_reading_ai"] == "01234"

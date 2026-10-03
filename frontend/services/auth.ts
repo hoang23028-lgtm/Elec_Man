@@ -4,11 +4,13 @@ import type {
   RegistrationInput,
   RegistrationResult,
 } from "@/types/auth";
+import type { UserRole } from "@/types/auth";
 import { apiFetch, apiJson } from "@/services/http";
 
 export type CurrentUser = {
   id: string;
   username: string;
+  role: UserRole;
   last_login_at: string | null;
 };
 
@@ -18,6 +20,10 @@ export async function login(input: LoginInput): Promise<LoginResult> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
   }, "Không thể đăng nhập.");
+}
+
+export async function restoreSession(): Promise<LoginResult> {
+  return apiJson<LoginResult>("/auth/session", { cache: "no-store" }, "Không thể khôi phục phiên đăng nhập.");
 }
 
 export async function registerAccount(

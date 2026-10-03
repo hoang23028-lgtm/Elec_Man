@@ -23,18 +23,12 @@ DEFAULT_AUTO_CONFIRM_THRESHOLD = 0.9
 
 
 def should_auto_confirm(result_json: dict, threshold: float) -> bool:
-    """Only complete, high-confidence results may bypass human review."""
-    try:
-        confidence = float(result_json.get("final_confidence", 0))
-    except (TypeError, ValueError):
-        return False
-    return bool(
-        not result_json.get("human_region_requested")
-        and confidence > threshold
-        and result_json.get("customer_id_ai")
-        and result_json.get("meter_reading_ai")
-        and parse_meter_value(result_json.get("meter_reading_ai")) is not None
-    )
+    """Fail closed until an independently evaluated auto-confirm policy exists."""
+    return False
+
+
+def _has_reviewed_values(reading: MeterReading | None) -> bool:
+    return reading is not None and reading.review_status in {"LABELED", "CONFIRMED", "REJECTED"}
 
 
 def get_auto_confirm_threshold(db: Session) -> float:
@@ -216,6 +210,7 @@ def mark_job_completed(db: Session, job_id: UUID, result_json: dict) -> None:
         select(ProcessingJob, ImageRecord)
         .join(ImageRecord, ImageRecord.id == ProcessingJob.image_id)
         .where(ProcessingJob.id == job_id)
+        .with_for_update(of=ImageRecord)
     ).one_or_none()
     if record is None or record[0].status != JobStatus.PROCESSING:
         return
@@ -234,9 +229,12 @@ def mark_job_completed(db: Session, job_id: UUID, result_json: dict) -> None:
     ).one_or_none()
     ai_result = result_record[0] if result_record else None
     reading = result_record[1] if result_record else None
+    preserve_review = _has_reviewed_values(reading)
+    if preserve_review:
+        auto_confirmed = False
     if ai_result is None:
         auto_confirmed = False
-    else:
+    elif not preserve_review:
         if reading is None:
             reading = MeterReading(image_id=image.id, ai_result_id=ai_result.id)
             db.add(reading)
@@ -281,7 +279,7 @@ def mark_job_completed(db: Session, job_id: UUID, result_json: dict) -> None:
                 ip_address=None,
             )
         )
-    else:
+    elif not preserve_review:
         image.status = ImageStatus.REVIEW_REQUIRED
     db.add(
         AuditLog(
@@ -305,7 +303,11 @@ def mark_job_completed(db: Session, job_id: UUID, result_json: dict) -> None:
                 "model_version": result_json.get("model_version"),
                 "confidence": result_json.get("final_confidence"),
                 "processing_time_ms": result_json.get("processing_time_ms"),
+                "timings_ms": result_json.get("timings_ms"),
+                "reader_diagnostics": result_json.get("reader_diagnostics"),
+                "skipped_stages": result_json.get("skipped_stages"),
                 "auto_confirmed": auto_confirmed,
+                "human_review_preserved": preserve_review,
                 "reading_bbox": (job.input_json or {}).get("reading_bbox"),
                 "reading_polygon": (job.input_json or {}).get("reading_polygon"),
                 "meter_reading_after": result_json.get("meter_reading_ai"),

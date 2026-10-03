@@ -18,7 +18,7 @@ class MeterReading(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         Index("ix_meter_readings_customer_match", "customer_match_status", "matched_customer_id"),
     )
     image_id: Mapped[UUID] = mapped_column(
-        ForeignKey("images.id", ondelete="RESTRICT"), unique=True, index=True
+        ForeignKey("images.id", ondelete="RESTRICT"), unique=True
     )
     ai_result_id: Mapped[UUID] = mapped_column(ForeignKey("ai_results.id", ondelete="RESTRICT"))
     final_customer_id: Mapped[str | None] = mapped_column(String(128))
@@ -42,3 +42,12 @@ class MeterReading(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ForeignKey("users.id", ondelete="SET NULL")
     )
     bbox_reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    meter_bbox_x: Mapped[float | None] = mapped_column(Float)
+    meter_bbox_y: Mapped[float | None] = mapped_column(Float)
+    meter_bbox_width: Mapped[float | None] = mapped_column(Float)
+    meter_bbox_height: Mapped[float | None] = mapped_column(Float)
+    meter_polygon_json: Mapped[dict | None] = mapped_column(JSONB)
+    meter_bbox_reviewed_by: Mapped[UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
+    meter_bbox_reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

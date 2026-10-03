@@ -2,6 +2,10 @@ const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "/api/v1";
 
 export type PageData<T> = { items: T[]; total: number };
 
+export class ApiError extends Error {
+  constructor(message: string, public readonly status: number) { super(message); }
+}
+
 export async function apiFetch(
   path: string,
   init: RequestInit = {},
@@ -12,8 +16,11 @@ export async function apiFetch(
     credentials: "include",
   });
   if (response.ok) return response;
-  const body: { detail?: string } = await response.json().catch(() => ({}));
-  throw new Error(body.detail ?? fallbackMessage);
+  if (response.status === 401 && path !== "/auth/login" && path !== "/auth/session" && typeof window !== "undefined") {
+    window.dispatchEvent(new Event("session-expired"));
+  }
+  const body: { detail?: unknown } = await response.json().catch(() => ({}));
+  throw new ApiError(typeof body.detail === "string" ? body.detail : fallbackMessage, response.status);
 }
 
 export async function apiJson<T>(

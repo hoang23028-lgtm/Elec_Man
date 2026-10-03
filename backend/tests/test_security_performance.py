@@ -71,7 +71,7 @@ def test_production_login_cookie_has_required_security_attributes(monkeypatch) -
     monkeypatch.setattr(
         auth_routes,
         "authenticate",
-        lambda *_: ("session-token", "csrf-token", expires_at),
+        lambda *_: ("session-token", "csrf-token", expires_at, "cookie-test-user", "ADMIN"),
     )
     monkeypatch.setattr(
         auth_routes,

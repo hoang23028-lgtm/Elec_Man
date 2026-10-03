@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useLeaveGuard } from "@/hooks/use-leave-guard";
 
 import { exportConfirmed, type ExportBundle } from "@/services/system";
 
@@ -13,8 +14,10 @@ export function MonthlyExport({ csrfToken }: { csrfToken: string }) {
   const [bundle, setBundle] = useState<ExportBundle | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  useLeaveGuard(false, exporting, "tạo báo cáo tháng");
 
   async function createReport() {
+    if (exporting) return;
     const [year, month] = period.split("-").map(Number);
     if (!year || !month) {
       setError("Hãy chọn tháng cần xuất báo cáo.");
@@ -61,6 +64,7 @@ export function MonthlyExport({ csrfToken }: { csrfToken: string }) {
           <input
             id="monthly-export-period"
             type="month"
+            disabled={exporting}
             value={period}
             onChange={(event) => {
               setPeriod(event.target.value);

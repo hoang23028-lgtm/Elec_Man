@@ -3,6 +3,9 @@
 import { ChangeEvent, FormEvent, useCallback, useEffect, useState } from "react";
 
 import { Pagination } from "@/components/pagination";
+import { useLatestRequest } from "@/hooks/use-latest-request";
+import { useLeaveGuard } from "@/hooks/use-leave-guard";
+import { usePanelActive } from "@/components/section-tabs";
 import {
   createCustomer,
   getCustomers,
@@ -46,6 +49,8 @@ const emptyCustomerForm = (): CustomerForm => ({
 });
 
 export function CustomerDataManagement({ csrfToken }: { csrfToken: string }) {
+  const request = useLatestRequest();
+  const panelActive = usePanelActive();
   const [summary, setSummary] = useState<CustomerSummary | null>(null);
   const [usagePurposes, setUsagePurposes] = useState<string[]>([]);
   const [customers, setCustomers] = useState<CustomerRecord[]>([]);
@@ -63,6 +68,8 @@ export function CustomerDataManagement({ csrfToken }: { csrfToken: string }) {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const formDirty = JSON.stringify(customerForm) !== JSON.stringify(emptyCustomerForm());
+  useLeaveGuard(formDirty || !!file, busy || creatingCustomer, "nhập / thêm khách hàng");
 
   async function loadSummary() {
     try {
@@ -88,21 +95,28 @@ export function CustomerDataManagement({ csrfToken }: { csrfToken: string }) {
   }, []);
 
   const loadCustomers = useCallback(async () => {
+    const revision = request.begin();
     setLoadingCustomers(true);
     try {
       const result = await getCustomers((page - 1) * PAGE_SIZE, PAGE_SIZE, search);
+      if (!request.isCurrent(revision)) return;
+      const lastPage = Math.max(1, Math.ceil(result.total / PAGE_SIZE));
+      if (page > lastPage) { setPage(lastPage); return; }
       setCustomers(result.items);
       setTotal(result.total);
+      setError(null);
     } catch (reason) {
+      if (!request.isCurrent(revision)) return;
       setError(reason instanceof Error ? reason.message : "Không thể tải danh sách khách hàng.");
     } finally {
-      setLoadingCustomers(false);
+      if (request.isCurrent(revision)) setLoadingCustomers(false);
     }
-  }, [page, search]);
+  }, [page, search, request]);
 
   useEffect(() => {
-    void loadCustomers();
-  }, [loadCustomers]);
+    if (panelActive) void loadCustomers();
+    return () => request.invalidate();
+  }, [loadCustomers, panelActive, request]);
 
   function chooseFile(event: ChangeEvent<HTMLInputElement>) {
     const selected = event.target.files?.[0] ?? null;
@@ -122,7 +136,7 @@ export function CustomerDataManagement({ csrfToken }: { csrfToken: string }) {
   }
 
   async function upload() {
-    if (!file) return;
+    if (!file || busy || creatingCustomer) return;
     setBusy(true);
     setMessage(null);
     setError(null);
@@ -156,6 +170,7 @@ export function CustomerDataManagement({ csrfToken }: { csrfToken: string }) {
 
   async function submitCustomer(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (busy || creatingCustomer) return;
     const initialReading = Number(customerForm.initial_reading);
     if (!Number.isInteger(initialReading) || initialReading < 0) {
       setError("Chỉ số khởi tạo phải là số nguyên không âm.");
@@ -207,6 +222,7 @@ export function CustomerDataManagement({ csrfToken }: { csrfToken: string }) {
           className={showCreateForm ? "secondary" : undefined}
           aria-expanded={showCreateForm}
           aria-controls="customer-create-form"
+          disabled={busy || creatingCustomer}
           onClick={() => {
             setShowCreateForm((value) => !value);
             setMessage(null);
@@ -216,7 +232,7 @@ export function CustomerDataManagement({ csrfToken }: { csrfToken: string }) {
           {showCreateForm ? "Đóng biểu mẫu" : "Thêm khách hàng"}
         </button>
       </div>
-      <div className="summary-grid customer-summary">
+      <div className="metrics customer-summary">
         <div><strong>{summary?.total ?? "—"}</strong><span>Khách hàng</span></div>
         <div><strong>{summary?.matched_readings ?? "—"}</strong><span>Kết quả đã khớp</span></div>
         <div><strong>{summary?.unmatched_readings ?? "—"}</strong><span>Chưa tìm thấy</span></div>
@@ -236,6 +252,7 @@ export function CustomerDataManagement({ csrfToken }: { csrfToken: string }) {
               <p className="muted">Mã khách hàng và serial công tơ không được trùng.</p>
             </div>
           </div>
+          <fieldset className="editor-fields" disabled={busy || creatingCustomer}>
           <div className="customer-form-grid">
             <label>
               Mã khách hàng
@@ -320,18 +337,20 @@ export function CustomerDataManagement({ csrfToken }: { csrfToken: string }) {
             <button
               className="secondary"
               type="button"
-              disabled={creatingCustomer}
+              disabled={busy || creatingCustomer}
               onClick={() => {
+                if (formDirty && !window.confirm("Hủy các thông tin khách hàng chưa lưu?")) return;
                 setCustomerForm(emptyCustomerForm());
                 setShowCreateForm(false);
               }}
             >
               Hủy
             </button>
-            <button type="submit" disabled={creatingCustomer}>
+            <button type="submit" disabled={busy || creatingCustomer}>
               {creatingCustomer ? "Đang thêm…" : "Lưu khách hàng"}
             </button>
           </div>
+          </fieldset>
         </form>
       )}
 
@@ -345,10 +364,10 @@ export function CustomerDataManagement({ csrfToken }: { csrfToken: string }) {
           type="file"
           accept="application/json,.json"
           onChange={chooseFile}
-          disabled={busy}
+          disabled={busy || creatingCustomer}
           aria-describedby="customer-file-help"
         />
-        <button type="button" onClick={() => void upload()} disabled={!file || busy}>
+        <button type="button" onClick={() => void upload()} disabled={!file || busy || creatingCustomer}>
           {busy ? "Đang nhập…" : "Nhập dữ liệu khách hàng"}
         </button>
       </div>

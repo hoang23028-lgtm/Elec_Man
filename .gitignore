@@ -36,3 +36,4 @@ Thumbs.db
 .DS_Store
 .agents/
 .tmp-ocr/
+.codex-tmp/

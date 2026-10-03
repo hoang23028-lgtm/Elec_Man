@@ -1,0 +1,10 @@
+FROM elec_man-ai-ci-base
+
+USER root
+RUN pip install --no-cache-dir "pytest>=8,<9"
+COPY ai/tests ./ai/tests
+ENV APP_ENV=test \
+    DATABASE_URL=sqlite+pysqlite:///:memory: \
+    ALLOWED_HOSTS=testserver,localhost,127.0.0.1 \
+    PYTHONPATH=/app
+CMD ["pytest", "-q", "-p", "no:cacheprovider", "ai/tests"]

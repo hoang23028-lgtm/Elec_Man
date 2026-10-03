@@ -1,7 +1,7 @@
 from datetime import UTC, datetime, timedelta
 
 from fastapi import HTTPException, status
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -10,7 +10,7 @@ from app.models.audit_log import AuditLog
 from app.models.session import SessionRecord
 from app.models.user import User
 from app.security.passwords import hash_password, password_needs_rehash, verify_password
-from app.security.tokens import generate_token, hash_token
+from app.security.tokens import generate_token, hash_token, session_csrf_token
 
 REGISTRATION_MESSAGE = (
     "Yêu cầu đăng ký đã được tiếp nhận. Tài khoản cần được quản trị viên kích hoạt."
@@ -38,7 +38,7 @@ def _audit(
 
 def authenticate(
     db: Session, username: str, password: str, ip_address: str | None, user_agent: str | None
-) -> tuple[str, str, datetime]:
+) -> tuple[str, str, datetime, str, str]:
     user = db.scalar(select(User).where(User.username == username, User.deleted_at.is_(None)))
     password_hash = user.password_hash if user is not None and user.is_active else None
     password_valid = verify_password(password_hash, password)
@@ -57,9 +57,10 @@ def authenticate(
     if password_needs_rehash(user.password_hash):
         user.password_hash = hash_password(password)
     now = datetime.now(UTC)
+    db.execute(delete(SessionRecord).where(SessionRecord.expires_at <= now))
     expires_at = now + timedelta(hours=get_settings().session_ttl_hours)
     raw_session = generate_token()
-    raw_csrf = generate_token()
+    raw_csrf = session_csrf_token(raw_session)
     db.add(
         SessionRecord(
             user_id=user.id,
@@ -81,7 +82,7 @@ def authenticate(
         {"result": "SUCCESS", "session_expires_at": expires_at.isoformat()},
     )
     db.commit()
-    return raw_session, raw_csrf, expires_at
+    return raw_session, raw_csrf, expires_at, user.username, user.role
 
 
 def register_account(db: Session, username: str, password: str, ip_address: str | None) -> None:
@@ -98,7 +99,7 @@ def register_account(db: Session, username: str, password: str, ip_address: str 
         db.commit()
         return
 
-    user = User(username=username, password_hash=password_hash, is_active=False)
+    user = User(username=username, password_hash=password_hash, is_active=False, role="VIEWER")
     db.add(user)
     try:
         db.flush()

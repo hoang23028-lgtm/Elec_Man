@@ -5,10 +5,12 @@ import type { ReactNode } from "react";
 import { useForm } from "react-hook-form";
 import dynamic from "next/dynamic";
 
-import { login, logout, registerAccount } from "@/services/auth";
-import type { LoginInput, RegistrationFormInput } from "@/types/auth";
-import { FolderUpload } from "@/components/folder-upload";
-import { DashboardSummary } from "@/components/dashboard-summary";
+import { login, logout, registerAccount, restoreSession } from "@/services/auth";
+import { ApiError } from "@/services/http";
+import { canLeavePage } from "@/hooks/use-leave-guard";
+import type { LoginInput, RegistrationFormInput, UserRole } from "@/types/auth";
+import { DashboardSummary } from "@/features/dashboard/dashboard-summary";
+import { SectionTabs } from "@/components/section-tabs";
 
 const loadingPanel = () => (
   <section className="panel full-span" aria-busy="true">
@@ -16,19 +18,23 @@ const loadingPanel = () => (
   </section>
 );
 const BatchOverview = dynamic(
-  () => import("@/components/batch-overview").then((module) => module.BatchOverview),
+  () => import("@/features/batches/batch-overview").then((module) => module.BatchOverview),
+  { loading: loadingPanel, ssr: false },
+);
+const FolderUpload = dynamic(
+  () => import("@/features/operations/folder-upload").then((module) => module.FolderUpload),
   { loading: loadingPanel, ssr: false },
 );
 const AuditHistory = dynamic(
-  () => import("@/components/audit-history").then((module) => module.AuditHistory),
+  () => import("@/features/traceability/audit-history").then((module) => module.AuditHistory),
   { loading: loadingPanel, ssr: false },
 );
 const ModelOperations = dynamic(
-  () => import("@/components/model-operations").then((module) => module.ModelOperations),
+  () => import("@/features/model-lifecycle/model-operations").then((module) => module.ModelOperations),
   { loading: loadingPanel, ssr: false },
 );
 const SystemSettings = dynamic(
-  () => import("@/components/system-settings").then((module) => module.SystemSettings),
+  () => import("@/features/model-lifecycle/system-settings").then((module) => module.SystemSettings),
   { loading: loadingPanel, ssr: false },
 );
 const AccountManagement = dynamic(
@@ -68,7 +74,7 @@ const TrainingPipeline = dynamic(
 );
 const OperationsResults = dynamic(
   () =>
-    import("@/components/operations-results").then(
+    import("@/features/operations/operations-results").then(
       (module) => module.OperationsResults,
     ),
   { loading: loadingPanel, ssr: false },
@@ -198,6 +204,11 @@ export default function HomePage() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [csrfToken, setCsrfToken] = useState<string | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [sessionExpired, setSessionExpired] = useState(false);
+  const [expiresAt, setExpiresAt] = useState<string | null>(null);
+  const [sessionUsername, setSessionUsername] = useState<string | null>(null);
+  const [sessionRole, setSessionRole] = useState<UserRole | null>(null);
   const [loginOpen, setLoginOpen] = useState(false);
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
   const [showPasswords, setShowPasswords] = useState(false);
@@ -230,10 +241,39 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
+    let alive = true;
+    void restoreSession().then((session) => {
+      if (!alive) return;
+      setSessionUsername(session.username);
+      setSessionRole(session.role);
+      setCsrfToken(session.csrf_token); setExpiresAt(session.expires_at);
+    }).catch((reason) => {
+      if (alive && !(reason instanceof ApiError && reason.status === 401)) setError("Không thể kiểm tra phiên đăng nhập. Bạn có thể đăng nhập lại.");
+    }).finally(() => { if (alive) setAuthLoading(false); });
+    return () => { alive = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!csrfToken || sessionExpired) return;
+    function expire() {
+      setSessionExpired(true); setLoginOpen(true); setAuthMode("login");
+      setMessage("Phiên đăng nhập đã hết hạn. Đăng nhập lại cùng tài khoản để tiếp tục; bản nháp vẫn được giữ trên trang này.");
+    }
+    window.addEventListener("session-expired", expire);
+    const timer = expiresAt ? window.setTimeout(expire, Math.max(0, Date.parse(expiresAt) - Date.now())) : undefined;
+    return () => { window.removeEventListener("session-expired", expire); if (timer !== undefined) window.clearTimeout(timer); };
+  }, [csrfToken, expiresAt, sessionExpired]);
+
+  useEffect(() => {
+    if (authLoading) return;
     function syncPageFromLocation() {
       const requested = window.location.hash.slice(1);
       const nextPage = isPageId(requested) ? requested : "dashboard";
-      if (!csrfToken && nextPage !== "dashboard") {
+      if (nextPage !== activePage && !canLeavePage()) {
+        window.history.replaceState(null, "", `#${activePage}`);
+        return;
+      }
+      if ((!csrfToken || sessionRole !== "ADMIN") && nextPage !== "dashboard") {
         setActivePage("dashboard");
         window.history.replaceState(null, "", "#dashboard");
         return;
@@ -244,7 +284,7 @@ export default function HomePage() {
     syncPageFromLocation();
     window.addEventListener("hashchange", syncPageFromLocation);
     return () => window.removeEventListener("hashchange", syncPageFromLocation);
-  }, [csrfToken]);
+  }, [csrfToken, sessionRole, authLoading, activePage]);
 
   useEffect(() => {
     if (!loginOpen) return;
@@ -295,16 +335,25 @@ export default function HomePage() {
     setError(null);
     setMessage(null);
     try {
+      if (sessionExpired && sessionUsername && values.username !== sessionUsername) {
+        setError("Hãy đăng nhập lại cùng tài khoản để giữ bản nháp, hoặc đăng xuất để trở về Tổng quan trước khi đổi tài khoản."); return;
+      }
       const result = await login(values);
       // This value is not a credential. It remains only in React memory for
       // future state-changing requests and is never written to localStorage.
       setCsrfToken(result.csrf_token);
+      setExpiresAt(result.expires_at);
+      setSessionUsername(result.username);
+      setSessionRole(result.role);
+      setSessionExpired(false);
       setLoginOpen(false);
-      setActivePage("dashboard");
-      window.history.replaceState(null, "", "#dashboard");
-      setMessage(
-        "Đăng nhập thành công. Hãy tải ảnh, theo dõi lô dữ liệu và kiểm duyệt từng chỉ số.",
-      );
+      if (!sessionExpired) {
+        setActivePage("dashboard");
+        window.history.replaceState(null, "", "#dashboard");
+      }
+      setMessage(result.role === "ADMIN"
+        ? "Đăng nhập thành công. Hãy tải ảnh, theo dõi lô dữ liệu và kiểm duyệt từng chỉ số."
+        : "Đăng nhập thành công với quyền chỉ xem Dashboard.");
     } catch (reason) {
       setError(
         reason instanceof Error ? reason.message : "Không thể đăng nhập.",
@@ -335,9 +384,12 @@ export default function HomePage() {
 
   async function signOut() {
     if (!csrfToken) return;
+    if (!canLeavePage()) return;
     try {
-      await logout(csrfToken);
+      if (!sessionExpired) await logout(csrfToken);
       setCsrfToken(null);
+      setExpiresAt(null); setSessionExpired(false); setSessionUsername(null);
+      setSessionRole(null);
       setLoginOpen(false);
       setActivePage("dashboard");
       window.history.replaceState(null, "", window.location.pathname);
@@ -357,18 +409,22 @@ export default function HomePage() {
   }
 
   function navigate(page: PageId) {
-    if (!csrfToken && page !== "dashboard") return;
+    if (sessionExpired && page !== "dashboard") { setLoginOpen(true); return; }
+    if ((!csrfToken || sessionRole !== "ADMIN") && page !== "dashboard") return;
+    if (page !== activePage && !canLeavePage()) return;
     setActivePage(page);
     window.history.pushState(null, "", `#${page}`);
     window.requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, behavior: "auto" });
       document.getElementById("page-view-title")?.focus();
     });
   }
 
-  const displayedPage = csrfToken ? activePage : "dashboard";
+  const isAdmin = !!csrfToken && sessionRole === "ADMIN";
+  const displayedPage = isAdmin ? activePage : "dashboard";
   const currentPage =
     pages.find((page) => page.id === displayedPage) ?? pages[0];
-  const availablePages = csrfToken ? pages : pages.slice(0, 1);
+  const availablePages = isAdmin ? pages : pages.slice(0, 1);
 
   return (
     <>
@@ -406,7 +462,8 @@ export default function HomePage() {
           <div className="navbar-account">
             {csrfToken ? (
               <>
-                <span className="admin-status">Quản trị viên</span>
+                <span className="admin-status">{sessionExpired ? "Phiên đã hết hạn" : isAdmin ? "Quản trị viên" : "Chỉ xem"}</span>
+                {sessionExpired && <button type="button" onClick={() => setLoginOpen(true)}>Đăng nhập lại</button>}
                 <button
                   className="navbar-action secondary"
                   type="button"
@@ -421,6 +478,7 @@ export default function HomePage() {
                 type="button"
                 id="auth-trigger"
                 ref={loginTriggerRef}
+                disabled={authLoading}
                 onClick={() => {
                   setError(null);
                   setAuthMode("login");
@@ -436,7 +494,7 @@ export default function HomePage() {
       </header>
 
       <main id="main-content" className="app-main">
-        <div className="shell">
+        <div className={`shell ${displayedPage === "operations" ? "operations-shell" : ""}`}>
           <section className="page-view" aria-labelledby="page-view-title">
             <div className="page-intro">
               <div>
@@ -447,46 +505,47 @@ export default function HomePage() {
                 <p className="muted">{currentPage.description}</p>
               </div>
               <span
-                className={`page-context ${csrfToken ? "admin" : "public"}`}
+                className={`page-context ${isAdmin ? "admin" : "public"}`}
               >
-                {csrfToken ? "Không gian quản trị" : "Công khai · chỉ xem"}
+                {isAdmin ? "Không gian quản trị" : csrfToken ? "Tài khoản · chỉ xem" : "Công khai · chỉ xem"}
               </span>
             </div>
-            <div className={`workspace page-content ${displayedPage}-layout`}>
+            <div className={`workspace page-content ${displayedPage}-layout`} inert={sessionExpired && displayedPage !== "dashboard"}>
               {displayedPage === "dashboard" && (
                 <DashboardSummary csrfToken={csrfToken ?? undefined} />
               )}
-              {csrfToken && displayedPage === "operations" && (
+              {isAdmin && displayedPage === "operations" && (
                 <>
-                  <FolderUpload
+                  <details className="operations-upload"><summary>Tải thêm ảnh công tơ</summary><FolderUpload
                     csrfToken={csrfToken}
                     onQueued={() => setOperationsRefresh((value) => value + 1)}
-                  />
+                  /></details>
                   <OperationsResults
                     csrfToken={csrfToken}
                     refreshKey={operationsRefresh}
                   />
+                  <MonthlyExport csrfToken={csrfToken} />
                 </>
               )}
-              {csrfToken && displayedPage === "batches" && (
+              {isAdmin && displayedPage === "batches" && (
                 <BatchOverview />
               )}
-              {csrfToken && displayedPage === "administration" && (
-                <>
-                  <MonthlyReadingHistory />
-                  <MonthlyExport csrfToken={csrfToken} />
-                  <CustomerDataManagement csrfToken={csrfToken} />
-                  <AccountManagement csrfToken={csrfToken} />
-                </>
+              {isAdmin && displayedPage === "administration" && (
+                <SectionTabs label="Chức năng quản trị" items={[
+                  { id: "customers", label: "Khách hàng", content: <CustomerDataManagement csrfToken={csrfToken} /> },
+                  { id: "readings", label: "Chỉ số tháng", content: <MonthlyReadingHistory /> },
+                  { id: "reports", label: "Báo cáo", content: <MonthlyExport csrfToken={csrfToken} /> },
+                  { id: "accounts", label: "Tài khoản", content: <AccountManagement csrfToken={csrfToken} /> },
+                ]} />
               )}
-              {csrfToken && displayedPage === "model-lifecycle" && (
-                <>
-                  <SystemSettings csrfToken={csrfToken} />
-                  <TrainingPipeline csrfToken={csrfToken} />
-                  <ModelOperations csrfToken={csrfToken} />
-                </>
+              {isAdmin && displayedPage === "model-lifecycle" && (
+                <SectionTabs label="Vòng đời mô hình" items={[
+                  { id: "training", label: "Huấn luyện", content: <TrainingPipeline csrfToken={csrfToken} /> },
+                  { id: "models", label: "Kho mô hình", content: <ModelOperations csrfToken={csrfToken} /> },
+                  { id: "settings", label: "Cấu hình hệ thống", content: <SystemSettings csrfToken={csrfToken} /> },
+                ]} />
               )}
-              {csrfToken && displayedPage === "traceability" && (
+              {isAdmin && displayedPage === "traceability" && (
                 <AuditHistory />
               )}
             </div>
@@ -504,7 +563,7 @@ export default function HomePage() {
         </div>
       </main>
 
-      {loginOpen && !csrfToken && (
+      {loginOpen && (!csrfToken || sessionExpired) && (
         <div
           className="modal-backdrop"
           role="presentation"

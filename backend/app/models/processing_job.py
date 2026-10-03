@@ -20,13 +20,9 @@ class JobStatus(StrEnum):
 
 class ProcessingJob(UUIDPrimaryKeyMixin, Base):
     __tablename__ = "processing_jobs"
-    __table_args__ = (
-        Index("ix_processing_jobs_claim", "status", "next_retry_at"),
-        Index("ix_processing_jobs_recovery", "status", "started_at"),
-    )
 
     image_id: Mapped[UUID] = mapped_column(
-        ForeignKey("images.id", ondelete="RESTRICT"), unique=True, index=True
+        ForeignKey("images.id", ondelete="RESTRICT"), unique=True
     )
     status: Mapped[str] = mapped_column(
         String(24), index=True, nullable=False, default=JobStatus.PENDING
@@ -43,3 +39,14 @@ class ProcessingJob(UUIDPrimaryKeyMixin, Base):
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     next_retry_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
     worker_id: Mapped[str | None] = mapped_column(String(128))
+
+    __table_args__ = (
+        Index(
+            "ix_processing_jobs_claim",
+            status,
+            priority.desc(),
+            created_at,
+            next_retry_at,
+        ),
+        Index("ix_processing_jobs_recovery", status, started_at),
+    )

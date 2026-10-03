@@ -37,6 +37,8 @@ def eligible_clause():
         MeterReading.reading_bbox_height.is_not(None),
         MeterReading.reading_polygon_json.is_not(None),
         MeterReading.bbox_reviewed_by.is_not(None),
+        MeterReading.meter_polygon_json.is_not(None),
+        MeterReading.meter_bbox_reviewed_by.is_not(None),
     )
 
 
@@ -105,8 +107,15 @@ def overview(db: Session) -> TrainingOverview:
 
 
 def enqueue_training(
-    db: Session, trigger: str, user: User | None, ip_address: str | None = None
+    db: Session,
+    trigger: str,
+    user: User | None,
+    ip_address: str | None = None,
+    *,
+    experimental: bool = False,
 ) -> TrainingRunRow:
+    if experimental and trigger != "MANUAL":
+        raise ValueError("Huấn luyện thử nghiệm chỉ được khởi chạy thủ công.")
     active = db.scalar(
         select(TrainingRun).where(TrainingRun.status.in_(("PENDING", "RUNNING"))).limit(1)
     )
@@ -116,13 +125,18 @@ def enqueue_training(
             detail="Đã có một phiên huấn luyện đang chờ hoặc đang chạy.",
         )
     summary = dataset_summary(db)
-    if not summary.ready:
+    if not summary.ready and not experimental:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=(
                 f"Cần tối thiểu {summary.minimum_samples} ảnh đã được con người xác nhận; "
                 f"hiện có {summary.eligible_samples}."
             ),
+        )
+    if summary.eligible_samples < 3:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Cần ít nhất ba ảnh đủ nhãn để tách tập huấn luyện và kiểm định.",
         )
     run = TrainingRun(
         status="PENDING",
@@ -132,6 +146,11 @@ def enqueue_training(
         sample_count=summary.eligible_samples,
         created_at=datetime.now(UTC),
         requested_by=user.id if user else None,
+        metrics_json={
+            "experimental": experimental,
+            "configured_minimum_samples": summary.minimum_samples,
+            "below_configured_minimum": not summary.ready,
+        },
     )
     db.add(run)
     db.flush()
@@ -147,6 +166,8 @@ def enqueue_training(
                 "minimum_samples": summary.minimum_samples,
                 "new_samples_since_last_run": summary.new_samples_since_last_run,
                 "auto_start_enabled": summary.auto_start_enabled,
+                "experimental": experimental,
+                "below_configured_minimum": not summary.ready,
             },
             ip_address=ip_address,
         )

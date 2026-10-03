@@ -41,51 +41,6 @@ def test_setting_audit_target_stays_within_database_limit() -> None:
     assert len(target) <= 64
 
 
-def test_trained_model_activation_requires_full_coverage_and_accuracy() -> None:
-    record = ModelRecord(
-        model_name="digits",
-        model_type="meter_digit_centroid",
-        version="test",
-        file_path="test/model.npz",
-        sha256="0" * 64,
-        status="TESTING",
-        metrics_json={"digit_coverage": 0.9, "validation_digit_accuracy": 0.95},
-    )
-    with pytest.raises(HTTPException) as error:
-        _validate_activation_metrics(record)
-    assert error.value.status_code == 422
-
-    record.metrics_json = {"digit_coverage": 1.0, "validation_digit_accuracy": 0.9}
-    _validate_activation_metrics(record)
-
-    record.model_type = "meter_digit_hog_softmax"
-    _validate_activation_metrics(record)
-
-
-def test_v2_model_activation_requires_exact_reading_accuracy() -> None:
-    record = ModelRecord(
-        model_name="specialized",
-        model_type="meter_digit_hog_softmax",
-        version="v2",
-        file_path="test/model.npz",
-        sha256="0" * 64,
-        status="TESTING",
-        metrics_json={
-            "algorithm": "region-ridge-hog-softmax-v2",
-            "digit_coverage": 1.0,
-            "validation_digit_accuracy": 0.95,
-            "validation_reading_exact_accuracy": 0.84,
-            "validation_region_accuracy": 0.9,
-        },
-    )
-    with pytest.raises(HTTPException):
-        _validate_activation_metrics(record)
-
-    record.metrics_json["validation_reading_exact_accuracy"] = 0.9
-    record.metrics_json["validation_region_accuracy"] = 0.85
-    _validate_activation_metrics(record)
-
-
 def test_region_model_activation_requires_region_accuracy() -> None:
     record = ModelRecord(
         model_name="reading-region",
@@ -100,4 +55,21 @@ def test_region_model_activation_requires_region_accuracy() -> None:
         _validate_activation_metrics(record)
 
     record.metrics_json["validation_region_accuracy"] = 0.8
+    _validate_activation_metrics(record)
+
+
+def test_meter_locator_activation_requires_region_accuracy() -> None:
+    record = ModelRecord(
+        model_name="meter-locator",
+        model_type="meter_locator_ridge",
+        version="v1",
+        file_path="test/meter.npz",
+        sha256="0" * 64,
+        status="TESTING",
+        metrics_json={"validation_meter_region_accuracy": 0.79},
+    )
+    with pytest.raises(HTTPException):
+        _validate_activation_metrics(record)
+
+    record.metrics_json["validation_meter_region_accuracy"] = 0.8
     _validate_activation_metrics(record)

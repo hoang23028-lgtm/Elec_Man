@@ -122,7 +122,11 @@ services:
       STORAGE_ROOT: ${STORAGE_ROOT:-/data/electric-meter-ai}
       MODELS_ROOT: ${MODELS_ROOT:-/models}
       SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET}
-      WORKER_POLL_INTERVAL_SECONDS: ${WORKER_POLL_INTERVAL_SECONDS:-2}
+      WORKER_POLL_INTERVAL_SECONDS: ${WORKER_POLL_INTERVAL_SECONDS:-0.5}
+      PPOCR_READER_URL: ${PPOCR_READER_URL:-http://reader-ppocr:8080}
+      PARSEQ_READER_URL: ${PARSEQ_READER_URL:-http://reader-parseq:8080}
+      SEQUENCE_READER_TIMEOUT_SECONDS: ${SEQUENCE_READER_TIMEOUT_SECONDS:-15}
+      METER_INTEGER_DIGITS_DEFAULT: ${METER_INTEGER_DIGITS_DEFAULT:-5}
       XDG_CACHE_HOME: /tmp/.cache
     volumes:
       - storage_data:${STORAGE_ROOT:-/data/electric-meter-ai}
@@ -140,8 +144,57 @@ services:
         condition: service_completed_successfully
       model-init:
         condition: service_completed_successfully
+      reader-ppocr:
+        condition: service_healthy
+      reader-parseq:
+        condition: service_healthy
       migrate:
         condition: service_completed_successfully
+    networks: [data]
+  reader-ppocr:
+    image: elec_man-reader-ppocr:latest
+    build:
+      context: .
+      dockerfile: ai/Dockerfile.reader-ppocr
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      OMP_NUM_THREADS: "1"
+      PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK: "True"
+    read_only: true
+    tmpfs:
+      - /tmp:size=256m,mode=1777
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health/ready')"]
+      interval: 15s
+      timeout: 5s
+      start_period: 45s
+      retries: 5
+    networks: [data]
+  reader-parseq:
+    image: elec_man-reader-parseq:latest
+    build:
+      context: .
+      dockerfile: ai/Dockerfile.reader-parseq
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      OMP_NUM_THREADS: "1"
+    read_only: true
+    tmpfs:
+      - /tmp:size=256m,mode=1777
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health/ready')"]
+      interval: 15s
+      timeout: 5s
+      start_period: 45s
+      retries: 5
     networks: [data]
   trainer:
     build:
@@ -162,6 +215,9 @@ services:
       STORAGE_ROOT: ${STORAGE_ROOT:-/data/electric-meter-ai}
       MODELS_ROOT: ${MODELS_ROOT:-/models}
       SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET}
+      PPOCR_READER_URL: ${PPOCR_READER_URL:-http://reader-ppocr:8080}
+      PARSEQ_READER_URL: ${PARSEQ_READER_URL:-http://reader-parseq:8080}
+      SEQUENCE_READER_TIMEOUT_SECONDS: ${SEQUENCE_READER_TIMEOUT_SECONDS:-15}
       XDG_CACHE_HOME: /tmp/.cache
     volumes:
       - storage_data:${STORAGE_ROOT:-/data/electric-meter-ai}:ro

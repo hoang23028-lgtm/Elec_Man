@@ -1,8 +1,12 @@
 # Hệ thống AI quản lý đồng hồ điện
 
-Hệ thống web nội bộ dành cho các tài khoản quản trị, hỗ trợ xử lý ảnh đồng hồ điện theo lô, tự động xác nhận kết quả đủ tin cậy và kiểm duyệt phần còn lại.
+Hệ thống web nội bộ dành cho các tài khoản quản trị, hỗ trợ xử lý ảnh đồng hồ điện theo lô và kiểm duyệt kết quả. Tự động xác nhận hiện bị chặn cho đến khi độ chính xác được đánh giá độc lập.
 
 ## Trạng thái hiện tại
+
+Tầng đọc chỉ số vận hành dùng đồng thuận PP-OCRv6 small và PARSeq-tiny. Hai model chạy trong dịch vụ nội bộ riêng; kết quả xung đột hoặc không hợp lệ luôn chuyển kiểm duyệt.
+
+Kết quả phải được kiểm duyệt và chọn kỳ tháng trước khi lưu chính thức. Xem [chính sách độ tin cậy và kế hoạch kiểm thử AI](docs/AI_RELIABILITY.md). Các chỉ số validation hiện tại chưa phải độ chính xác toàn bộ quy trình trên ảnh thực tế.
 
 Nguyên mẫu có thể chạy gồm giao diện Next.js, backend FastAPI, PostgreSQL, migration Alembic, lưu trữ ảnh cục bộ có xác thực, hàng đợi tác vụ PostgreSQL, tiến trình OCR riêng, đối chiếu dữ liệu khách hàng, quy trình kiểm duyệt, bảng điều khiển, xuất JSON/Excel, proxy Nginx, nhật ký có cấu trúc và kiểm tra trạng thái dịch vụ.
 
@@ -22,6 +26,8 @@ Mở `http://localhost/`. Endpoint kiểm tra hoạt động của backend là `
 
 Chạy migration bằng `docker compose exec backend alembic upgrade head`. Kiểm thử Python yêu cầu Python 3.12 trở lên cùng các dependency phát triển của backend, sau đó chạy `pytest backend/tests`.
 
+GitHub Actions tự động kiểm tra backend, frontend, AI, Docker Compose, secret policy và CodeQL. Dependabot theo dõi dependency hằng tuần. Xem [checklist phát hành](docs/release-checklist.md) trước khi đưa hệ thống ra Internet.
+
 ## Khởi tạo quản trị viên
 
 Sau khi áp dụng migration, truyền tạm thời `ADMIN_INITIAL_PASSWORD` vào lệnh khởi tạo trong container backend theo [hướng dẫn cài đặt](docs/installation.md). Sau khi đăng nhập, quản trị viên có thể thêm, sửa, khóa, xóa mềm và đổi mật khẩu tài khoản tại trang Quản trị. Đăng ký công khai chỉ tạo tài khoản chưa kích hoạt; một quản trị viên hiện hữu phải kích hoạt trước khi tài khoản có thể đăng nhập. Xem thêm [tài liệu bảo mật](docs/security.md). Hệ thống không cung cấp mật khẩu mặc định.
@@ -36,11 +42,11 @@ Hàng đợi dựa trên PostgreSQL xử lý ảnh bên ngoài yêu cầu HTTP. 
 
 ## Quy trình AI
 
-Mô hình phát triển hiện tại là `meter-ocr-baseline-v2-integer`, sử dụng OpenCV, mô hình ONNX dựng sẵn của RapidOCR và Tesseract làm phương án dự phòng. Kết quả đầy đủ có độ tin cậy lớn hơn ngưỡng cấu hình (mặc định 90%) và khớp mã khách hàng trong cơ sở dữ liệu được tự động xác nhận; phần còn lại phải kiểm duyệt thủ công. Đây chưa phải mô hình sản xuất đã được huấn luyện trên tập dữ liệu thực tế; xem [tài liệu quy trình AI](docs/ai-pipeline.md).
+Pipeline dùng OpenCV cho tiền xử lý/hiệu chỉnh phối cảnh, RapidOCR cho mã khách hàng và đồng thuận PP-OCRv6 small + PARSeq-tiny cho toàn chuỗi số điện. Không còn bộ phân loại HOG từng ô hoặc Tesseract fallback cho số điện. Xem [tài liệu quy trình AI](docs/ai-pipeline.md) và [kết quả benchmark](docs/MODERN_READER_BENCHMARK_20261001.md).
 
 ## Dữ liệu và huấn luyện
 
-Ảnh tải lên và được con người xác nhận trong ứng dụng tự động trở thành mẫu đủ điều kiện trong PostgreSQL; không lưu nhãn khách hàng trong source code. Trainer độc lập chia dataset, huấn luyện bộ đọc chữ số, đánh giá validation và đăng ký artifact có checksum. Xem [hướng dẫn huấn luyện](docs/training.md). Một vài ảnh chỉ đủ thử pipeline, không đủ xác thực chất lượng sản xuất.
+Ảnh tải lên và được con người xác nhận tự động trở thành mẫu đủ điều kiện trong PostgreSQL. Trainer độc lập dùng nhãn bốn góc để huấn luyện hai tầng định vị, đánh giá validation và đăng ký artifact có checksum. Bộ đọc chuỗi hiện đại dùng trọng số dựng sẵn, còn dữ liệu mới được dùng để đo exact-match/coverage và hiệu chỉnh chính sách xác nhận. Xem [hướng dẫn huấn luyện](docs/training.md).
 
 ## Kiểm duyệt
 

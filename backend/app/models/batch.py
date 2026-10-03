@@ -23,7 +23,7 @@ class Batch(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "batches"
     __table_args__ = (Index("ix_batches_created_at", "created_at"),)
 
-    batch_code: Mapped[str] = mapped_column(String(40), unique=True, index=True, nullable=False)
+    batch_code: Mapped[str] = mapped_column(String(40), unique=True, nullable=False)
     original_folder_name: Mapped[str] = mapped_column(String(255), nullable=False)
     total_images: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     uploaded_images: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

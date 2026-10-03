@@ -1,4 +1,4 @@
-"""Database-backed worker for the human-reviewed OCR baseline."""
+"""Database-backed worker for the production meter-reading pipeline."""
 
 import logging
 import signal
@@ -21,24 +21,22 @@ from app.services.job_service import (
 
 running = True
 
+type ClaimedJob = tuple[
+    UUID,
+    UUID,
+    Path,
+    tuple[float, float, float, float] | None,
+    tuple[tuple[float, float], ...] | None,
+    int | None,
+]
+
 
 def _stop(_: int, __: object) -> None:
     global running
     running = False
 
 
-def _claim(
-    worker_id: str, recover: bool
-) -> (
-    tuple[
-        UUID,
-        UUID,
-        Path,
-        tuple[float, float, float, float] | None,
-        tuple[tuple[float, float], ...] | None,
-    ]
-    | None
-):
+def _claim(worker_id: str, recover: bool) -> ClaimedJob | None:
     """Claim work without keeping a database connection open during OCR."""
     with SessionLocal() as db:
         if recover:
@@ -48,7 +46,7 @@ def _claim(
             return None
         image = db.get(ImageRecord, job.image_id)
         if image is None:
-            return job.id, job.image_id, Path(""), None, None
+            return job.id, job.image_id, Path(""), None, None, None
         bbox_payload = (job.input_json or {}).get("reading_bbox")
         reading_bbox = None
         if isinstance(bbox_payload, dict):
@@ -71,6 +69,7 @@ def _claim(
             get_settings().storage_root / image.relative_path,
             reading_bbox,
             reading_polygon,
+            (job.input_json or {}).get("integer_digits"),
         )
 
 
@@ -79,7 +78,7 @@ def main() -> None:
     logger = logging.getLogger(__name__)
     settings = get_settings()
     worker_id = f"worker-{uuid4().hex[:12]}"
-    processor = current_pipeline()
+    pipeline = current_pipeline()
     poll_interval = settings.worker_poll_interval_seconds
     recovery_interval = max(60.0, min(settings.job_stuck_timeout_seconds / 2, 300.0))
     next_recovery_at = 0.0
@@ -89,14 +88,14 @@ def main() -> None:
         extra={
             "event": "worker_started",
             "worker_id": worker_id,
-            "processor": processor.name,
+            "processor": pipeline.name,
         },
     )
     signal.signal(signal.SIGTERM, _stop)
     signal.signal(signal.SIGINT, _stop)
 
     while running:
-        job_info: tuple[UUID, UUID, Path] | None = None
+        job_info: ClaimedJob | None = None
         try:
             monotonic_now = time.monotonic()
             should_recover = monotonic_now >= next_recovery_at
@@ -107,14 +106,22 @@ def main() -> None:
                 time.sleep(poll_interval)
                 continue
 
-            job_id, image_id, image_path, reading_bbox, reading_polygon = job_info
+            (
+                job_id,
+                image_id,
+                image_path,
+                reading_bbox,
+                reading_polygon,
+                integer_digits,
+            ) = job_info
             if not image_path.is_file():
                 raise FileNotFoundError("Tệp hình ảnh không khả dụng.")
-            processor = current_pipeline()
-            result = processor.process(
+            pipeline = current_pipeline()
+            result = pipeline.process(
                 image_path,
                 reading_bbox=reading_bbox,
                 reading_polygon=reading_polygon,
+                integer_digits=integer_digits,
             )
             with SessionLocal() as db:
                 store_immutable_ai_result(
@@ -130,7 +137,7 @@ def main() -> None:
                 extra={
                     "event": "job_completed",
                     "job_id": str(job_id),
-                    "processor": processor.name,
+                    "processor": pipeline.name,
                 },
             )
         except Exception:

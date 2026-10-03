@@ -3,6 +3,8 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 
 import { Pagination } from "@/components/pagination";
+import { useLatestRequest } from "@/hooks/use-latest-request";
+import { usePanelActive } from "@/components/section-tabs";
 import { getBillingDashboard, type BillingDashboard } from "@/services/system";
 
 const PAGE_SIZE = 15;
@@ -18,6 +20,8 @@ type ReadingFilters = {
 const emptyFilters = (): ReadingFilters => ({ customerId: "", month: "", year: "" });
 
 export function MonthlyReadingHistory() {
+  const request = useLatestRequest();
+  const panelActive = usePanelActive();
   const [inputs, setInputs] = useState<ReadingFilters>(emptyFilters);
   const [filters, setFilters] = useState<ReadingFilters>(emptyFilters);
   const [result, setResult] = useState<BillingDashboard | null>(null);
@@ -26,32 +30,37 @@ export function MonthlyReadingHistory() {
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    const revision = request.begin();
     setLoading(true);
     try {
-      setResult(
-        await getBillingDashboard({
+      const next = await getBillingDashboard({
           customerId: filters.customerId || undefined,
           month: filters.month ? Number(filters.month) : undefined,
           year: filters.year ? Number(filters.year) : undefined,
           offset: page * PAGE_SIZE,
           limit: PAGE_SIZE,
-        }),
-      );
+        });
+      if (!request.isCurrent(revision)) return;
+      const lastPage = Math.max(0, Math.ceil(next.total / PAGE_SIZE) - 1);
+      if (page > lastPage) { setPage(lastPage); return; }
+      setResult(next);
       setError(null);
     } catch (reason) {
+      if (!request.isCurrent(revision)) return;
       setError(
         reason instanceof Error
           ? reason.message
           : "Không thể tải lịch sử chỉ số điện.",
       );
     } finally {
-      setLoading(false);
+      if (request.isCurrent(revision)) setLoading(false);
     }
-  }, [filters, page]);
+  }, [filters, page, request]);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    if (panelActive) void load();
+    return () => request.invalidate();
+  }, [load, panelActive, request]);
 
   function applyFilters(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

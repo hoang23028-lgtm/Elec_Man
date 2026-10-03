@@ -2,18 +2,15 @@ from hashlib import sha256
 
 from sqlalchemy import select
 
-from ai.pipeline.pipeline import DevelopmentPipeline
+from ai.pipeline.meter_pipeline import MeterReadingPipeline
 from app.core.config import get_settings
 from app.core.database import SessionLocal
 from app.models.model_registry import ModelRecord
 
 _cached_ids: tuple[object | None, object | None] | None = None
-_cached_pipeline: DevelopmentPipeline | None = None
-SUPPORTED_METER_MODEL_TYPES = (
-    "meter_digit_hog_softmax",
-    "meter_digit_centroid",
-)
+_cached_pipeline: MeterReadingPipeline | None = None
 SUPPORTED_REGION_MODEL_TYPES = ("reading_region_ridge",)
+SUPPORTED_METER_LOCATOR_MODEL_TYPES = ("meter_locator_ridge",)
 
 
 def _digest(path) -> str:
@@ -38,46 +35,48 @@ def _verified_path(record: ModelRecord | None):
     return path
 
 
-def current_pipeline() -> DevelopmentPipeline:
+def current_pipeline() -> MeterReadingPipeline:
     global _cached_ids, _cached_pipeline
     with SessionLocal() as db:
-        digit_record = db.scalar(
+        records = db.scalars(
             select(ModelRecord)
             .where(
-                ModelRecord.model_type.in_(SUPPORTED_METER_MODEL_TYPES),
+                ModelRecord.model_type.in_(
+                    SUPPORTED_REGION_MODEL_TYPES + SUPPORTED_METER_LOCATOR_MODEL_TYPES
+                ),
                 ModelRecord.status == "ACTIVE",
             )
             .order_by(ModelRecord.activated_at.desc())
-            .limit(1)
+        ).all()
+        # One round trip; newest active artifact in each supported family.
+        # No TTL: activations remain visible on the very next job.
+        region_record = next(
+            (r for r in records if r.model_type in SUPPORTED_REGION_MODEL_TYPES), None
         )
-        region_record = db.scalar(
-            select(ModelRecord)
-            .where(
-                ModelRecord.model_type.in_(SUPPORTED_REGION_MODEL_TYPES),
-                ModelRecord.status == "ACTIVE",
-            )
-            .order_by(ModelRecord.activated_at.desc())
-            .limit(1)
+        meter_record = next(
+            (r for r in records if r.model_type in SUPPORTED_METER_LOCATOR_MODEL_TYPES),
+            None,
         )
     record_ids = (
-        digit_record.id if digit_record else None,
         region_record.id if region_record else None,
+        meter_record.id if meter_record else None,
     )
     if _cached_pipeline is not None and record_ids == _cached_ids:
         return _cached_pipeline
-    if digit_record is None and region_record is None:
+    if region_record is None and meter_record is None:
         _cached_ids = record_ids
-        _cached_pipeline = DevelopmentPipeline()
+        _cached_pipeline = MeterReadingPipeline()
         return _cached_pipeline
-    digit_path = _verified_path(digit_record)
     region_path = _verified_path(region_record)
+    meter_path = _verified_path(meter_record)
     versions = "+".join(
-        record.version for record in (digit_record, region_record) if record is not None
+        record.version for record in (region_record, meter_record) if record is not None
     )
+    pipeline = MeterReadingPipeline(
+        f"modern-sequence-{versions}",
+        region_model_path=region_path,
+        meter_model_path=meter_path,
+    )
+    _cached_pipeline = pipeline
     _cached_ids = record_ids
-    _cached_pipeline = DevelopmentPipeline(
-        digit_path,
-        f"four-stage-{versions}",
-        region_path,
-    )
     return _cached_pipeline

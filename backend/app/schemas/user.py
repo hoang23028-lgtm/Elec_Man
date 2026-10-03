@@ -10,6 +10,7 @@ class UserCreate(BaseModel):
     username: str = Field(min_length=3, max_length=64, pattern=USERNAME_PATTERN)
     password: str = Field(min_length=12, max_length=256)
     is_active: bool = True
+    role: str = Field(default="ADMIN", pattern=r"^(ADMIN|VIEWER)$")
 
     @field_validator("username")
     @classmethod
@@ -22,6 +23,7 @@ class UserUpdate(BaseModel):
         default=None, min_length=3, max_length=64, pattern=USERNAME_PATTERN
     )
     is_active: bool | None = None
+    role: str | None = Field(default=None, pattern=r"^(ADMIN|VIEWER)$")
 
     @field_validator("username")
     @classmethod
@@ -30,7 +32,7 @@ class UserUpdate(BaseModel):
 
     @model_validator(mode="after")
     def require_change(self) -> "UserUpdate":
-        if self.username is None and self.is_active is None:
+        if self.username is None and self.is_active is None and self.role is None:
             raise ValueError("Cần cung cấp ít nhất một thay đổi.")
         return self
 
@@ -45,6 +47,7 @@ class UserRow(BaseModel):
     id: UUID
     username: str
     is_active: bool
+    role: str
     created_at: datetime
     updated_at: datetime
     last_login_at: datetime | None

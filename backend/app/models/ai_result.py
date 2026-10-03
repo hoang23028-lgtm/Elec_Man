@@ -18,7 +18,7 @@ class AiResult(UUIDPrimaryKeyMixin, Base):
     )
 
     image_id: Mapped[UUID] = mapped_column(
-        ForeignKey("images.id", ondelete="RESTRICT"), unique=True, index=True
+        ForeignKey("images.id", ondelete="RESTRICT"), unique=True
     )
     model_version: Mapped[str] = mapped_column(String(128), nullable=False)
     customer_id_ai: Mapped[str | None] = mapped_column(String(128))

@@ -4,6 +4,9 @@ import { useCallback, useEffect, useState } from "react";
 import type { FormEvent } from "react";
 
 import { Pagination } from "@/components/pagination";
+import { useLatestRequest } from "@/hooks/use-latest-request";
+import { useLeaveGuard } from "@/hooks/use-leave-guard";
+import { usePanelActive } from "@/components/section-tabs";
 import {
   changeUserPassword,
   createUser,
@@ -30,6 +33,8 @@ const formatDate = (value: string | null) =>
     : "Chưa đăng nhập";
 
 export function AccountManagement({ csrfToken }: { csrfToken: string }) {
+  const request = useLatestRequest();
+  const panelActive = usePanelActive();
   const [users, setUsers] = useState<UserAccount[]>([]);
   const [currentUserId, setCurrentUserId] = useState("");
   const [page, setPage] = useState(1);
@@ -41,39 +46,52 @@ export function AccountManagement({ csrfToken }: { csrfToken: string }) {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isActive, setIsActive] = useState(true);
+  const [role, setRole] = useState<"ADMIN" | "VIEWER">("ADMIN");
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const formDirty = !!editor && (editor.mode === "edit"
+    ? username !== editor.user.username || isActive !== editor.user.is_active || role !== editor.user.role
+    : !!username || !!password || !!confirmPassword || !isActive);
+  useLeaveGuard(formDirty, busy, "quản lý tài khoản");
 
   const load = useCallback(async () => {
+    const revision = request.begin();
     setLoading(true);
     try {
       const [result, current] = await Promise.all([
         getUsers((page - 1) * PAGE_SIZE, PAGE_SIZE, search),
         getCurrentUser(),
       ]);
+      if (!request.isCurrent(revision)) return;
+      const lastPage = Math.max(1, Math.ceil(result.total / PAGE_SIZE));
+      if (page > lastPage) { setPage(lastPage); return; }
       setUsers(result.items);
       setTotal(result.total);
       setCurrentUserId(current.id);
       setError(null);
     } catch (reason) {
+      if (!request.isCurrent(revision)) return;
       setError(
         reason instanceof Error
           ? reason.message
           : "Không thể tải danh sách tài khoản.",
       );
     } finally {
-      setLoading(false);
+      if (request.isCurrent(revision)) setLoading(false);
     }
-  }, [page, search]);
+  }, [page, search, request]);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    if (panelActive) void load();
+    return () => request.invalidate();
+  }, [load, panelActive, request]);
 
   function openEditor(next: Editor) {
+    if (busy) return;
+    if (formDirty && !window.confirm("Bỏ các thay đổi tài khoản chưa lưu?")) return;
     setEditor(next);
     setError(null);
     setNotice(null);
@@ -82,15 +100,17 @@ export function AccountManagement({ csrfToken }: { csrfToken: string }) {
     if (next?.mode === "edit") {
       setUsername(next.user.username);
       setIsActive(next.user.is_active);
+      setRole(next.user.role);
     } else {
       setUsername("");
       setIsActive(true);
+      setRole("ADMIN");
     }
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!editor) return;
+    if (!editor || busy) return;
     if ((editor.mode === "create" || editor.mode === "password") && password.length < 12) {
       setError("Mật khẩu phải có ít nhất 12 ký tự.");
       return;
@@ -104,12 +124,12 @@ export function AccountManagement({ csrfToken }: { csrfToken: string }) {
     setNotice(null);
     try {
       if (editor.mode === "create") {
-        await createUser({ username, password, is_active: isActive }, csrfToken);
+        await createUser({ username, password, is_active: isActive, role }, csrfToken);
         setNotice(`Đã tạo tài khoản ${username}.`);
       } else if (editor.mode === "edit") {
         await updateUser(
           editor.user.id,
-          { username, is_active: isActive },
+          { username, is_active: isActive, role },
           csrfToken,
         );
         setNotice(`Đã cập nhật tài khoản ${username}.`);
@@ -127,6 +147,7 @@ export function AccountManagement({ csrfToken }: { csrfToken: string }) {
   }
 
   async function remove(user: UserAccount) {
+    if (busy) return;
     if (
       !window.confirm(
         `Xóa tài khoản ${user.username}? Tài khoản sẽ bị khóa, các phiên đăng nhập bị thu hồi và lịch sử vẫn được giữ lại.`,
@@ -161,7 +182,7 @@ export function AccountManagement({ csrfToken }: { csrfToken: string }) {
             Mọi thao tác đều được ghi vào nhật ký truy vết.
           </p>
         </div>
-        <button type="button" onClick={() => openEditor({ mode: "create" })}>
+        <button type="button" disabled={busy} onClick={() => openEditor({ mode: "create" })}>
           Thêm tài khoản
         </button>
       </div>
@@ -182,10 +203,11 @@ export function AccountManagement({ csrfToken }: { csrfToken: string }) {
                     : `Đổi mật khẩu cho ${editor.user.username}`}
               </h3>
             </div>
-            <button className="secondary" type="button" onClick={() => setEditor(null)}>
+            <button className="secondary" type="button" disabled={busy} onClick={() => openEditor(null)}>
               Hủy
             </button>
           </div>
+          <fieldset disabled={busy} className="editor-fields">
           {editor.mode !== "password" && (
             <div className="account-form-grid">
               <label>
@@ -209,6 +231,17 @@ export function AccountManagement({ csrfToken }: { csrfToken: string }) {
                   onChange={(event) => setIsActive(event.target.checked)}
                 />
                 Tài khoản đang hoạt động
+              </label>
+              <label>
+                Vai trò
+                <select
+                  value={role}
+                  disabled={editor.mode === "edit" && editor.user.id === currentUserId}
+                  onChange={(event) => setRole(event.target.value as "ADMIN" | "VIEWER")}
+                >
+                  <option value="ADMIN">Quản trị viên</option>
+                  <option value="VIEWER">Chỉ xem Dashboard</option>
+                </select>
               </label>
             </div>
           )}
@@ -241,6 +274,7 @@ export function AccountManagement({ csrfToken }: { csrfToken: string }) {
               </label>
             </div>
           )}
+          </fieldset>
           <button type="submit" disabled={busy}>
             {busy ? "Đang lưu…" : "Lưu thay đổi"}
           </button>
@@ -279,6 +313,7 @@ export function AccountManagement({ csrfToken }: { csrfToken: string }) {
                 <th className="row-number">STT</th>
                 <th>Tên đăng nhập</th>
                 <th>Trạng thái</th>
+                <th>Vai trò</th>
                 <th>Đăng nhập gần nhất</th>
                 <th>Ngày tạo</th>
                 <th>Hành động</th>
@@ -297,13 +332,14 @@ export function AccountManagement({ csrfToken }: { csrfToken: string }) {
                       {user.is_active ? "Đang hoạt động" : "Đã khóa"}
                     </span>
                   </td>
+                  <td><span className={`badge ${user.role === "ADMIN" ? "active" : ""}`}>{user.role === "ADMIN" ? "Quản trị viên" : "Chỉ xem"}</span></td>
                   <td>{formatDate(user.last_login_at)}</td>
                   <td>{formatDate(user.created_at)}</td>
                   <td className="account-actions">
-                    <button className="secondary" type="button" onClick={() => openEditor({ mode: "edit", user })}>
+                    <button className="secondary" type="button" disabled={busy} onClick={() => openEditor({ mode: "edit", user })}>
                       Sửa
                     </button>
-                    <button className="secondary" type="button" onClick={() => openEditor({ mode: "password", user })}>
+                    <button className="secondary" type="button" disabled={busy} onClick={() => openEditor({ mode: "password", user })}>
                       Đổi mật khẩu
                     </button>
                     <button className="danger" type="button" disabled={busy || user.id === currentUserId} onClick={() => void remove(user)}>

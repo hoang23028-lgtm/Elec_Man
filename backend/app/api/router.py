@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 from app.api.routes.audit import router as audit_router
 from app.api.routes.auth import router as auth_router
@@ -15,20 +15,44 @@ from app.api.routes.results import router as results_router
 from app.api.routes.settings import router as settings_router
 from app.api.routes.training import router as training_router
 from app.api.routes.users import router as users_router
+from app.security.dependencies import require_admin
 
 api_router = APIRouter()
 api_router.include_router(auth_router, prefix="/auth", tags=["Xác thực"])
-api_router.include_router(batches_router, prefix="/batches", tags=["Lô dữ liệu"])
-api_router.include_router(customers_router, prefix="/customers", tags=["Khách hàng"])
+admin_only = [Depends(require_admin)]
+api_router.include_router(
+    batches_router, prefix="/batches", tags=["Lô dữ liệu"], dependencies=admin_only
+)
+api_router.include_router(
+    customers_router, prefix="/customers", tags=["Khách hàng"], dependencies=admin_only
+)
 api_router.include_router(health_router, prefix="/health", tags=["Trạng thái hệ thống"])
-api_router.include_router(images_router, prefix="/images", tags=["Hình ảnh"])
-api_router.include_router(jobs_router, tags=["Tác vụ xử lý"])
-api_router.include_router(results_router, prefix="/results", tags=["Kết quả"])
+api_router.include_router(
+    images_router, prefix="/images", tags=["Hình ảnh"], dependencies=admin_only
+)
+api_router.include_router(jobs_router, tags=["Tác vụ xử lý"], dependencies=admin_only)
+api_router.include_router(
+    results_router, prefix="/results", tags=["Kết quả"], dependencies=admin_only
+)
 api_router.include_router(dashboard_router, prefix="/dashboard", tags=["Bảng điều khiển"])
-api_router.include_router(exports_router, prefix="/exports", tags=["Xuất dữ liệu"])
-api_router.include_router(audit_router, prefix="/audit", tags=["Kiểm toán"])
-api_router.include_router(settings_router, prefix="/settings", tags=["Cấu hình"])
-api_router.include_router(models_router, prefix="/models", tags=["Mô hình"])
-api_router.include_router(evaluation_router, prefix="/evaluation", tags=["Đánh giá"])
-api_router.include_router(users_router, prefix="/users", tags=["Tài khoản"])
-api_router.include_router(training_router, prefix="/training", tags=["Huấn luyện"])
+api_router.include_router(
+    exports_router, prefix="/exports", tags=["Xuất dữ liệu"], dependencies=admin_only
+)
+api_router.include_router(
+    audit_router, prefix="/audit", tags=["Kiểm toán"], dependencies=admin_only
+)
+api_router.include_router(
+    settings_router, prefix="/settings", tags=["Cấu hình"], dependencies=admin_only
+)
+api_router.include_router(
+    models_router, prefix="/models", tags=["Mô hình"], dependencies=admin_only
+)
+api_router.include_router(
+    evaluation_router, prefix="/evaluation", tags=["Đánh giá"], dependencies=admin_only
+)
+api_router.include_router(
+    users_router, prefix="/users", tags=["Tài khoản"], dependencies=admin_only
+)
+api_router.include_router(
+    training_router, prefix="/training", tags=["Huấn luyện"], dependencies=admin_only
+)

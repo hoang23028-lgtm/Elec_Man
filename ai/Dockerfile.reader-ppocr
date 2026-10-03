@@ -1,0 +1,28 @@
+FROM python:3.12-slim@sha256:2f17fc044b579bab302c2e8054d3a686e2cb9a83de48e70534b94cd8ebbe06a9
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 \
+    OMP_NUM_THREADS=1 HOME=/opt/model-cache PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK=True
+WORKDIR /app
+RUN python -m pip install --no-compile "pip>=26.2,<27" \
+    && mkdir -p /opt/model-cache \
+    && pip install --no-compile \
+        "fastapi>=0.115,<1.0" "uvicorn>=0.32,<1.0" \
+        "paddlepaddle==3.2.2" "paddleocr==3.7.0"
+RUN pip uninstall -y opencv-python-headless opencv-contrib-python \
+    && pip install --no-compile --no-deps "opencv-contrib-python-headless==4.10.0.84"
+RUN pip install --no-compile --no-deps "opencv-contrib-python==4.10.0.84" \
+    && pip install --force-reinstall --no-compile --no-deps \
+        "opencv-contrib-python-headless==4.10.0.84"
+RUN apt-get update \
+    && apt-get install --no-install-recommends -y libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+RUN python -c "from paddleocr import TextRecognition; TextRecognition(model_name='PP-OCRv6_small_rec', device='cpu')"
+COPY ai/__init__.py ./ai/
+COPY ai/readers ./ai/readers
+COPY ai/services ./ai/services
+COPY ai/pipeline/__init__.py ai/pipeline/register.py ./ai/pipeline/
+RUN useradd --system --uid 10001 reader \
+    && chown -R reader:reader /app /opt/model-cache
+USER reader
+ENV READER_BACKEND=ppocr
+EXPOSE 8080
+CMD ["uvicorn", "ai.services.sequence_reader:app", "--host", "0.0.0.0", "--port", "8080", "--workers", "1", "--no-access-log"]

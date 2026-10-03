@@ -58,3 +58,21 @@ def test_audit_list_exposes_filtered_total_count(monkeypatch) -> None:
 
     assert rows == []
     assert response.headers["X-Total-Count"] == "41"
+
+
+def test_result_review_filter_is_forwarded(monkeypatch) -> None:
+    calls = []
+    monkeypatch.setattr(result_routes, "list_results", lambda *args: (calls.append(args) or [], 0))
+    result_routes.get_results(Response(), review_status="LABELED", db=None, _=None)
+    assert calls[0][-1] == "LABELED"
+
+
+def test_pending_filter_includes_images_without_manual_reading() -> None:
+    from sqlalchemy import select
+
+    from app.models.meter_reading import MeterReading
+    from app.services.review_service import _apply_result_filters
+
+    query = _apply_result_filters(select(MeterReading), None, None, "PENDING")
+    sql = str(query.compile(compile_kwargs={"literal_binds": True}))
+    assert "coalesce(meter_readings.review_status, 'PENDING') = 'PENDING'" in sql

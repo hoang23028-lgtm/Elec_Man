@@ -1,8 +1,8 @@
-from datetime import date, datetime
+from datetime import date
 from decimal import Decimal
 from uuid import UUID
-from zoneinfo import ZoneInfo
 
+from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -12,13 +12,6 @@ from app.models.image import ImageRecord
 from app.models.meter_reading import MeterReading
 from app.services.storage_service import resolve_storage_path
 
-_VIETNAM_TIMEZONE = ZoneInfo("Asia/Ho_Chi_Minh")
-
-
-def reading_month(confirmed_at: datetime) -> date:
-    local = confirmed_at.astimezone(_VIETNAM_TIMEZONE)
-    return date(local.year, local.month, 1)
-
 
 def save_confirmed_monthly_reading(
     db: Session,
@@ -26,31 +19,33 @@ def save_confirmed_monthly_reading(
     reading: MeterReading,
     customer: Customer,
     confirmed_by: UUID | None,
+    selected_month: date | None = None,
 ) -> tuple[ConfirmedMonthlyReading, dict]:
     """Upsert one official customer/month record after successful confirmation."""
     if reading.reviewed_at is None or reading.reading_value is None:
         raise ValueError("Kết quả chưa có đủ dữ liệu xác nhận.")
-    month = reading_month(reading.reviewed_at)
     source_record = db.scalar(
         select(ConfirmedMonthlyReading).where(ConfirmedMonthlyReading.source_image_id == image.id)
     )
+    month = selected_month or (source_record.reading_month if source_record else None)
+    if month is None or month.day != 1:
+        raise HTTPException(
+            status_code=422, detail="Vui lòng chọn kỳ tháng ghi điện trước khi xác nhận."
+        )
     monthly_record = db.scalar(
         select(ConfirmedMonthlyReading).where(
             ConfirmedMonthlyReading.customer_id == customer.id,
             ConfirmedMonthlyReading.reading_month == month,
         )
     )
-    if (
-        source_record is not None
-        and monthly_record is not None
-        and source_record is not monthly_record
-    ):
-        db.delete(source_record)
-        db.flush()
-        record = monthly_record
-    else:
-        record = monthly_record or source_record
+    if monthly_record is not None and monthly_record.source_image_id != image.id:
+        raise HTTPException(
+            status_code=409,
+            detail="Khách hàng đã có chỉ số trong kỳ này. Hãy chỉnh sửa bản ghi đã xác nhận.",
+        )
+    record = monthly_record or source_record
     replaced = {
+        "reading_month_before": record.reading_month.isoformat() if record else None,
         "source_image_id_before": str(record.source_image_id) if record else None,
         "meter_reading_before": str(record.meter_reading) if record else None,
     }

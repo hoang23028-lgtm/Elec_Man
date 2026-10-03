@@ -1,0 +1,378 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+
+import { Pagination } from "@/components/pagination";
+import { LatestRequest } from "@/lib/latest-request";
+import { getBatchImages, getBatchesPage } from "@/services/batches";
+import type { Batch, BatchImage } from "@/types/batch";
+import { usePolling } from "@/hooks/use-polling";
+
+const activeStatuses = new Set(["UPLOADING", "QUEUED", "PROCESSING"]);
+const batchPageSize = 10;
+const imagePageSize = 12;
+const statusLabels: Record<string, string> = {
+  CREATED: "Đã tạo",
+  UPLOADING: "Đang tải lên",
+  UPLOADED: "Đã tải lên",
+  READY: "Sẵn sàng",
+  QUEUED: "Đang chờ xử lý",
+  PROCESSING: "Đang xử lý",
+  AI_COMPLETED: "AI đã xử lý",
+  REVIEW_REQUIRED: "Cần kiểm duyệt",
+  CONFIRMED: "Đã xác nhận",
+  REJECTED: "Đã từ chối",
+  COMPLETED: "Hoàn tất",
+  PARTIAL_FAILED: "Hoàn tất một phần",
+  FAILED: "Thất bại",
+  CANCELLED: "Đã hủy",
+};
+
+const pageCount = (total: number, size: number) =>
+  Math.max(1, Math.ceil(total / size));
+const fileSize = (value: number) =>
+  value >= 1024 * 1024
+    ? `${(value / 1024 / 1024).toFixed(1)} MB`
+    : `${Math.max(1, Math.round(value / 1024))} KB`;
+
+function sameBatchSnapshot(left: Batch, right: Batch): boolean {
+  return (
+    left.status === right.status &&
+    left.total_images === right.total_images &&
+    left.processed_images === right.processed_images &&
+    left.ok_count === right.ok_count &&
+    left.review_count === right.review_count &&
+    left.ng_count === right.ng_count &&
+    left.failed_count === right.failed_count
+  );
+}
+
+export function BatchOverview() {
+  const batchRequests = useRef(new LatestRequest());
+  const imageRequests = useRef(new LatestRequest());
+  const detailHeading = useRef<HTMLHeadingElement>(null);
+  const [batches, setBatches] = useState<Batch[]>([]);
+  const [batchTotal, setBatchTotal] = useState(0);
+  const [page, setPage] = useState(0);
+  const [selected, setSelected] = useState<Batch | null>(null);
+  const [images, setImages] = useState<BatchImage[]>([]);
+  const [imageTotal, setImageTotal] = useState(0);
+  const [imagePage, setImagePage] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadBatches = useCallback(
+    async (showLoading = false) => {
+      const request = batchRequests.current.begin();
+      if (showLoading) setLoading(true);
+      try {
+        const result = await getBatchesPage(
+          page * batchPageSize,
+          batchPageSize,
+        );
+        if (!batchRequests.current.isCurrent(request)) return;
+        setBatches(result.items);
+        setBatchTotal(result.total);
+        setSelected((current) => {
+          if (!current) return null;
+          const updated = result.items.find((batch) => batch.id === current.id);
+          return updated && !sameBatchSnapshot(current, updated)
+            ? updated
+            : current;
+        });
+        setError(null);
+      } catch (reason) {
+        if (!batchRequests.current.isCurrent(request)) return;
+        setError(
+          reason instanceof Error
+            ? reason.message
+            : "Không thể tải danh sách lô.",
+        );
+      } finally {
+        if (batchRequests.current.isCurrent(request)) setLoading(false);
+      }
+    },
+    [page, setLoading, setSelected, setBatches, setBatchTotal, setError],
+  );
+
+  const loadImages = useCallback(
+    async (showLoading = false) => {
+      if (!selected) return;
+      const request = imageRequests.current.begin();
+      if (showLoading) setDetailLoading(true);
+      try {
+        const result = await getBatchImages(
+          selected.id,
+          imagePage * imagePageSize,
+          imagePageSize,
+        );
+        if (!imageRequests.current.isCurrent(request)) return;
+        setImages(result.items);
+        setImageTotal(result.total);
+        setError(null);
+      } catch (reason) {
+        if (!imageRequests.current.isCurrent(request)) return;
+        setError(
+          reason instanceof Error
+            ? reason.message
+            : "Không thể tải chi tiết lô dữ liệu.",
+        );
+      } finally {
+        if (imageRequests.current.isCurrent(request)) setDetailLoading(false);
+      }
+    },
+    [imagePage, selected, setDetailLoading, setImages, setImageTotal, setError],
+  );
+
+  useEffect(() => {
+    const requests = batchRequests.current;
+    void loadBatches(true);
+    return () => requests.invalidate();
+  }, [loadBatches]);
+
+  useEffect(() => {
+    const requests = imageRequests.current;
+    if (!selected) {
+      setImages([]);
+      setImageTotal(0);
+      return;
+    }
+    void loadImages(true);
+    return () => requests.invalidate();
+  }, [loadImages, selected]);
+
+  function selectBatch(batch: Batch) {
+    if (selected?.id === batch.id) {
+      detailHeading.current?.focus();
+      return;
+    }
+    imageRequests.current.invalidate();
+    setImages([]);
+    setImageTotal(0);
+    setDetailLoading(true);
+    setError(null);
+    setSelected(batch);
+    setImagePage(0);
+    requestAnimationFrame(() => detailHeading.current?.focus());
+  }
+
+  const active = batches.filter((batch) =>
+    activeStatuses.has(batch.status),
+  ).length;
+  usePolling(() => loadBatches(), 10000, active > 0);
+  const batchPages = pageCount(batchTotal, batchPageSize);
+  const imagePages = pageCount(imageTotal, imagePageSize);
+
+  return (
+    <section className="panel full-span" aria-labelledby="batch-title">
+      <div className="section-heading">
+        <div>
+          <p className="eyebrow">Lịch sử xử lý</p>
+          <h2 id="batch-title">Các lô dữ liệu</h2>
+          <p className="muted batch-description">
+            Chọn một lô để xem toàn bộ hình ảnh, trạng thái xử lý và kết quả nhận diện.
+          </p>
+        </div>
+        <span className={active ? "badge active" : "badge"}>
+          {active
+            ? `${active} lô đang xử lý trên trang`
+            : `${batchTotal} lô dữ liệu`}
+        </span>
+      </div>
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
+      {loading ? (
+        <p className="muted" role="status">
+          Đang tải danh sách lô…
+        </p>
+      ) : batches.length === 0 ? (
+        <p className="empty-state">Chưa có lô dữ liệu nào được tải lên.</p>
+      ) : (
+        <div className="table-wrap batch-table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th className="row-number">STT</th>
+                <th>Lô dữ liệu</th>
+                <th>Trạng thái</th>
+                <th>Tiến độ</th>
+                <th>Kết quả</th>
+                <th>Ngày tạo</th>
+                <th>Chi tiết</th>
+              </tr>
+            </thead>
+            <tbody>
+              {batches.map((batch, index) => (
+                <tr
+                  key={batch.id}
+                  className={selected?.id === batch.id ? "selected-row" : undefined}
+                >
+                  <td className="row-number">{page * batchPageSize + index + 1}</td>
+                  <td>
+                    <strong>{batch.original_folder_name}</strong>
+                    <small>{batch.batch_code}</small>
+                  </td>
+                  <td>
+                    <span className="badge">
+                      {statusLabels[batch.status] ?? batch.status}
+                    </span>
+                  </td>
+                  <td>
+                    Đã xử lý {batch.processed_images}/{batch.total_images}
+                  </td>
+                  <td>
+                    {batch.ok_count} xác nhận · {batch.review_count} cần duyệt
+                    <small>
+                      {batch.ng_count} từ chối · {batch.failed_count} lỗi
+                    </small>
+                  </td>
+                  <td>{new Date(batch.created_at).toLocaleString("vi-VN")}</td>
+                  <td>
+                    <button
+                      className="secondary table-detail-button"
+                      type="button"
+                      aria-expanded={selected?.id === batch.id}
+                      aria-controls="batch-detail"
+                      onClick={() => selectBatch(batch)}
+                    >
+                      Xem chi tiết
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <Pagination
+        pageIndex={page}
+        totalPages={batchPages}
+        onPageChange={(next) => {
+          batchRequests.current.invalidate();
+          setLoading(true);
+          setPage(next);
+        }}
+        ariaLabel="Phân trang danh sách lô"
+        disabled={loading}
+        itemSummary={`${batchTotal} lô`}
+      />
+
+      {selected && (
+        <section id="batch-detail" className="batch-detail" aria-labelledby="batch-detail-title" aria-busy={detailLoading}>
+          <div className="section-heading">
+            <div>
+              <p className="eyebrow">Chi tiết lô</p>
+              <h3 id="batch-detail-title" ref={detailHeading} tabIndex={-1}>{selected.original_folder_name}</h3>
+              <p className="muted">
+                {selected.batch_code} · {selected.total_images} hình ảnh
+              </p>
+            </div>
+            <div className="batch-detail-actions"><button
+              className="secondary"
+              type="button"
+              onClick={() => void loadImages(true)}
+              disabled={detailLoading}
+            >
+              Làm mới
+            </button>
+            <button className="secondary" type="button" onClick={() => {
+              imageRequests.current.invalidate();
+              setSelected(null);
+              setImages([]);
+              setDetailLoading(false);
+            }}>Đóng chi tiết</button></div>
+          </div>
+          {detailLoading ? (
+            <p className="muted" role="status">
+              Đang tải hình ảnh trong lô…
+            </p>
+          ) : images.length === 0 ? (
+            <p className="empty-state">Lô này chưa có hình ảnh.</p>
+          ) : (
+            <div className="table-wrap batch-images-table">
+              <table>
+                <thead>
+                  <tr>
+                    <th className="row-number">STT</th>
+                    <th>Hình ảnh</th>
+                    <th>Trạng thái</th>
+                    <th>Mã khách hàng</th>
+                    <th>Số điện</th>
+                    <th>Độ tin cậy</th>
+                    <th>Kích thước</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {images.map((image, index) => (
+                    <tr key={image.image_id}>
+                      <td className="row-number">
+                        {imagePage * imagePageSize + index + 1}
+                      </td>
+                      <td>
+                        <div className="batch-image-cell">
+                          <a
+                            href={`/api/v1/images/${image.image_id}/preview`}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            {/* Authenticated image URLs cannot be optimized server-side. */}
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={`/api/v1/images/${image.image_id}/thumbnail`}
+                              alt={`Ảnh ${image.original_filename}`}
+                              loading="lazy"
+                            />
+                          </a>
+                          <span>
+                            <strong>{image.original_filename}</strong>
+                            <small>{fileSize(image.file_size)}</small>
+                          </span>
+                        </div>
+                      </td>
+                      <td>
+                        <span className="badge">
+                          {statusLabels[image.image_status] ?? image.image_status}
+                        </span>
+                      </td>
+                      <td>
+                        {image.final_customer_id ?? image.customer_id_ai ?? "—"}
+                      </td>
+                      <td>
+                        {image.final_meter_reading ?? image.meter_reading_ai ?? "—"}
+                      </td>
+                      <td>
+                        {image.final_confidence === null
+                          ? "—"
+                          : `${Math.round(image.final_confidence * 100)}%`}
+                      </td>
+                      <td>
+                        {image.width} × {image.height}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <Pagination
+            pageIndex={imagePage}
+            totalPages={imagePages}
+            onPageChange={(next) => {
+              imageRequests.current.invalidate();
+              setImages([]);
+              setDetailLoading(true);
+              setImagePage(next);
+            }}
+            ariaLabel="Phân trang hình ảnh trong lô"
+            disabled={detailLoading}
+            itemSummary={`${imageTotal} hình ảnh`}
+          />
+        </section>
+      )}
+    </section>
+  );
+}

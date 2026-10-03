@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from uuid import UUID
 
 from pydantic import BaseModel, Field, model_validator
@@ -87,6 +87,7 @@ class ReadingPolygon(BaseModel):
 
 
 class ResultRow(BaseModel):
+    reading_month: date | None = None
     image_id: UUID
     original_filename: str
     image_width: int
@@ -107,15 +108,33 @@ class ResultRow(BaseModel):
     reading_bbox: ReadingBoundingBox | None
     reading_polygon: ReadingPolygon | None
     ai_reading_bbox: ReadingBoundingBox | None
+    meter_polygon: ReadingPolygon | None
+    ai_meter_bbox: ReadingBoundingBox | None
+
+
+class ResultStatusCounts(BaseModel):
+    review_required: int
+    pending: int
+    labeled: int
+    confirmed: int
+    rejected: int
 
 
 class ReviewRequest(BaseModel):
+    meter_polygon: ReadingPolygon | None = None
+    reading_month: date | None = None
     final_customer_id: str | None = Field(default=None, max_length=128)
     final_meter_reading: str | None = Field(default=None, max_length=64)
     action: str = Field(pattern="^(CONFIRM|REJECT)$")
     reason: str | None = Field(default=None, max_length=1000)
     reading_bbox: ReadingBoundingBox | None = None
     reading_polygon: ReadingPolygon | None = None
+
+    @model_validator(mode="after")
+    def validate_reading_month(self) -> "ReviewRequest":
+        if self.reading_month is not None and self.reading_month.day != 1:
+            raise ValueError("Kỳ ghi điện phải là ngày đầu tháng (YYYY-MM-01).")
+        return self
 
 
 class ReviewResponse(BaseModel):
@@ -126,11 +145,22 @@ class ReviewResponse(BaseModel):
 
 class RecognitionRequest(BaseModel):
     reading_polygon: ReadingPolygon
+    integer_digits: int | None = Field(default=None, ge=4, le=8)
 
 
 class TrainingLabelRequest(BaseModel):
     final_meter_reading: str = Field(min_length=1, max_length=64)
     reading_polygon: ReadingPolygon
+    meter_polygon: ReadingPolygon | None = None
+
+
+class MeterRegionRequest(BaseModel):
+    meter_polygon: ReadingPolygon
+
+
+class MeterRegionResponse(MeterRegionRequest):
+    image_id: UUID
+    saved_at: datetime
 
 
 class RecognitionResponse(BaseModel):

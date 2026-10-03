@@ -11,12 +11,13 @@ from app.schemas.auth import (
     RegistrationRequest,
     RegistrationResponse,
 )
-from app.security.dependencies import AuthContext, get_current_user, require_csrf
+from app.security.dependencies import AuthContext, get_auth_context, get_current_user, require_csrf
 from app.security.rate_limit import (
     login_account_rate_limiter,
     login_ip_rate_limiter,
     registration_ip_rate_limiter,
 )
+from app.security.tokens import session_csrf_token
 from app.services.auth_service import REGISTRATION_MESSAGE, authenticate, logout, register_account
 
 router = APIRouter()
@@ -41,7 +42,7 @@ def login(
             headers={"Retry-After": "900"},
         )
     try:
-        session_token, csrf_token, expires_at = authenticate(
+        session_token, csrf_token, expires_at, username, role = authenticate(
             db, payload.username, payload.password, _ip(request), request.headers.get("user-agent")
         )
     except HTTPException as exc:
@@ -61,7 +62,7 @@ def login(
         expires=expires_at,
         path="/",
     )
-    return LoginResponse(csrf_token=csrf_token, expires_at=expires_at)
+    return LoginResponse(csrf_token=csrf_token, expires_at=expires_at, username=username, role=role)
 
 
 @router.post(
@@ -109,4 +110,21 @@ def logout_route(
 
 @router.get("/me", response_model=CurrentUserResponse)
 def me(user: User = Depends(get_current_user)) -> CurrentUserResponse:
-    return CurrentUserResponse(id=user.id, username=user.username, last_login_at=user.last_login_at)
+    return CurrentUserResponse(
+        id=user.id, username=user.username, role=user.role, last_login_at=user.last_login_at
+    )
+
+
+@router.get("/session", response_model=LoginResponse)
+def restore_session(
+    request: Request, response: Response, auth: AuthContext = Depends(get_auth_context)
+) -> LoginResponse:
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Vary"] = "Cookie"
+    token = request.cookies[get_settings().session_cookie_name]
+    return LoginResponse(
+        csrf_token=session_csrf_token(token),
+        expires_at=auth.session.expires_at,
+        username=auth.user.username,
+        role=auth.user.role,
+    )

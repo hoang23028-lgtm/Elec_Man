@@ -10,7 +10,7 @@ from app.core.config import get_settings
 from app.core.database import get_db
 from app.models.session import SessionRecord
 from app.models.user import User
-from app.security.tokens import hash_token
+from app.security.tokens import hash_token, session_csrf_token
 
 
 @dataclass(frozen=True)
@@ -48,13 +48,27 @@ def get_current_user(context: AuthContext = Depends(get_auth_context)) -> User:
     return context.user
 
 
+def require_admin(user: User = Depends(get_current_user)) -> User:
+    if user.role != "ADMIN":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Tài khoản không có quyền quản trị.",
+        )
+    return user
+
+
 def require_csrf(
     request: Request,
     context: AuthContext = Depends(get_auth_context),
 ) -> AuthContext:
     csrf_token = request.headers.get("X-CSRF-Token")
-    if not csrf_token or not compare_digest(
+    cookie = request.cookies.get(get_settings().session_cookie_name)
+    legacy_match = bool(csrf_token) and compare_digest(
         hash_token(csrf_token), context.session.csrf_token_hash
-    ):
+    )
+    restored_match = bool(csrf_token and cookie) and compare_digest(
+        csrf_token, session_csrf_token(cookie)
+    )
+    if not (legacy_match or restored_match):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Xác thực CSRF thất bại.")
     return context
