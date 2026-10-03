@@ -60,6 +60,11 @@ def _validate_signature(sample: bytes, extension: str) -> None:
         raise _bad_upload("Dấu hiệu tệp không khớp với định dạng ảnh được hỗ trợ.")
 
 
+def _storage_bucket(batch_id: UUID) -> str:
+    """Return a fixed-alphabet directory name without using request text in a path."""
+    return hashlib.sha256(batch_id.bytes).hexdigest()[:32]
+
+
 async def store_upload(file: UploadFile, batch_id: UUID) -> StoredUpload:
     settings = get_settings()
     original_filename = _safe_original_name(file.filename)
@@ -73,7 +78,8 @@ async def store_upload(file: UploadFile, batch_id: UUID) -> StoredUpload:
         raise _bad_upload("Kiểu nội dung khai báo không được hỗ trợ.")
 
     now = datetime.now(UTC)
-    relative_dir = Path("original") / f"{now:%Y}" / f"{now:%m}" / str(batch_id)
+    batch_bucket = _storage_bucket(batch_id)
+    relative_dir = Path("original") / f"{now:%Y}" / f"{now:%m}" / batch_bucket
     storage_root = settings.storage_root.resolve()
     destination_dir = (storage_root / relative_dir).resolve()
     if not destination_dir.is_relative_to(storage_root):
@@ -116,11 +122,7 @@ async def store_upload(file: UploadFile, batch_id: UUID) -> StoredUpload:
                         "Phần mở rộng hoặc kiểu tệp khai báo không khớp với định dạng ảnh thực tế."
                     )
                 thumbnail_relative = (
-                    Path("thumbnails")
-                    / f"{now:%Y}"
-                    / f"{now:%m}"
-                    / str(batch_id)
-                    / f"{uuid4()}.jpg"
+                    Path("thumbnails") / f"{now:%Y}" / f"{now:%m}" / batch_bucket / f"{uuid4()}.jpg"
                 )
                 thumbnail_absolute = storage_root / thumbnail_relative
                 thumbnail_absolute.parent.mkdir(parents=True, exist_ok=True)

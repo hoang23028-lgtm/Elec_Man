@@ -1,9 +1,20 @@
 from pathlib import Path
+from uuid import UUID
 
 import pytest
 from fastapi import HTTPException
 
 from app.services import storage_service
+
+
+def test_storage_bucket_is_fixed_length_hex_and_not_raw_request_value() -> None:
+    batch_id = UUID("12345678-1234-5678-1234-567812345678")
+
+    bucket = storage_service._storage_bucket(batch_id)
+
+    assert len(bucket) == 32
+    assert all(character in "0123456789abcdef" for character in bucket)
+    assert str(batch_id) not in bucket
 
 
 def test_original_upload_name_removes_client_path() -> None:
