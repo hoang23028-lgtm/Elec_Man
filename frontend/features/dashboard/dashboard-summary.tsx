@@ -34,7 +34,7 @@ function pageCount(total: number): number {
   return Math.max(1, Math.ceil(total / pageSize));
 }
 
-export function DashboardSummary({ csrfToken }: { csrfToken?: string }) {
+export function DashboardSummary({ readOnly = true }: { readOnly?: boolean }) {
   const request = useLatestRequest();
   const [operations, setOperations] = useState<Dashboard | null>(null);
   const [billing, setBilling] = useState<BillingDashboard | null>(null);
@@ -49,6 +49,8 @@ export function DashboardSummary({ csrfToken }: { csrfToken?: string }) {
   const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
+  const [autoRefresh, setAutoRefresh] = useState(true);
 
   const load = useCallback(
     async (showLoading = false) => {
@@ -70,6 +72,7 @@ export function DashboardSummary({ csrfToken }: { csrfToken?: string }) {
         if (page > lastPage) { setPage(lastPage); return; }
         setOperations(nextOperations);
         setBilling(nextBilling);
+        setUpdatedAt(new Date());
         setError(null);
       } catch (reason) {
         if (!request.isCurrent(revision)) return;
@@ -88,7 +91,12 @@ export function DashboardSummary({ csrfToken }: { csrfToken?: string }) {
   useEffect(() => {
     void load(true);
   }, [load]);
-  usePolling(() => load(false), 30000);
+  usePolling(() => load(false), 30000, autoRefresh);
+  useEffect(() => {
+    const refresh = () => { void load(false); };
+    window.addEventListener("confirmed-data-changed", refresh);
+    return () => window.removeEventListener("confirmed-data-changed", refresh);
+  }, [load]);
 
   const trendMaximum = useMemo(
     () => Math.max(0, ...(billing?.trend.map((point) => point.consumption_kwh) ?? [])),
@@ -121,11 +129,11 @@ export function DashboardSummary({ csrfToken }: { csrfToken?: string }) {
     <section className="panel dashboard-panel" aria-labelledby="dashboard-summary-title">
       <div className="section-heading dashboard-heading">
         <div>
-          <p className="eyebrow">Bảng điều khiển</p>
+          <p className="eyebrow">Dữ liệu đã xác nhận</p>
           <h2 id="dashboard-summary-title">Tổng quan điện năng và tiền điện</h2>
           <p className="muted">
             Dữ liệu chỉ lấy từ các chỉ số đã xác nhận. Tiền điện được tính theo
-            mục đích sử dụng, mức tiêu thụ giữa hai kỳ và VAT tại thời điểm ghi nhận.
+            mục đích sử dụng, mức tiêu thụ giữa hai kỳ, biểu giá và VAT theo tháng ghi điện.
           </p>
         </div>
         <button
@@ -138,6 +146,10 @@ export function DashboardSummary({ csrfToken }: { csrfToken?: string }) {
         </button>
       </div>
 
+      <div className="dashboard-update-bar">
+        <span>{updatedAt ? `Cập nhật ${dateFormatter.format(updatedAt)}` : "Chưa tải xong dữ liệu"}{error && updatedAt ? " · Dữ liệu cũ, chưa làm mới được" : ""}</span>
+        <button type="button" className="secondary" aria-pressed={autoRefresh} onClick={() => setAutoRefresh((value) => !value)}>{autoRefresh ? "Tự cập nhật: bật (30 giây)" : "Tự cập nhật: tắt"}</button>
+      </div>
       {error && <p className="error" role="alert">{error}</p>}
 
       <div className="metrics dashboard-operations-metrics" aria-label="Thống kê vận hành">
@@ -155,14 +167,16 @@ export function DashboardSummary({ csrfToken }: { csrfToken?: string }) {
           <h3>Điện năng đã xác nhận</h3>
         </div>
         <span className="badge">
-          Biểu giá theo mục đích · VAT {billing?.vat_rate_percent ?? 8}%
+          Số tiền tham khảo · {billing?.vat_rate_percent != null
+            ? `VAT ${billing.vat_rate_percent}%`
+            : "VAT theo từng kỳ"}
         </span>
       </div>
       <div className="metrics billing-metrics" aria-label="Thống kê điện năng">
         <div><strong>{billing?.summary.total_customers ?? "—"}</strong><span>Khách hàng</span></div>
         <div><strong>{billing ? numberFormatter.format(billing.summary.total_consumption_kwh) : "—"}</strong><span>Điện tiêu thụ (kWh)</span></div>
         <div><strong>{billing ? moneyFormatter.format(billing.summary.energy_charge_before_vat_vnd) : "—"}</strong><span>Tiền điện trước VAT</span></div>
-        <div><strong>{billing ? moneyFormatter.format(billing.summary.estimated_amount_vnd) : "—"}</strong><span>Tổng tiền sau VAT</span></div>
+        <div><strong>{billing ? moneyFormatter.format(billing.summary.estimated_amount_vnd) : "—"}</strong><span>Tổng tạm tính sau VAT</span></div>
         <div><strong>{billing?.summary.billed_records ?? "—"}/{billing?.summary.total_records ?? "—"}</strong><span>Kỳ đủ dữ liệu tính</span></div>
       </div>
 
@@ -172,7 +186,7 @@ export function DashboardSummary({ csrfToken }: { csrfToken?: string }) {
           <input
             value={customerInput}
             onChange={(event) => setCustomerInput(event.target.value)}
-            placeholder="Ví dụ: KH004"
+            placeholder="Ví dụ: PN2.001"
           />
         </label>
         <label>
@@ -243,7 +257,7 @@ export function DashboardSummary({ csrfToken }: { csrfToken?: string }) {
               <th>Biểu giá áp dụng</th>
               <th>Trước VAT</th>
               <th>VAT</th>
-              <th>Tổng thanh toán</th>
+              <th>Tổng tạm tính</th>
             </tr>
           </thead>
           <tbody>
@@ -251,7 +265,7 @@ export function DashboardSummary({ csrfToken }: { csrfToken?: string }) {
             {billing?.records.map((record, index) => (
               <tr key={record.reading_id}>
                 <td className="row-number">{page * pageSize + index + 1}</td>
-                <td>{dateFormatter.format(new Date(record.reading_at))}</td>
+                <td title={`Xác nhận: ${dateFormatter.format(new Date(record.reading_at))}`}>{String(record.month).padStart(2, "0")}/{record.year}</td>
                 <td><strong>{record.customer_id}</strong></td>
                 <td>{record.previous_reading ?? "—"}</td>
                 <td>{record.current_reading}</td>
@@ -264,7 +278,11 @@ export function DashboardSummary({ csrfToken }: { csrfToken?: string }) {
                 </td>
                 <td>
                   {record.tariff_label ?? "Chưa xác định"}
+                  {record.tariff_version && record.tariff_source_url && (
+                    <small><a href={record.tariff_source_url} target="_blank" rel="noopener noreferrer">{record.tariff_version}</a></small>
+                  )}
                   {record.tariff_estimated && <small>Tạm tính theo dưới 6 kV, giờ bình thường</small>}
+                  {record.billing_note && <small>{record.billing_note}</small>}
                 </td>
                 <td>
                   {record.energy_charge_before_vat_vnd === null
@@ -275,6 +293,9 @@ export function DashboardSummary({ csrfToken }: { csrfToken?: string }) {
                   {record.vat_amount_vnd === null
                     ? "—"
                     : moneyFormatter.format(record.vat_amount_vnd)}
+                  {record.vat_rate_percent != null && record.vat_source_url && (
+                    <small><a href={record.vat_source_url} target="_blank" rel="noopener noreferrer" title={record.vat_policy ?? undefined}>VAT {record.vat_rate_percent}% · {record.vat_policy}</a></small>
+                  )}
                 </td>
                 <td>
                   {record.estimated_amount_vnd === null
@@ -286,7 +307,8 @@ export function DashboardSummary({ csrfToken }: { csrfToken?: string }) {
             {!loading && !billing?.records.length && (
               <tr>
                 <td colSpan={10} className="empty-state">
-                  Không có dữ liệu phù hợp với bộ lọc.
+                  <strong>Chưa có chỉ số đã xác nhận trong phạm vi này</strong>
+                  <p>Thử đổi tháng, năm hoặc xóa bộ lọc. Ảnh mới tải và nhãn chưa xác nhận chưa được tính vào bảng điện năng.</p>
                 </td>
               </tr>
             )}
@@ -306,11 +328,11 @@ export function DashboardSummary({ csrfToken }: { csrfToken?: string }) {
         Sinh hoạt áp dụng lũy tiến 6 bậc. Sản xuất, kinh doanh và hành chính sự nghiệp
         đang tạm tính theo cấp điện áp dưới 6 kV, giờ bình thường vì dữ liệu hiện tại
         chưa tách ba khung giờ. Chưa bao gồm công suất phản kháng, truy thu hoặc điều chỉnh khác.
+        Tháng thay đổi giá giữa kỳ chưa được tính khi thiếu dữ liệu phân bổ. Tổng tiền chỉ cộng các kỳ đủ dữ liệu, không phải hóa đơn chính thức.
       </p>
-      {!csrfToken && (
+      {readOnly && (
         <p className="read-only-note">
-          Chế độ công khai · Bạn có thể xem và lọc dữ liệu nhưng không thể chỉnh
-          sửa. Đăng nhập quản trị để sử dụng các chức năng nghiệp vụ.
+          Chế độ chỉ xem · Bạn có thể tra cứu và lọc dữ liệu. Các thao tác nghiệp vụ yêu cầu tài khoản quản trị vận hành hoặc quản trị toàn hệ thống.
         </p>
       )}
     </section>

@@ -1,6 +1,8 @@
 # Rà soát hiệu năng và kiến trúc AI — 01/10/2026
 
-> Cập nhật: PP-OCRv6 small và PARSeq-tiny đã thay thế bộ đọc HOG theo cơ chế đồng thuận trong dịch vụ nội bộ riêng. Xem `docs/MODERN_READER_BENCHMARK_20261001.md`.
+> Báo cáo lịch sử theo ngày, không phải hướng dẫn bản hiện hành. Xem [danh mục tài liệu](../README.md).
+
+> Cập nhật: PP-OCRv6 small và PARSeq-tiny đã thay thế bộ đọc HOG theo cơ chế đồng thuận trong dịch vụ nội bộ riêng. Xem `docs/reports/modern-reader-benchmark-2026-10-01.md`.
 
 ## Kết luận điều hành
 

@@ -176,7 +176,7 @@ export function BatchOverview() {
         </div>
         <span className={active ? "badge active" : "badge"}>
           {active
-            ? `${active} lô đang xử lý trên trang`
+            ? `${batches.filter((batch) => batch.status === "UPLOADING").length} đang tải · ${batches.filter((batch) => batch.status === "QUEUED").length} chờ · ${batches.filter((batch) => batch.status === "PROCESSING").length} đang xử lý (trang này)`
             : `${batchTotal} lô dữ liệu`}
         </span>
       </div>

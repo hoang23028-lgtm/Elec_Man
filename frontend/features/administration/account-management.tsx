@@ -46,7 +46,7 @@ export function AccountManagement({ csrfToken }: { csrfToken: string }) {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isActive, setIsActive] = useState(true);
-  const [role, setRole] = useState<"ADMIN" | "VIEWER">("ADMIN");
+  const [role, setRole] = useState<"SUPER_ADMIN" | "ADMIN" | "VIEWER">("VIEWER");
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -104,7 +104,7 @@ export function AccountManagement({ csrfToken }: { csrfToken: string }) {
     } else {
       setUsername("");
       setIsActive(true);
-      setRole("ADMIN");
+      setRole("VIEWER");
     }
   }
 
@@ -178,7 +178,7 @@ export function AccountManagement({ csrfToken }: { csrfToken: string }) {
           <p className="eyebrow">Quản trị truy cập</p>
           <h2 id="accounts-title">Quản lý tài khoản</h2>
           <p className="muted">
-            Thêm, chỉnh sửa, khóa, đổi mật khẩu hoặc xóa mềm tài khoản quản trị.
+            Quản trị toàn hệ thống quản lý tài khoản và phân quyền. Quản trị vận hành chỉ làm nghiệp vụ; người xem chỉ xem tổng quan.
             Mọi thao tác đều được ghi vào nhật ký truy vết.
           </p>
         </div>
@@ -237,9 +237,10 @@ export function AccountManagement({ csrfToken }: { csrfToken: string }) {
                 <select
                   value={role}
                   disabled={editor.mode === "edit" && editor.user.id === currentUserId}
-                  onChange={(event) => setRole(event.target.value as "ADMIN" | "VIEWER")}
+                  onChange={(event) => setRole(event.target.value as "SUPER_ADMIN" | "ADMIN" | "VIEWER")}
                 >
-                  <option value="ADMIN">Quản trị viên</option>
+                  <option value="SUPER_ADMIN">Quản trị toàn hệ thống</option>
+                  <option value="ADMIN">Quản trị vận hành</option>
                   <option value="VIEWER">Chỉ xem Dashboard</option>
                 </select>
               </label>
@@ -332,7 +333,7 @@ export function AccountManagement({ csrfToken }: { csrfToken: string }) {
                       {user.is_active ? "Đang hoạt động" : "Đã khóa"}
                     </span>
                   </td>
-                  <td><span className={`badge ${user.role === "ADMIN" ? "active" : ""}`}>{user.role === "ADMIN" ? "Quản trị viên" : "Chỉ xem"}</span></td>
+                  <td><span className={`badge ${user.role !== "VIEWER" ? "active" : ""}`}>{user.role === "SUPER_ADMIN" ? "Quản trị toàn hệ thống" : user.role === "ADMIN" ? "Quản trị vận hành" : "Người xem"}</span></td>
                   <td>{formatDate(user.last_login_at)}</td>
                   <td>{formatDate(user.created_at)}</td>
                   <td className="account-actions">

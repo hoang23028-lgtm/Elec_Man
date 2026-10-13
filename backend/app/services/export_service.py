@@ -10,7 +10,7 @@ from openpyxl import Workbook
 from openpyxl.cell import WriteOnlyCell
 from openpyxl.styles import Font, PatternFill
 from sqlalchemy import extract, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, defer
 
 from app.core.config import get_settings
 from app.models.confirmed_monthly_reading import ConfirmedMonthlyReading
@@ -79,6 +79,7 @@ def _report_row(
 def create_final_exports(db: Session, month: int, year: int) -> ExportBundle:
     statement = (
         select(ConfirmedMonthlyReading, Customer)
+        .options(defer(ConfirmedMonthlyReading.image_data, raiseload=True))
         .join(Customer, Customer.id == ConfirmedMonthlyReading.customer_id)
         .where(
             extract("month", ConfirmedMonthlyReading.reading_month) == month,

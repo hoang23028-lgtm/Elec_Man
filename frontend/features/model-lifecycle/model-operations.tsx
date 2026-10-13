@@ -214,15 +214,15 @@ export function ModelOperations({ csrfToken }: { csrfToken: string }) {
                     </span>
                   </td>
                   <td>
-                    {typeof record.metrics.validation_digit_accuracy ===
+                    {record.model_type === "meter_digit_hog_softmax" && typeof record.metrics.validation_digit_accuracy ===
                     "number"
-                      ? `${Math.round(record.metrics.validation_digit_accuracy * 1000) / 10}% chính xác`
-                      : "Chưa có"}
-                    <small>
+                      ? `${Math.round(record.metrics.validation_digit_accuracy * 1000) / 10}% đúng từng chữ số (mô hình cũ)`
+                      : supportedModelTypes.has(record.model_type) ? "Mô hình định vị vùng, không phải bộ đọc số" : "Chưa có đánh giá phù hợp"}
+                    {record.model_type === "meter_digit_hog_softmax" && <small>
                       {typeof record.metrics.digit_coverage === "number"
                         ? `${Math.round(record.metrics.digit_coverage * 10)}/10 chữ số`
                         : "Chưa có độ phủ"}
-                    </small>
+                    </small>}
                     {typeof record.metrics.validation_reading_exact_accuracy === "number" && (
                       <small>
                         {`${Math.round(record.metrics.validation_reading_exact_accuracy * 1000) / 10}% đúng chỉ số trên vùng và số chữ số đã gắn nhãn (không phải toàn quy trình)`}
@@ -232,6 +232,12 @@ export function ModelOperations({ csrfToken }: { csrfToken: string }) {
                       <small>
                         {`Điểm vùng chỉ số: ${Math.round(record.metrics.validation_region_accuracy * 1000) / 10}/100 (quy đổi từ sai số tọa độ)`}
                       </small>
+                    )}
+                    {record.metrics.validation_groups_verified !== true && (
+                      <small>Chưa xác minh tập kiểm định tách riêng theo công tơ — không được kích hoạt.</small>
+                    )}
+                    {typeof record.metrics.validation_images === "number" && record.metrics.validation_images < 30 && (
+                      <small>Cần ít nhất 30 ảnh kiểm định trước khi kích hoạt.</small>
                     )}
                     {typeof record.metrics.validation_meter_region_accuracy === "number" && (
                       <small>
@@ -243,7 +249,7 @@ export function ModelOperations({ csrfToken }: { csrfToken: string }) {
                     <button
                       type="button"
                       onClick={() => void activate(record)}
-                      disabled={saving || record.status === "ACTIVE" || !supportedModelTypes.has(record.model_type)}
+                      disabled={saving || record.status === "ACTIVE" || !supportedModelTypes.has(record.model_type) || record.metrics.validation_groups_verified !== true || typeof record.metrics.validation_images !== "number" || record.metrics.validation_images < 30}
                       title={!supportedModelTypes.has(record.model_type) ? "Pipeline hiện tại không hỗ trợ kích hoạt loại mô hình này." : undefined}
                     >
                       {supportedModelTypes.has(record.model_type) ? "Kích hoạt" : "Không hỗ trợ"}

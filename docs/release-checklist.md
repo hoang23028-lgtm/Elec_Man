@@ -28,3 +28,13 @@ CodeQL phân tích Python và JavaScript/TypeScript ở pull request, nhánh ch�
 ## Điều kiện quay lui
 
 Quay về image/commit trước nếu health check thất bại, migration không hoàn tất, tỷ lệ lỗi xử lý tăng bất thường hoặc dữ liệu xác nhận không được ghi đầy đủ. Không phục hồi database cũ khi chưa dừng lưu lượng và xác minh đúng bản backup.
+
+## Bản chia sẻ máy mới
+
+- [ ] Chỉ một bản canonical trên master; không force-push/xóa lịch sử để giả là sạch.
+- [ ] Checkout sạch không có secret, dữ liệu thật, model/dataset, backup hoặc node_modules.
+- [ ] Chạy starter từ database trống, tạo SUPER_ADMIN, login/import/upload/review/export với dữ liệu giả.
+- [ ] Chạy lần hai giữ secret/mật khẩu; có volume mà thiếu env phải dừng an toàn.
+- [ ] Test đầy đủ, kiểm tài liệu/link và CI trên đúng commit được chia sẻ.
+- [ ] README ghi rõ data không kèm repo, reader pretrained chưa tự fine-tune, auto-confirm bị chặn.
+- [ ] Trước Internet: chốt dữ liệu dashboard được công khai, TLS thật, backup ngoài máy và giám sát.

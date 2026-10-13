@@ -1,14 +1,16 @@
-import os
 import re
 import shutil
-import tempfile
 import unicodedata
 from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+from sqlalchemy import inspect
+from sqlalchemy.orm import Session, object_session
+
 from app.core.config import get_settings
 from app.models.image import ImageRecord
+from app.services.file_transaction import stage_file_change
 from app.services.storage_service import resolve_storage_path
 
 _INVALID_FILENAME_CHARACTERS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
@@ -56,29 +58,14 @@ def _write_exclusive_copy(source: Path, destination: Path) -> bool:
         raise
 
 
-def _replace_copy(source: Path, destination: Path) -> None:
-    temporary_path: Path | None = None
-    try:
-        with tempfile.NamedTemporaryFile(
-            dir=destination.parent,
-            prefix=".reviewed-",
-            suffix=destination.suffix,
-            delete=False,
-        ) as temporary:
-            temporary_path = Path(temporary.name)
-            with source.open("rb") as input_file:
-                shutil.copyfileobj(input_file, temporary, length=1024 * 1024)
-        shutil.copystat(source, temporary_path)
-        os.replace(temporary_path, destination)
-        temporary_path = None
-    finally:
-        if temporary_path is not None:
-            temporary_path.unlink(missing_ok=True)
-
-
-def archive_reviewed_image(image: ImageRecord, customer_code: str, reviewed_at: datetime) -> str:
+def archive_reviewed_image(
+    image: ImageRecord, customer_code: str, reviewed_at: datetime, db: Session | None = None
+) -> str:
     """Copy a confirmed image into a date folder and retain the original upload."""
     settings = get_settings()
+    db = db or (object_session(image) if inspect(image, raiseerr=False) is not None else None)
+    if db is not None and db.in_nested_transaction():
+        raise RuntimeError("Reviewed file changes require a root database transaction.")
     storage_root = settings.storage_root.resolve()
     source = resolve_storage_path(image.relative_path)
     extension = source.suffix.lower()
@@ -95,33 +82,43 @@ def archive_reviewed_image(image: ImageRecord, customer_code: str, reviewed_at: 
     for number in range(1, 10_001):
         suffix = "" if number == 1 else f"_{number}"
         candidate = directory / f"{filename_base}{suffix}{extension}"
-        if current_path == candidate:
-            _replace_copy(source, candidate)
+        if current_path == candidate and candidate.is_file():
             destination = candidate
             break
         if _write_exclusive_copy(source, candidate):
             destination = candidate
+            if db is not None:
+                stage_file_change(db, created=destination)
             break
     if destination is None:
         raise RuntimeError("Không thể cấp tên tệp cho ảnh đã kiểm tra.")
 
     if current_path is not None and current_path != destination:
-        current_path.unlink(missing_ok=True)
+        if db is not None:
+            stage_file_change(db, obsolete=current_path)
+        else:
+            current_path.unlink(missing_ok=True)
     relative_path = destination.relative_to(storage_root).as_posix()
     image.reviewed_path = relative_path
     return relative_path
 
 
-def remove_reviewed_image(image: ImageRecord) -> str | None:
+def remove_reviewed_image(image: ImageRecord, db: Session | None = None) -> str | None:
     """Remove a former confirmed copy when a result is explicitly rejected."""
     if not image.reviewed_path:
         return None
+    db = db or (object_session(image) if inspect(image, raiseerr=False) is not None else None)
+    if db is not None and db.in_nested_transaction():
+        raise RuntimeError("Reviewed file changes require a root database transaction.")
     storage_root = get_settings().storage_root.resolve()
     reviewed_root = (storage_root / "reviewed").resolve()
     archived_path = (storage_root / image.reviewed_path).resolve()
     if not archived_path.is_relative_to(reviewed_root):
         raise RuntimeError("Unsafe reviewed image path.")
     previous_path = image.reviewed_path
-    archived_path.unlink(missing_ok=True)
+    if db is not None:
+        stage_file_change(db, obsolete=archived_path)
+    else:
+        archived_path.unlink(missing_ok=True)
     image.reviewed_path = None
     return previous_path

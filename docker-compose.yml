@@ -79,6 +79,11 @@ services:
       SESSION_TTL_HOURS: ${SESSION_TTL_HOURS:-8}
       SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET}
       ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1}
+      MAX_IMAGE_SIZE_MB: ${MAX_IMAGE_SIZE_MB:-20}
+      MAX_IMAGE_PIXELS: ${MAX_IMAGE_PIXELS:-40000000}
+      WORKER_POLL_INTERVAL_SECONDS: ${WORKER_POLL_INTERVAL_SECONDS:-0.5}
+      MAX_RETRY_COUNT: ${MAX_RETRY_COUNT:-3}
+      JOB_STUCK_TIMEOUT_SECONDS: ${JOB_STUCK_TIMEOUT_SECONDS:-900}
     volumes:
       - storage_data:${STORAGE_ROOT:-/data/electric-meter-ai}
       - model_data:${MODELS_ROOT:-/models}:ro
@@ -123,6 +128,8 @@ services:
       MODELS_ROOT: ${MODELS_ROOT:-/models}
       SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET}
       WORKER_POLL_INTERVAL_SECONDS: ${WORKER_POLL_INTERVAL_SECONDS:-0.5}
+      MAX_RETRY_COUNT: ${MAX_RETRY_COUNT:-3}
+      JOB_STUCK_TIMEOUT_SECONDS: ${JOB_STUCK_TIMEOUT_SECONDS:-900}
       PPOCR_READER_URL: ${PPOCR_READER_URL:-http://reader-ppocr:8080}
       PARSEQ_READER_URL: ${PARSEQ_READER_URL:-http://reader-parseq:8080}
       SEQUENCE_READER_TIMEOUT_SECONDS: ${SEQUENCE_READER_TIMEOUT_SECONDS:-15}
@@ -266,7 +273,12 @@ services:
     restart: unless-stopped
     logging: *default-logging
     ports:
-      - "${NGINX_BIND_ADDRESS:-127.0.0.1}:80:80"
+      - "${NGINX_BIND_ADDRESS:-127.0.0.1}:${NGINX_HTTP_PORT:-80}:80"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--spider", "http://127.0.0.1/api/v1/health/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     volumes:
       - ./docker/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:

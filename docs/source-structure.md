@@ -1,47 +1,61 @@
-# Cấu trúc source code
+# Tổ chức source code và quy ước
 
-Dự án dùng monorepo theo ranh giới triển khai và phân lớp rõ ràng:
+## Một checkout, một Compose
+
+Nhánh chia sẻ chuẩn là master. Không giữ các folder bản cũ, node_modules, build frontend, dữ liệu hoặc model private trong Git. Giữ migrations và báo cáo lịch sử để truy vết; không coi chúng là source vận hành dư thừa.
 
 ```text
 Elec_Man/
-├── .github/                    # CI, CodeQL và cập nhật dependency tự động
-├── ai/                         # Worker OCR, trainer và pipeline AI độc lập
-│   ├── pipeline/               # Tiền xử lý, định vị và điều phối bốn tầng
-│   ├── readers/                # PP-OCRv6, PARSeq và cơ chế đồng thuận
-│   ├── services/               # HTTP service suy luận nội bộ
-│   ├── tools/                  # CLI benchmark/chẩn đoán không chạy production
-│   ├── training/               # Dataset, keypoint regressor và trainer
-│   ├── model_runtime.py        # Nạp động model ACTIVE, kiểm tra checksum
-│   ├── trainer.py              # Tiến trình lập lịch/khôi phục phiên train
-│   └── worker.py               # Tiến trình xử lý ảnh trong hàng đợi
+├── README.md                    Điểm bắt đầu, lệnh chạy và giới hạn
+├── .env.example                 Cấu hình mẫu không có secret thật
+├── docker-compose.yml           Triển khai local duy nhất
+├── .github/workflows/           CI và CodeQL
 ├── backend/
-│   ├── alembic/versions/       # Migration cơ sở dữ liệu tuần tự
-│   ├── app/
-│   │   ├── api/routes/         # HTTP adapter, không chứa nghiệp vụ dài
-│   │   ├── core/               # Cấu hình, database, logging
-│   │   ├── models/             # SQLAlchemy entities
-│   │   ├── schemas/            # Hợp đồng request/response Pydantic
-│   │   ├── security/           # Xác thực, CSRF, mật khẩu, rate limit
-│   │   └── services/           # Luật nghiệp vụ và transaction
-│   └── tests/                  # Unit/API tests
+│   ├── app/api/routes/          HTTP + kiểm tra quyền, không nhồi logic nghiệp vụ
+│   ├── app/core/                Cấu hình, database, logging
+│   ├── app/models/              SQLAlchemy models
+│   ├── app/schemas/             Validate request/response
+│   ├── app/security/            Argon2, session, CSRF, role, rate limit
+│   ├── app/services/            Nghiệp vụ, query, kiểm duyệt, file transaction
+│   ├── app/scripts/             Công cụ quản trị trong container
+│   ├── alembic/versions/        Chuỗi migration; không xóa vì cần cài từ đầu
+│   ├── tests/                   Unit/regression
+│   └── integration_tests/       HTTP/transaction thật trên PostgreSQL tạm
+├── ai/
+│   ├── pipeline/               Tiền xử lý, định vị, đọc mã/chuỗi
+│   ├── readers/                Client/đồng thuận hai reader
+│   ├── services/               API reader chạy trong image riêng
+│   ├── training/               Dataset, chia tập, trainer định vị
+│   ├── tools/                  Chẩn đoán/benchmark chỉ đọc
+│   ├── tests/                  Kiểm thử AI
+│   └── Dockerfile*             Runtime/test/readers
 ├── frontend/
-│   ├── app/                    # Next.js App Router, layout và global style
-│   ├── components/             # Component giao diện dùng chung
-│   ├── features/               # Module theo từng nghiệp vụ
-│   │   ├── administration/     # UI, API client và type của quản trị tài khoản
-│   │   ├── batches/            # Danh sách và chi tiết lô dữ liệu
-│   │   ├── dashboard/          # Thống kê công khai
-│   │   ├── model-lifecycle/    # Dataset, model và phiên huấn luyện
-│   │   ├── operations/         # Upload, kiểm duyệt và kết quả xử lý
-│   │   └── traceability/       # Nhật ký truy vết
-│   ├── hooks/                  # React hooks dùng chung
-│   ├── lib/                    # Hàm thuần, không phụ thuộc React
-│   ├── services/               # HTTP client và API dùng chung
-│   └── types/                  # Hợp đồng dùng chung nhiều feature
-├── docker/                     # Reverse proxy
-├── docs/                       # Tài liệu vận hành
-├── scripts/                    # Backup, restore, kiểm tra secret và cài model
-└── docker-compose.yml          # Cấu hình triển khai cục bộ/một máy chủ
+│   ├── app/                    Next.js entry và CSS toàn cục
+│   ├── features/               Trang nghiệp vụ, auth, app shell
+│   ├── components/             Thành phần dùng chung
+│   ├── hooks/                  Hành vi dùng chung
+│   ├── lib/                    Logic thuần
+│   ├── services/               API client theo nghiệp vụ
+│   ├── types/                  Kiểu dữ liệu chia sẻ
+│   └── tests/                  Node tests cho logic thuần
+├── docker/                     Nginx HTTP/TLS mẫu
+├── scripts/                    Startup, backup/restore, kiểm thử và kiểm tra repo
+├── examples/                   JSON khách hàng giả
+├── docs/                       Tài liệu hiện hành
+│   └── reports/                Báo cáo theo ngày, không thay hướng dẫn hiện hành
+└── design-system/              Tài liệu thiết kế, không phải bản frontend thứ hai
 ```
 
-Code frontend chỉ thuộc một nghiệp vụ phải nằm trong `features`; `components` chỉ dành cho thành phần dùng chung và `lib` dành cho hàm thuần. Backend tiếp tục dùng kiến trúc phân lớp vì FastAPI, Alembic và worker cùng chia sẻ model/service. Không import component ngược vào `app/`, không đặt truy vấn database trong route và không đặt mật khẩu/token trong source code.
+## Quy ước tên và phụ thuộc
+
+Python module/hàm snake_case; class PascalCase. TypeScript component/type PascalCase, biến/hàm camelCase; filename TS/TSX/CSS kebab-case theo feature. CLI Python dùng tên đã ghi trong tài liệu; module dùng import phải là snake_case. Tài liệu dùng kebab-case và báo cáo thêm YYYY-MM-DD.
+
+Không đổi tên Alembic revision/migration đã phát hành chỉ để đồng nhất hình thức. Không xóa helper đang được import, hoặc compatibility xử lý phiên hợp lệ, chỉ vì có từ legacy. Đường dẫn endpoint/DB schema là hợp đồng, phải migration và test nếu đổi.
+
+Dùng service tách logic khỏi HTTP, schema validate ở server, parameterized SQLAlchemy, frontend API client thống nhất. Một thay đổi review phải xét cả nhãn, dữ liệu tháng, file, audit, revision và UI invalidation.
+
+## Thành phần không đưa lên GitHub
+
+.env*, credentials, khách hàng thật, ảnh/nhãn, database dump, backups/logs, model/dataset, .agents/.codex-tmp, venv, node_modules, .next và binary build. Chỉ .env.example và .gitkeep khung được giữ. Không dùng git add -f để “đẩy toàn bộ”.
+
+Xem [kiểm thử](testing.md), [hướng dẫn phát triển](development.md) và [danh mục tài liệu](README.md).

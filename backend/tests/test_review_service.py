@@ -1,5 +1,7 @@
 from types import SimpleNamespace
 
+import pytest
+
 from app.services.review_service import _normalized_ai_reading_bbox, get_result_status_counts
 
 
@@ -47,6 +49,7 @@ def test_confirmation_saves_meter_polygon_and_before_after_log_atomically(monkey
     user = SimpleNamespace(id=uuid4())
     customer = SimpleNamespace(id=uuid4(), customer_code="PN2.001")
     reading = MeterReading(
+        revision=0,
         image_id=image.id,
         ai_result_id=ai_result.id,
         review_status="LABELED",
@@ -62,6 +65,7 @@ def test_confirmation_saves_meter_polygon_and_before_after_log_atomically(monkey
         ]
     }
     payload = ReviewRequest(
+        expected_revision=0,
         action="CONFIRM",
         final_customer_id="PN2.001",
         final_meter_reading="01234",
@@ -108,3 +112,39 @@ def test_ai_reading_region_is_normalized_after_preprocessing_resize() -> None:
 
     assert bbox is not None
     assert bbox.model_dump() == {"x": 0.25, "y": 0.25, "width": 0.5, "height": 0.375}
+
+
+@pytest.mark.parametrize("labeled", [True, False])
+def test_reopen_preserves_saved_values_and_audits_transition(monkeypatch, labeled):
+    from unittest.mock import MagicMock
+    from uuid import uuid4
+
+    from app.models.meter_reading import MeterReading
+    from app.schemas.result import ReviewRequest
+    from app.services import review_service as service
+
+    image = SimpleNamespace(
+        id=uuid4(), batch_id=uuid4(), original_filename="meter.jpg", status="REJECTED"
+    )
+    reading = MeterReading(
+        revision=0,
+        review_status="REJECTED",
+        final_meter_reading="00123",
+        reading_polygon_json={"points": []} if labeled else None,
+        bbox_reviewed_by=uuid4() if labeled else None,
+    )
+    db = MagicMock()
+    db.execute.return_value.one_or_none.return_value = (image, SimpleNamespace(), reading)
+    monkeypatch.setattr(service, "refresh_batch_counters", lambda *_: None)
+    result = service.review_result(
+        db,
+        image.id,
+        ReviewRequest(expected_revision=0, action="REOPEN"),
+        SimpleNamespace(id=uuid4()),
+        None,
+    )
+    assert result.final_meter_reading == "00123"
+    assert result.review_status == ("LABELED" if labeled else "PENDING")
+    assert image.status == "REVIEW_REQUIRED"
+    assert db.add.call_args.args[0].action == "REOPEN_RESULT"
+    db.commit.assert_called_once()

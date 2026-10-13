@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import "@/features/operations/operations.css";
 export const metadata: Metadata = {
   title: "Quản lý đồng hồ điện",
   description: "Hệ thống xử lý hình ảnh đồng hồ điện",

@@ -5,6 +5,7 @@ Revises: 20261001_0023
 """
 
 import sqlalchemy as sa
+
 from alembic import op
 
 revision = "20261003_0024"
@@ -23,9 +24,12 @@ def upgrade() -> None:
     op.execute(
         """
         UPDATE batches AS b SET
-          review_count = (SELECT count(*) FROM images i WHERE i.batch_id = b.id AND i.status = 'REVIEW_REQUIRED'),
-          ok_count = (SELECT count(*) FROM images i WHERE i.batch_id = b.id AND i.status = 'CONFIRMED'),
-          ng_count = (SELECT count(*) FROM images i WHERE i.batch_id = b.id AND i.status = 'REJECTED')
+          review_count = (SELECT count(*) FROM images i
+            WHERE i.batch_id = b.id AND i.status = 'REVIEW_REQUIRED'),
+          ok_count = (SELECT count(*) FROM images i
+            WHERE i.batch_id = b.id AND i.status = 'CONFIRMED'),
+          ng_count = (SELECT count(*) FROM images i
+            WHERE i.batch_id = b.id AND i.status = 'REJECTED')
         """
     )
 

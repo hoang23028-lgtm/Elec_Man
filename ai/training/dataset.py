@@ -10,20 +10,54 @@ from ai.pipeline.preprocessing import load_prepared_image
 from ai.pipeline.register import integer_register_strip
 
 
-def split_by_meter(rows):
-    """Keep all known images of one customer in a single partition."""
+def _identity_tokens(image, reading):
+    tokens = [f"image:{image.sha256}"]
+    customer = getattr(reading, "matched_customer_id", None)
+    code = (reading.final_customer_id or "").strip().upper()
+    if customer:
+        tokens.append(f"customer:{customer}")
+    if code:
+        tokens.append(f"code:{code}")
+    return tokens
+
+
+def meter_groups(rows):
+    """Link UUID/code aliases and duplicate hashes before assigning partitions."""
+    parents = {}
+
+    def root(token):
+        parents.setdefault(token, token)
+        while parents[token] != token:
+            parents[token] = parents[parents[token]]
+            token = parents[token]
+        return token
+
+    for image, reading in rows:
+        tokens = _identity_tokens(image, reading)
+        for token in tokens[1:]:
+            left, right = sorted((root(tokens[0]), root(token)))
+            parents[right] = left
     groups = {}
     for image, reading in rows:
-        customer = getattr(reading, "matched_customer_id", None)
-        code = (reading.final_customer_id or "").strip().upper()
-        key = (
-            f"customer:{customer}"
-            if customer
-            else f"code:{code}"
-            if code
-            else f"image:{image.sha256}"
-        )
-        groups.setdefault(key, []).append((image, reading))
+        groups.setdefault(root(f"image:{image.sha256}"), []).append((image, reading))
+    return groups
+
+
+def split_metadata(rows):
+    unknown = sum(len(_identity_tokens(image, reading)) == 1 for image, reading in rows)
+    group_count = len(meter_groups(rows))
+    return {
+        "validation_split": "linked_customer_identity_v2",
+        "unknown_meter_identity_samples": unknown,
+        "meter_identity_groups": group_count,
+        "validation_groups_verified": unknown == 0 and group_count >= 2,
+        "independent_holdout": False,
+    }
+
+
+def split_by_meter(rows):
+    """Group-disjoint when identity is known; unknown images remain diagnostic."""
+    groups = meter_groups(rows)
     if len(groups) < 2:
         raise ValueError(
             "Cần ít nhất hai nhóm công tơ để tách train và validation độc lập."

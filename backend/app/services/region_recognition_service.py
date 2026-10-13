@@ -21,6 +21,7 @@ from app.schemas.result import (
 )
 from app.services.job_service import refresh_batch_counters
 from app.services.meter_value import normalize_meter_reading, parse_meter_value
+from app.services.review_revision import check_review_revision
 
 
 def _bbox_dict(reading: MeterReading | None) -> dict | None:
@@ -47,6 +48,7 @@ def queue_region_recognition(
     user: User,
     ip_address: str | None,
     integer_digits: int | None = None,
+    expected_revision: int | None = None,
 ) -> RecognitionResponse:
     record = db.execute(
         select(ImageRecord, AiResult, MeterReading, ProcessingJob)
@@ -59,6 +61,7 @@ def queue_region_recognition(
     if record is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy kết quả.")
     image, ai_result, reading, job = record
+    check_review_revision(db, reading, expected_revision)
     if image.status != ImageStatus.REVIEW_REQUIRED:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -181,6 +184,7 @@ def save_meter_region(
     polygon: ReadingPolygon,
     user: User,
     ip_address: str | None,
+    expected_revision: int | None = None,
 ) -> MeterReading:
     record = db.execute(
         select(ImageRecord, AiResult, MeterReading)
@@ -192,6 +196,7 @@ def save_meter_region(
     if record is None:
         raise HTTPException(status_code=404, detail="Không tìm thấy kết quả.")
     image, ai_result, reading = record
+    check_review_revision(db, reading, expected_revision)
     if image.status != ImageStatus.REVIEW_REQUIRED:
         raise HTTPException(status_code=409, detail="Chỉ lưu vùng cho ảnh đang chờ xử lý.")
     if reading is None:
@@ -246,6 +251,7 @@ def save_training_label(
     meter_polygon: ReadingPolygon | None,
     user: User,
     ip_address: str | None,
+    expected_revision: int | None = None,
 ) -> MeterReading:
     record = db.execute(
         select(ImageRecord, AiResult, MeterReading)
@@ -257,6 +263,7 @@ def save_training_label(
     if record is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy kết quả.")
     image, ai_result, reading = record
+    check_review_revision(db, reading, expected_revision)
     if image.status != ImageStatus.REVIEW_REQUIRED:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,

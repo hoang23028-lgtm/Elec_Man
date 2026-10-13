@@ -27,13 +27,13 @@ const descriptions: Record<string, string> = {
   confidence_review_threshold:
     "Ngưỡng độ tin cậy dùng để ưu tiên kết quả cần kiểm duyệt thủ công.",
   max_upload_size_mb:
-    "Giới hạn dung lượng tải lên trong vận hành; cấu hình môi trường có hiệu lực sau khi khởi động lại.",
+    "Chỉ đọc · MAX_IMAGE_SIZE_MB của backend. Sửa môi trường triển khai và tạo lại backend để thay đổi.",
   max_retry_count:
-    "Số lần xử lý lại tối đa áp dụng cho tiến trình xử lý mới triển khai.",
+    "Chỉ đọc · MAX_RETRY_COUNT. Giữ môi trường backend và worker đồng nhất khi triển khai lại.",
   data_retention_days:
     "Thời gian dự kiến lưu trữ dữ liệu; hệ thống chưa bật xóa tự động.",
   worker_poll_interval_seconds:
-    "Chu kỳ kiểm tra mong muốn, được áp dụng sau khi khởi động lại tiến trình xử lý.",
+    "Chỉ đọc · WORKER_POLL_INTERVAL_SECONDS trong môi trường backend. Worker cần cùng giá trị khi triển khai; đây không phải số đo trực tiếp từ worker.",
   training_auto_start:
     "Trainer tự tạo phiên mới khi dataset đủ điều kiện và có đủ mẫu mới.",
   training_min_samples:
@@ -77,8 +77,10 @@ export function SystemSettings({ csrfToken }: { csrfToken: string }) {
     setError(null);
     setNotice(null);
     const values = Object.fromEntries(
-      Object.entries(drafts).map(([key, value]) => [key, Number(value)]),
+      settings.filter((setting) => setting.editable && String(setting.value) !== drafts[setting.key])
+        .map((setting) => [setting.key, Number(drafts[setting.key])]),
     );
+    if (!Object.keys(values).length) { setSaving(false); setNotice("Không có cấu hình thay đổi."); return; }
     if (Object.values(values).some((value) => !Number.isFinite(value))) {
       setError("Mọi cấu hình phải là một số hợp lệ.");
       setSaving(false);
@@ -110,8 +112,8 @@ export function SystemSettings({ csrfToken }: { csrfToken: string }) {
         <span className="badge">Mọi thay đổi đều được ghi nhận</span>
       </div>
       <p className="muted">
-        Các chính sách vận hành được lưu tập trung. Giới hạn ở cấp triển khai sẽ
-        có hiệu lực sau khi dịch vụ liên quan được khởi động lại.
+        Chính sách huấn luyện được lưu tập trung. Các trường triển khai là chỉ đọc,
+        lấy từ môi trường backend; cần sửa môi trường và tạo lại dịch vụ để thay đổi.
       </p>
       {error && (
         <p className="error" role="alert">
@@ -138,8 +140,8 @@ export function SystemSettings({ csrfToken }: { csrfToken: string }) {
                 <input
                   id={`setting-${setting.key}`}
                   type="number"
-                  disabled={saving}
-                  min={0}
+                  disabled={saving || !setting.editable}
+                  min={setting.key === "training_min_samples" ? 3 : 0}
                   max={setting.key.includes("confidence") || setting.key === "training_auto_start" ? 1 : undefined}
                   step={
                     setting.key.includes("confidence")

@@ -36,6 +36,8 @@ class ConfirmedMonthlyReading(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     customer_code: Mapped[str] = mapped_column(String(128), nullable=False)
     reading_month: Mapped[date] = mapped_column(Date, nullable=False)
     meter_reading: Mapped[Decimal] = mapped_column(Numeric(14, 0), nullable=False)
+    initial_reading_snapshot: Mapped[Decimal | None] = mapped_column(Numeric(14, 0))
+    usage_purpose_snapshot: Mapped[str | None] = mapped_column(String(64))
     original_filename: Mapped[str] = mapped_column(String(255), nullable=False)
     image_mime_type: Mapped[str] = mapped_column(String(64), nullable=False)
     image_sha256: Mapped[str] = mapped_column(String(64), nullable=False)

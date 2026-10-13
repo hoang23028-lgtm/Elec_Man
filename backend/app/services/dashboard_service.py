@@ -1,5 +1,3 @@
-from collections import defaultdict
-from datetime import UTC, date, datetime
 from decimal import Decimal
 
 from sqlalchemy import Integer, String, case, cast, distinct, extract, func, select
@@ -7,7 +5,6 @@ from sqlalchemy.orm import Session
 
 from app.models.batch import Batch
 from app.models.confirmed_monthly_reading import ConfirmedMonthlyReading
-from app.models.customer import Customer
 from app.models.image import ImageRecord
 from app.models.processing_job import JobStatus, ProcessingJob
 from app.schemas.dashboard import (
@@ -16,7 +13,13 @@ from app.schemas.dashboard import (
     BillingSummary,
     BillingTrendPoint,
 )
-from app.services.electricity_tariff_service import calculate_electricity_bill, vat_rate_for
+from app.services.billing_query import bill_amounts, vat_rate_expression
+from app.services.electricity_billing_policy import (
+    billing_unavailable_reason,
+    tariff_for_month,
+    vat_for_month,
+)
+from app.services.electricity_tariff_service import calculate_electricity_bill
 
 
 def statistics(db: Session) -> dict:
@@ -44,33 +47,39 @@ def statistics(db: Session) -> dict:
 def _billing_source():
     reading_at = ConfirmedMonthlyReading.confirmed_at
     ordering = (ConfirmedMonthlyReading.reading_month.asc(), ConfirmedMonthlyReading.id.asc())
-    return (
-        select(
-            ConfirmedMonthlyReading.id.label("reading_id"),
-            ConfirmedMonthlyReading.customer_code.label("customer_id"),
-            cast(ConfirmedMonthlyReading.meter_reading, String).label("current_reading"),
-            ConfirmedMonthlyReading.meter_reading.label("current_value"),
-            Customer.initial_reading.label("initial_value"),
-            Customer.usage_purpose.label("usage_purpose"),
-            reading_at.label("reading_at"),
-            ConfirmedMonthlyReading.reading_month.label("reading_month"),
-            func.lag(cast(ConfirmedMonthlyReading.meter_reading, String))
-            .over(partition_by=ConfirmedMonthlyReading.customer_id, order_by=ordering)
-            .label("previous_reading"),
-            func.lag(ConfirmedMonthlyReading.meter_reading)
-            .over(partition_by=ConfirmedMonthlyReading.customer_id, order_by=ordering)
-            .label("previous_value"),
-        )
-        .join(Customer, Customer.id == ConfirmedMonthlyReading.customer_id)
-        .cte("confirmed_meter_history")
-    )
+    return select(
+        ConfirmedMonthlyReading.id.label("reading_id"),
+        ConfirmedMonthlyReading.customer_code.label("customer_id"),
+        cast(ConfirmedMonthlyReading.meter_reading, String).label("current_reading"),
+        ConfirmedMonthlyReading.meter_reading.label("current_value"),
+        ConfirmedMonthlyReading.initial_reading_snapshot.label("initial_value"),
+        ConfirmedMonthlyReading.usage_purpose_snapshot.label("usage_purpose"),
+        reading_at.label("reading_at"),
+        ConfirmedMonthlyReading.reading_month.label("reading_month"),
+        func.lag(cast(ConfirmedMonthlyReading.meter_reading, String))
+        .over(partition_by=ConfirmedMonthlyReading.customer_id, order_by=ordering)
+        .label("previous_reading"),
+        func.lag(ConfirmedMonthlyReading.meter_reading)
+        .over(partition_by=ConfirmedMonthlyReading.customer_id, order_by=ordering)
+        .label("previous_value"),
+        func.lag(ConfirmedMonthlyReading.reading_month)
+        .over(partition_by=ConfirmedMonthlyReading.customer_id, order_by=ordering)
+        .label("previous_month"),
+    ).cte("confirmed_meter_history")
 
 
 def _consumption(source):
     previous_value = func.coalesce(source.c.previous_value, source.c.initial_value)
+    month_distance = (
+        (extract("year", source.c.reading_month) - extract("year", source.c.previous_month)) * 12
+        + extract("month", source.c.reading_month)
+        - extract("month", source.c.previous_month)
+    )
     return case(
         (
-            previous_value.is_not(None) & (source.c.current_value >= previous_value),
+            previous_value.is_not(None)
+            & (source.c.current_value >= previous_value)
+            & (source.c.previous_month.is_(None) | (month_distance == 1)),
             source.c.current_value - previous_value,
         ),
         else_=None,
@@ -87,6 +96,39 @@ def _apply_billing_filters(statement, source, customer_id, month, year):
     return statement
 
 
+def _billing_record(row) -> BillingRecord:
+    consumption = Decimal(row.consumption) if row.consumption is not None else None
+    purpose = row.usage_purpose or ""
+    bill = (
+        calculate_electricity_bill(consumption, purpose, row.reading_month)
+        if consumption is not None
+        else None
+    )
+    tariff = tariff_for_month(row.reading_month)
+    vat = vat_for_month(row.reading_month)
+    return BillingRecord(
+        reading_id=row.reading_id,
+        customer_id=row.customer_id,
+        reading_at=row.reading_at,
+        month=row.reading_month.month,
+        year=row.reading_month.year,
+        previous_reading=row.previous_reading,
+        current_reading=row.current_reading,
+        consumption_kwh=float(consumption) if consumption is not None else None,
+        energy_charge_before_vat_vnd=bill.energy_charge_before_vat if bill else None,
+        vat_amount_vnd=bill.vat_amount if bill else None,
+        estimated_amount_vnd=bill.total_amount if bill else None,
+        tariff_label=bill.tariff_label if bill else None,
+        tariff_estimated=bill.estimated if bill else False,
+        tariff_version=tariff.code if tariff else None,
+        tariff_source_url=tariff.source_url if tariff else None,
+        vat_rate_percent=int(vat.rate * 100) if vat else None,
+        vat_policy=vat.code if vat else None,
+        vat_source_url=vat.source_url if vat else None,
+        billing_note=billing_unavailable_reason(consumption, purpose, row.reading_month),
+    )
+
+
 def billing_dashboard(
     db: Session,
     customer_id: str | None,
@@ -97,13 +139,24 @@ def billing_dashboard(
 ) -> BillingDashboard:
     source = _billing_source()
     consumption = _consumption(source).label("consumption")
-    vat_reference = date(year, month or 1, 1) if year else datetime.now(UTC)
+    energy, vat = bill_amounts(consumption, source.c.usage_purpose, source.c.reading_month)
+    billable_vat_percent = case(
+        (energy.is_not(None), vat_rate_expression(source.c.reading_month) * 100), else_=None
+    )
 
     aggregate_statement = _apply_billing_filters(
         select(
             func.count(source.c.reading_id).label("total_records"),
             func.count(distinct(source.c.customer_id)).label("total_customers"),
             func.coalesce(func.sum(consumption), 0).label("total_consumption"),
+            func.count(energy).label("billed_records"),
+            func.coalesce(func.sum(case((energy.is_not(None), consumption), else_=0)), 0).label(
+                "billable_consumption"
+            ),
+            func.coalesce(func.sum(energy), 0).label("before_vat"),
+            func.coalesce(func.sum(vat), 0).label("vat"),
+            func.min(billable_vat_percent).label("min_vat_percent"),
+            func.max(billable_vat_percent).label("max_vat_percent"),
         ).select_from(source),
         source,
         customer_id,
@@ -113,36 +166,28 @@ def billing_dashboard(
     aggregate = db.execute(aggregate_statement).one()
     total_consumption = Decimal(aggregate.total_consumption)
 
-    bill_inputs = db.execute(
+    trend_rows = db.execute(
         _apply_billing_filters(
             select(
-                source.c.reading_id,
-                source.c.reading_at,
                 source.c.reading_month,
-                source.c.usage_purpose,
-                consumption,
-            ).select_from(source),
+                func.count().label("record_count"),
+                func.coalesce(func.sum(consumption), 0).label("consumption"),
+                func.coalesce(func.sum(energy), 0).label("before_vat"),
+                func.coalesce(func.sum(vat), 0).label("vat"),
+            )
+            .select_from(source)
+            .group_by(source.c.reading_month)
+            .order_by(source.c.reading_month),
             source,
             customer_id,
             month,
             year,
         )
     ).all()
-    calculated_bills = {
-        row.reading_id: calculate_electricity_bill(
-            Decimal(row.consumption), row.usage_purpose or "", row.reading_month
-        )
-        for row in bill_inputs
-        if row.consumption is not None
-    }
-    calculated_bills = {key: value for key, value in calculated_bills.items() if value}
-    billed_records = len(calculated_bills)
-    billable_consumption = sum(
-        (Decimal(row.consumption) for row in bill_inputs if row.reading_id in calculated_bills),
-        Decimal("0"),
-    )
-    total_before_vat = sum(bill.energy_charge_before_vat for bill in calculated_bills.values())
-    total_vat = sum(bill.vat_amount for bill in calculated_bills.values())
+    billed_records = int(aggregate.billed_records)
+    billable_consumption = Decimal(aggregate.billable_consumption)
+    total_before_vat = int(aggregate.before_vat)
+    total_vat = int(aggregate.vat)
 
     records_statement = _apply_billing_filters(
         select(
@@ -168,19 +213,6 @@ def billing_dashboard(
         .limit(limit)
     ).all()
 
-    trend_groups = defaultdict(
-        lambda: {"record_count": 0, "consumption": Decimal("0"), "before_vat": 0, "vat": 0}
-    )
-    for row in bill_inputs:
-        key = (row.reading_month.year, row.reading_month.month)
-        group = trend_groups[key]
-        group["record_count"] += 1
-        if row.consumption is not None:
-            group["consumption"] += Decimal(row.consumption)
-        bill = calculated_bills.get(row.reading_id)
-        if bill:
-            group["before_vat"] += bill.energy_charge_before_vat
-            group["vat"] += bill.vat_amount
     available_years = list(
         db.scalars(
             select(cast(extract("year", source.c.reading_month), Integer))
@@ -202,58 +234,26 @@ def billing_dashboard(
             vat_amount_vnd=total_vat,
             estimated_amount_vnd=total_before_vat + total_vat,
         ),
-        records=[
-            BillingRecord(
-                reading_id=row.reading_id,
-                customer_id=row.customer_id,
-                reading_at=row.reading_at,
-                month=row.reading_month.month,
-                year=row.reading_month.year,
-                previous_reading=row.previous_reading,
-                current_reading=row.current_reading,
-                consumption_kwh=float(row.consumption) if row.consumption is not None else None,
-                energy_charge_before_vat_vnd=(
-                    calculated_bills[row.reading_id].energy_charge_before_vat
-                    if row.reading_id in calculated_bills
-                    else None
-                ),
-                vat_amount_vnd=(
-                    calculated_bills[row.reading_id].vat_amount
-                    if row.reading_id in calculated_bills
-                    else None
-                ),
-                estimated_amount_vnd=(
-                    calculated_bills[row.reading_id].total_amount
-                    if row.reading_id in calculated_bills
-                    else None
-                ),
-                tariff_label=(
-                    calculated_bills[row.reading_id].tariff_label
-                    if row.reading_id in calculated_bills
-                    else None
-                ),
-                tariff_estimated=(
-                    calculated_bills[row.reading_id].estimated
-                    if row.reading_id in calculated_bills
-                    else False
-                ),
-            )
-            for row in records
-        ],
+        records=[_billing_record(row) for row in records],
         trend=[
             BillingTrendPoint(
-                month=key[1],
-                year=key[0],
-                record_count=group["record_count"],
-                consumption_kwh=float(group["consumption"]),
-                energy_charge_before_vat_vnd=group["before_vat"],
-                vat_amount_vnd=group["vat"],
-                estimated_amount_vnd=group["before_vat"] + group["vat"],
+                month=row.reading_month.month,
+                year=row.reading_month.year,
+                record_count=row.record_count,
+                consumption_kwh=float(row.consumption),
+                energy_charge_before_vat_vnd=int(row.before_vat),
+                vat_amount_vnd=int(row.vat),
+                estimated_amount_vnd=int(row.before_vat + row.vat),
             )
-            for key, group in sorted(trend_groups.items())
+            for row in trend_rows
         ],
         available_years=available_years,
-        vat_rate_percent=int(vat_rate_for(vat_reference) * 100),
+        vat_rate_percent=(
+            int(aggregate.min_vat_percent)
+            if aggregate.min_vat_percent is not None
+            and aggregate.min_vat_percent == aggregate.max_vat_percent
+            else None
+        ),
         total=int(aggregate.total_records),
         offset=offset,
         limit=limit,

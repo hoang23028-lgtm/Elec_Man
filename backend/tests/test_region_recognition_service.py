@@ -109,6 +109,7 @@ def test_training_request_allows_only_reading_region_and_value():
 
     request = TrainingLabelRequest.model_validate(
         {
+            "expected_revision": 0,
             "final_meter_reading": "00123",
             "reading_polygon": {
                 "points": [

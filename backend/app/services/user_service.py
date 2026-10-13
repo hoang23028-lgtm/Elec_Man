@@ -23,12 +23,19 @@ def _get_user(db: Session, user_id: UUID) -> User:
     return user
 
 
+def _lock_system_admins(db: Session) -> None:
+    # Serialize privilege removal so concurrent requests cannot remove the last admin.
+    db.execute(
+        select(User.id).where(User.role == "SUPER_ADMIN").order_by(User.id).with_for_update()
+    ).all()
+
+
 def _active_admin_count(db: Session) -> int:
     return int(
         db.scalar(
             select(func.count(User.id)).where(
                 User.is_active.is_(True),
-                User.role == "ADMIN",
+                User.role == "SUPER_ADMIN",
                 User.deleted_at.is_(None),
             )
         )
@@ -124,9 +131,10 @@ def update_user(
     actor: User,
     ip_address: str | None,
 ) -> UserRow:
+    _lock_system_admins(db)
     user = _get_user(db, user_id)
-    removes_admin_access = user.role == "ADMIN" and (
-        payload.is_active is False or payload.role == "VIEWER"
+    removes_admin_access = user.role == "SUPER_ADMIN" and (
+        payload.is_active is False or (payload.role is not None and payload.role != "SUPER_ADMIN")
     )
     if payload.is_active is False:
         if user.id == actor.id:
@@ -134,7 +142,7 @@ def update_user(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Không thể tự khóa tài khoản đang đăng nhập.",
             )
-    if payload.role == "VIEWER" and user.id == actor.id:
+    if payload.role is not None and payload.role != user.role and user.id == actor.id:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Không thể tự hạ quyền tài khoản đang đăng nhập.",
@@ -142,7 +150,7 @@ def update_user(
     if user.is_active and removes_admin_access and _active_admin_count(db) <= 1:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Phải duy trì ít nhất một quản trị viên đang hoạt động.",
+            detail="Phải duy trì ít nhất một quản trị toàn hệ thống đang hoạt động.",
         )
     changes: dict[str, dict[str, object]] = {}
     if payload.username is not None and payload.username != user.username:
@@ -156,6 +164,7 @@ def update_user(
     if payload.role is not None and payload.role != user.role:
         changes["role"] = {"old": user.role, "new": payload.role}
         user.role = payload.role
+        _revoke_sessions(db, user.id)
     if changes:
         _audit(db, actor, "USER_UPDATE", user, ip_address, changes)
     _commit_unique_username(db)
@@ -179,16 +188,17 @@ def change_password(
 
 
 def delete_user(db: Session, user_id: UUID, actor: User, ip_address: str | None) -> None:
+    _lock_system_admins(db)
     user = _get_user(db, user_id)
     if user.id == actor.id:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Không thể tự xóa tài khoản đang đăng nhập.",
         )
-    if user.is_active and user.role == "ADMIN" and _active_admin_count(db) <= 1:
+    if user.is_active and user.role == "SUPER_ADMIN" and _active_admin_count(db) <= 1:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Phải duy trì ít nhất một quản trị viên đang hoạt động.",
+            detail="Phải duy trì ít nhất một quản trị toàn hệ thống đang hoạt động.",
         )
     user.is_active = False
     user.deleted_at = datetime.now(UTC)

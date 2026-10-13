@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 
+from app.core.database import engine
 from app.main import app
 from app.security.dependencies import get_auth_context, get_current_user
 from app.security.middleware import SecurityMiddleware
@@ -78,3 +79,7 @@ def test_security_headers_are_present() -> None:
     assert response.headers["cross-origin-opener-policy"] == "same-origin"
     assert response.headers["cross-origin-resource-policy"] == "same-origin"
     assert response.headers["cache-control"] == "no-store"
+
+
+def test_database_error_messages_do_not_include_bound_parameter_values() -> None:
+    assert engine.hide_parameters is True

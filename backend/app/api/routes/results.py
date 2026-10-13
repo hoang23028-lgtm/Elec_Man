@@ -59,8 +59,10 @@ def meter_region(
         payload.meter_polygon,
         user,
         request.client.host if request.client else None,
+        expected_revision=payload.expected_revision,
     )
     return MeterRegionResponse(
+        revision=reading.revision,
         image_id=image_id,
         meter_polygon=reading.meter_polygon_json,
         saved_at=reading.meter_bbox_reviewed_at,
@@ -98,7 +100,10 @@ def review(
         db, image_id, payload, user, request.client.host if request.client else None
     )
     return ReviewResponse(
-        image_id=image_id, review_status=record.review_status, reviewed_at=record.reviewed_at
+        image_id=image_id,
+        revision=record.revision,
+        review_status=record.review_status,
+        reviewed_at=record.reviewed_at,
     )
 
 
@@ -154,8 +159,10 @@ def training_label(
         payload.meter_polygon,
         user,
         request.client.host if request.client else None,
+        expected_revision=payload.expected_revision,
     )
     return ReviewResponse(
+        revision=reading.revision,
         image_id=image_id,
         review_status=reading.review_status,
         reviewed_at=reading.reviewed_at,

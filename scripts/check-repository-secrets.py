@@ -38,9 +38,9 @@ PATTERNS = {
 }
 
 
-def tracked_files() -> list[Path]:
+def source_files() -> list[Path]:
     result = subprocess.run(
-        ["git", "ls-files", "-z"],
+        ["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z"],
         cwd=ROOT,
         check=True,
         capture_output=True,
@@ -52,7 +52,7 @@ def main() -> int:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     findings: list[str] = []
-    for path in tracked_files():
+    for path in source_files():
         if path.suffix.lower() not in TEXT_SUFFIXES or not path.is_file():
             continue
         try:
@@ -68,7 +68,9 @@ def main() -> int:
         print("Phát hiện dữ liệu bí mật có độ tin cậy cao trong source:")
         print("\n".join(findings))
         return 1
-    print("Không phát hiện khóa/token có độ tin cậy cao trong source đã theo dõi.")
+    print(
+        "Không phát hiện khóa/token có độ tin cậy cao trong source, kể cả tệp mới chưa commit."
+    )
     return 0
 
 

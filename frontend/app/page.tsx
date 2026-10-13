@@ -1,16 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import type { ReactNode } from "react";
-import { useForm } from "react-hook-form";
+import { useEffect, useRef, useState } from "react";
+import { pages, isPageId, NavigationIcon, type PageId } from "@/features/app-shell/navigation";
 import dynamic from "next/dynamic";
 
-import { login, logout, registerAccount, restoreSession } from "@/services/auth";
-import { ApiError } from "@/services/http";
 import { canLeavePage } from "@/hooks/use-leave-guard";
-import type { LoginInput, RegistrationFormInput, UserRole } from "@/types/auth";
+import { useAuthentication } from "@/features/auth/use-authentication";
+import { AuthDialog } from "@/features/auth/auth-dialog";
 import { DashboardSummary } from "@/features/dashboard/dashboard-summary";
 import { SectionTabs } from "@/components/section-tabs";
+import { canAccessPage, canOperate, roleLabels } from "@/types/auth";
 
 const loadingPanel = () => (
   <section className="panel full-span" aria-busy="true">
@@ -80,189 +79,13 @@ const OperationsResults = dynamic(
   { loading: loadingPanel, ssr: false },
 );
 
-const pages = [
-  {
-    id: "dashboard",
-    label: "Tổng quan",
-    eyebrow: "Tổng quan",
-    title: "Bảng điều khiển vận hành",
-    description: "Theo dõi khối lượng xử lý và tình trạng chung của hệ thống.",
-  },
-  {
-    id: "operations",
-    label: "Vận hành",
-    eyebrow: "Xử lý hình ảnh",
-    title: "Tải ảnh và vận hành dữ liệu",
-    description:
-      "Tạo lô dữ liệu, tải ảnh đồng hồ điện và theo dõi tiến trình OCR.",
-  },
-  {
-    id: "batches",
-    label: "Các lô dữ liệu",
-    eyebrow: "Lịch sử xử lý",
-    title: "Các lô dữ liệu",
-    description:
-      "Theo dõi từng lô và chi tiết hình ảnh, kết quả OCR cùng trạng thái xử lý.",
-  },
-  {
-    id: "administration",
-    label: "Quản trị",
-    eyebrow: "Chính sách hệ thống",
-    title: "Quản trị hệ thống",
-    description:
-      "Quản lý tài khoản, dữ liệu khách hàng và báo cáo theo kỳ.",
-  },
-  {
-    id: "model-lifecycle",
-    label: "Vòng đời mô hình",
-    eyebrow: "Quản trị AI",
-    title: "Vòng đời mô hình",
-    description:
-      "Cấu hình chính sách AI, huấn luyện, đánh giá và kích hoạt các gói mô hình.",
-  },
-  {
-    id: "traceability",
-    label: "Truy vết",
-    eyebrow: "Nhật ký kiểm toán",
-    title: "Truy vết hoạt động",
-    description: "Xem lại các sự kiện bảo mật và vận hành trong toàn hệ thống.",
-  },
-] as const;
-
-type PageId = (typeof pages)[number]["id"];
-
-function isPageId(value: string): value is PageId {
-  return pages.some((page) => page.id === value);
-}
-
-function NavigationIcon({ page }: { page: PageId }) {
-  const paths: Record<PageId, ReactNode> = {
-    dashboard: (
-      <>
-        <rect x="3" y="3" width="7" height="7" rx="1" />
-        <rect x="14" y="3" width="7" height="7" rx="1" />
-        <rect x="3" y="14" width="7" height="7" rx="1" />
-        <rect x="14" y="14" width="7" height="7" rx="1" />
-      </>
-    ),
-    operations: (
-      <>
-        <path d="M12 3v12" />
-        <path d="m7 8 5-5 5 5" />
-        <path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6" />
-      </>
-    ),
-    batches: (
-      <>
-        <path d="M3 7h7l2 2h9v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z" />
-        <path d="M3 7V5a2 2 0 0 1 2-2h5l2 2h5" />
-      </>
-    ),
-    administration: (
-      <>
-        <path d="M4 6h16" />
-        <path d="M4 12h16" />
-        <path d="M4 18h16" />
-        <circle cx="8" cy="6" r="2" />
-        <circle cx="16" cy="12" r="2" />
-        <circle cx="10" cy="18" r="2" />
-      </>
-    ),
-    "model-lifecycle": (
-      <>
-        <path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z" />
-        <path d="m4.5 7.5 7.5 4 7.5-4" />
-        <path d="M12 11.5V21" />
-      </>
-    ),
-    traceability: (
-      <>
-        <circle cx="12" cy="12" r="9" />
-        <path d="M12 7v5l3 2" />
-        <path d="M7 3 4 6" />
-      </>
-    ),
-  };
-
-  return (
-    <svg
-      aria-hidden="true"
-      className="nav-icon"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      {paths[page]}
-    </svg>
-  );
-}
-
 export default function HomePage() {
-  const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [csrfToken, setCsrfToken] = useState<string | null>(null);
-  const [authLoading, setAuthLoading] = useState(true);
-  const [sessionExpired, setSessionExpired] = useState(false);
-  const [expiresAt, setExpiresAt] = useState<string | null>(null);
-  const [sessionUsername, setSessionUsername] = useState<string | null>(null);
-  const [sessionRole, setSessionRole] = useState<UserRole | null>(null);
-  const [loginOpen, setLoginOpen] = useState(false);
-  const [authMode, setAuthMode] = useState<"login" | "register">("login");
-  const [showPasswords, setShowPasswords] = useState(false);
   const [activePage, setActivePage] = useState<PageId>("dashboard");
   const [operationsRefresh, setOperationsRefresh] = useState(0);
   const navScrollRef = useRef<HTMLDivElement>(null);
   const activeNavItemRef = useRef<HTMLButtonElement>(null);
-  const loginTriggerRef = useRef<HTMLButtonElement>(null);
-  const loginModalRef = useRef<HTMLElement>(null);
-  const loginForm = useForm<LoginInput>();
-  const registrationForm = useForm<RegistrationFormInput>();
-  const {
-    register: registerLogin,
-    handleSubmit: handleLoginSubmit,
-    formState: { errors: loginErrors, isSubmitting: isLoggingIn },
-  } = loginForm;
-  const {
-    register: registerRegistration,
-    handleSubmit: handleRegistrationSubmit,
-    reset: resetRegistration,
-    formState: { errors: registrationErrors, isSubmitting: isRegistering },
-  } = registrationForm;
-
-  const closeLogin = useCallback(() => {
-    setLoginOpen(false);
-    setAuthMode("login");
-    setShowPasswords(false);
-    setError(null);
-    window.requestAnimationFrame(() => loginTriggerRef.current?.focus());
-  }, []);
-
-  useEffect(() => {
-    let alive = true;
-    void restoreSession().then((session) => {
-      if (!alive) return;
-      setSessionUsername(session.username);
-      setSessionRole(session.role);
-      setCsrfToken(session.csrf_token); setExpiresAt(session.expires_at);
-    }).catch((reason) => {
-      if (alive && !(reason instanceof ApiError && reason.status === 401)) setError("Không thể kiểm tra phiên đăng nhập. Bạn có thể đăng nhập lại.");
-    }).finally(() => { if (alive) setAuthLoading(false); });
-    return () => { alive = false; };
-  }, []);
-
-  useEffect(() => {
-    if (!csrfToken || sessionExpired) return;
-    function expire() {
-      setSessionExpired(true); setLoginOpen(true); setAuthMode("login");
-      setMessage("Phiên đăng nhập đã hết hạn. Đăng nhập lại cùng tài khoản để tiếp tục; bản nháp vẫn được giữ trên trang này.");
-    }
-    window.addEventListener("session-expired", expire);
-    const timer = expiresAt ? window.setTimeout(expire, Math.max(0, Date.parse(expiresAt) - Date.now())) : undefined;
-    return () => { window.removeEventListener("session-expired", expire); if (timer !== undefined) window.clearTimeout(timer); };
-  }, [csrfToken, expiresAt, sessionExpired]);
+  const auth = useAuthentication(() => setActivePage("dashboard"));
+  const { message, error, csrfToken, authLoading, sessionExpired, sessionRole, loginOpen, setLoginOpen, setAuthMode, setShowPasswords, setError, loginTriggerRef, signOut } = auth;
 
   useEffect(() => {
     if (authLoading) return;
@@ -273,7 +96,7 @@ export default function HomePage() {
         window.history.replaceState(null, "", `#${activePage}`);
         return;
       }
-      if ((!csrfToken || sessionRole !== "ADMIN") && nextPage !== "dashboard") {
+      if (!canAccessPage(csrfToken ? sessionRole : null, nextPage)) {
         setActivePage("dashboard");
         window.history.replaceState(null, "", "#dashboard");
         return;
@@ -285,32 +108,6 @@ export default function HomePage() {
     window.addEventListener("hashchange", syncPageFromLocation);
     return () => window.removeEventListener("hashchange", syncPageFromLocation);
   }, [csrfToken, sessionRole, authLoading, activePage]);
-
-  useEffect(() => {
-    if (!loginOpen) return;
-    function handleModalKeyboard(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        closeLogin();
-        return;
-      }
-      if (event.key !== "Tab") return;
-      const controls = loginModalRef.current?.querySelectorAll<HTMLElement>(
-        'button:not([disabled]), input:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
-      );
-      if (!controls?.length) return;
-      const first = controls[0];
-      const last = controls[controls.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    }
-    window.addEventListener("keydown", handleModalKeyboard);
-    return () => window.removeEventListener("keydown", handleModalKeyboard);
-  }, [closeLogin, loginOpen]);
 
   useEffect(() => {
     const nav = navScrollRef.current;
@@ -331,86 +128,9 @@ export default function HomePage() {
     return () => observer.disconnect();
   }, [activePage, csrfToken]);
 
-  async function submitLogin(values: LoginInput) {
-    setError(null);
-    setMessage(null);
-    try {
-      if (sessionExpired && sessionUsername && values.username !== sessionUsername) {
-        setError("Hãy đăng nhập lại cùng tài khoản để giữ bản nháp, hoặc đăng xuất để trở về Tổng quan trước khi đổi tài khoản."); return;
-      }
-      const result = await login(values);
-      // This value is not a credential. It remains only in React memory for
-      // future state-changing requests and is never written to localStorage.
-      setCsrfToken(result.csrf_token);
-      setExpiresAt(result.expires_at);
-      setSessionUsername(result.username);
-      setSessionRole(result.role);
-      setSessionExpired(false);
-      setLoginOpen(false);
-      if (!sessionExpired) {
-        setActivePage("dashboard");
-        window.history.replaceState(null, "", "#dashboard");
-      }
-      setMessage(result.role === "ADMIN"
-        ? "Đăng nhập thành công. Hãy tải ảnh, theo dõi lô dữ liệu và kiểm duyệt từng chỉ số."
-        : "Đăng nhập thành công với quyền chỉ xem Dashboard.");
-    } catch (reason) {
-      setError(
-        reason instanceof Error ? reason.message : "Không thể đăng nhập.",
-      );
-    }
-  }
-
-  async function submitRegistration(values: RegistrationFormInput) {
-    setError(null);
-    setMessage(null);
-    try {
-      const result = await registerAccount({
-        username: values.username,
-        password: values.password,
-      });
-      setLoginOpen(false);
-      setAuthMode("login");
-      setMessage(result.message);
-      window.requestAnimationFrame(() => document.getElementById("auth-trigger")?.focus());
-    } catch (reason) {
-      setError(
-        reason instanceof Error
-          ? reason.message
-          : "Không thể gửi yêu cầu đăng ký.",
-      );
-    }
-  }
-
-  async function signOut() {
-    if (!csrfToken) return;
-    if (!canLeavePage()) return;
-    try {
-      if (!sessionExpired) await logout(csrfToken);
-      setCsrfToken(null);
-      setExpiresAt(null); setSessionExpired(false); setSessionUsername(null);
-      setSessionRole(null);
-      setLoginOpen(false);
-      setActivePage("dashboard");
-      window.history.replaceState(null, "", window.location.pathname);
-      setMessage("Đã đăng xuất.");
-    } catch (reason) {
-      setError(
-        reason instanceof Error ? reason.message : "Không thể đăng xuất.",
-      );
-    }
-  }
-
-  function switchAuthMode(mode: "login" | "register") {
-    if (mode === "register") resetRegistration();
-    setAuthMode(mode);
-    setShowPasswords(false);
-    setError(null);
-  }
-
   function navigate(page: PageId) {
     if (sessionExpired && page !== "dashboard") { setLoginOpen(true); return; }
-    if ((!csrfToken || sessionRole !== "ADMIN") && page !== "dashboard") return;
+    if (!canAccessPage(csrfToken ? sessionRole : null, page)) return;
     if (page !== activePage && !canLeavePage()) return;
     setActivePage(page);
     window.history.pushState(null, "", `#${page}`);
@@ -420,11 +140,12 @@ export default function HomePage() {
     });
   }
 
-  const isAdmin = !!csrfToken && sessionRole === "ADMIN";
-  const displayedPage = isAdmin ? activePage : "dashboard";
+  const isAdmin = !!csrfToken && canOperate(sessionRole);
+  const isSystemAdmin = !!csrfToken && sessionRole === "SUPER_ADMIN";
+  const displayedPage = canAccessPage(csrfToken ? sessionRole : null, activePage) ? activePage : "dashboard";
   const currentPage =
     pages.find((page) => page.id === displayedPage) ?? pages[0];
-  const availablePages = isAdmin ? pages : pages.slice(0, 1);
+  const availablePages = pages.filter((page) => canAccessPage(csrfToken ? sessionRole : null, page.id));
 
   return (
     <>
@@ -439,7 +160,7 @@ export default function HomePage() {
             </span>
             <div>
               <h1>AI Đồng hồ điện</h1>
-              <span>Trung tâm vận hành</span>
+                  <span>Quản lý điện năng</span>
             </div>
           </div>
           <nav className="app-nav" aria-label="Điều hướng chính">
@@ -462,7 +183,7 @@ export default function HomePage() {
           <div className="navbar-account">
             {csrfToken ? (
               <>
-                <span className="admin-status">{sessionExpired ? "Phiên đã hết hạn" : isAdmin ? "Quản trị viên" : "Chỉ xem"}</span>
+                <span className="admin-status">{sessionExpired ? "Phiên đã hết hạn" : sessionRole ? roleLabels[sessionRole] : "Người xem"}</span>
                 {sessionExpired && <button type="button" onClick={() => setLoginOpen(true)}>Đăng nhập lại</button>}
                 <button
                   className="navbar-action secondary"
@@ -507,12 +228,12 @@ export default function HomePage() {
               <span
                 className={`page-context ${isAdmin ? "admin" : "public"}`}
               >
-                {isAdmin ? "Không gian quản trị" : csrfToken ? "Tài khoản · chỉ xem" : "Công khai · chỉ xem"}
+                {isSystemAdmin ? "Toàn hệ thống" : isAdmin ? "Nghiệp vụ vận hành" : csrfToken ? "Tài khoản · chỉ xem" : "Công khai · chỉ xem"}
               </span>
             </div>
             <div className={`workspace page-content ${displayedPage}-layout`} inert={sessionExpired && displayedPage !== "dashboard"}>
               {displayedPage === "dashboard" && (
-                <DashboardSummary csrfToken={csrfToken ?? undefined} />
+                <DashboardSummary readOnly={!isAdmin} />
               )}
               {isAdmin && displayedPage === "operations" && (
                 <>
@@ -535,17 +256,17 @@ export default function HomePage() {
                   { id: "customers", label: "Khách hàng", content: <CustomerDataManagement csrfToken={csrfToken} /> },
                   { id: "readings", label: "Chỉ số tháng", content: <MonthlyReadingHistory /> },
                   { id: "reports", label: "Báo cáo", content: <MonthlyExport csrfToken={csrfToken} /> },
-                  { id: "accounts", label: "Tài khoản", content: <AccountManagement csrfToken={csrfToken} /> },
+                  ...(isSystemAdmin ? [{ id: "accounts", label: "Tài khoản", content: <AccountManagement csrfToken={csrfToken} /> }] : []),
                 ]} />
               )}
-              {isAdmin && displayedPage === "model-lifecycle" && (
+              {isSystemAdmin && displayedPage === "model-lifecycle" && (
                 <SectionTabs label="Vòng đời mô hình" items={[
                   { id: "training", label: "Huấn luyện", content: <TrainingPipeline csrfToken={csrfToken} /> },
                   { id: "models", label: "Kho mô hình", content: <ModelOperations csrfToken={csrfToken} /> },
                   { id: "settings", label: "Cấu hình hệ thống", content: <SystemSettings csrfToken={csrfToken} /> },
                 ]} />
               )}
-              {isAdmin && displayedPage === "traceability" && (
+              {isSystemAdmin && displayedPage === "traceability" && (
                 <AuditHistory />
               )}
             </div>
@@ -563,218 +284,7 @@ export default function HomePage() {
         </div>
       </main>
 
-      {loginOpen && (!csrfToken || sessionExpired) && (
-        <div
-          className="modal-backdrop"
-          role="presentation"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) closeLogin();
-          }}
-        >
-          <section
-            className="login-modal"
-            role="dialog"
-            ref={loginModalRef}
-            aria-modal="true"
-            aria-labelledby="login-title"
-          >
-            <div className="modal-heading">
-              <div>
-                <p className="eyebrow">Tài khoản hệ thống</p>
-                <h2 id="login-title">
-                  {authMode === "login" ? "Đăng nhập quản trị" : "Đăng ký tài khoản"}
-                </h2>
-              </div>
-              <button
-                className="modal-close secondary"
-                type="button"
-                onClick={closeLogin}
-              >
-                Đóng
-              </button>
-            </div>
-            <div className="auth-tabs" role="group" aria-label="Chọn hình thức xác thực">
-              <button
-                type="button"
-                aria-pressed={authMode === "login"}
-                className={authMode === "login" ? "active" : ""}
-                onClick={() => switchAuthMode("login")}
-              >
-                Đăng nhập
-              </button>
-              <button
-                type="button"
-                aria-pressed={authMode === "register"}
-                className={authMode === "register" ? "active" : ""}
-                onClick={() => switchAuthMode("register")}
-              >
-                Đăng ký
-              </button>
-            </div>
-            {authMode === "login" ? (
-              <>
-                <p className="muted auth-description">
-                  Đăng nhập để quản lý tải ảnh, kiểm duyệt, cấu hình hệ thống,
-                  mô hình và nhật ký kiểm toán.
-                </p>
-                <form onSubmit={handleLoginSubmit(submitLogin)} noValidate>
-              <label htmlFor="username">Tên đăng nhập</label>
-              <input
-                id="username"
-                autoFocus
-                autoComplete="username"
-                aria-invalid={Boolean(loginErrors.username)}
-                aria-describedby={loginErrors.username ? "login-username-error" : undefined}
-                {...registerLogin("username", {
-                  required: "Vui lòng nhập tên đăng nhập.",
-                })}
-              />
-              {loginErrors.username?.message && (
-                <span id="login-username-error" className="field-error">
-                  {loginErrors.username.message}
-                </span>
-              )}
-              <label htmlFor="password">Mật khẩu</label>
-              <input
-                id="password"
-                type={showPasswords ? "text" : "password"}
-                autoComplete="current-password"
-                aria-invalid={Boolean(loginErrors.password)}
-                aria-describedby={loginErrors.password ? "login-password-error" : undefined}
-                {...registerLogin("password", {
-                  required: "Vui lòng nhập mật khẩu.",
-                })}
-              />
-              {loginErrors.password?.message && (
-                <span id="login-password-error" className="field-error">
-                  {loginErrors.password.message}
-                </span>
-              )}
-              <label className="auth-password-toggle">
-                <input
-                  type="checkbox"
-                  checked={showPasswords}
-                  onChange={(event) => setShowPasswords(event.target.checked)}
-                />
-                <span>Hiện mật khẩu</span>
-              </label>
-              {error && (
-                <p className="error" role="alert">
-                  {error}
-                </p>
-              )}
-              <button type="submit" disabled={isLoggingIn}>
-                {isLoggingIn ? "Đang đăng nhập…" : "Đăng nhập quản trị"}
-              </button>
-            </form>
-              </>
-            ) : (
-              <>
-                <p className="muted auth-description">
-                  Tài khoản mới sẽ ở trạng thái chờ. Quản trị viên phải kích
-                  hoạt trước khi bạn có thể đăng nhập.
-                </p>
-                <form onSubmit={handleRegistrationSubmit(submitRegistration)} noValidate>
-                  <label htmlFor="register-username">Tên đăng nhập</label>
-                  <input
-                    id="register-username"
-                    autoFocus
-                    autoComplete="username"
-                    aria-invalid={Boolean(registrationErrors.username)}
-                    aria-describedby={
-                      registrationErrors.username
-                        ? "register-username-error"
-                        : "register-username-help"
-                    }
-                    {...registerRegistration("username", {
-                      required: "Vui lòng nhập tên đăng nhập.",
-                      minLength: { value: 3, message: "Tên đăng nhập cần ít nhất 3 ký tự." },
-                      maxLength: { value: 64, message: "Tên đăng nhập không quá 64 ký tự." },
-                      pattern: {
-                        value: /^[A-Za-z0-9._-]+$/,
-                        message: "Chỉ dùng chữ không dấu, số, dấu chấm, gạch dưới hoặc gạch ngang.",
-                      },
-                    })}
-                  />
-                  <span id="register-username-help" className="field-help">
-                    Từ 3–64 ký tự; không dùng khoảng trắng hoặc chữ có dấu.
-                  </span>
-                  {registrationErrors.username?.message && (
-                    <span id="register-username-error" className="field-error">
-                      {registrationErrors.username.message}
-                    </span>
-                  )}
-
-                  <label htmlFor="register-password">Mật khẩu</label>
-                  <input
-                    id="register-password"
-                    type={showPasswords ? "text" : "password"}
-                    autoComplete="new-password"
-                    aria-invalid={Boolean(registrationErrors.password)}
-                    aria-describedby={
-                      registrationErrors.password
-                        ? "register-password-error"
-                        : "register-password-help"
-                    }
-                    {...registerRegistration("password", {
-                      required: "Vui lòng nhập mật khẩu.",
-                      minLength: { value: 12, message: "Mật khẩu cần ít nhất 12 ký tự." },
-                      maxLength: { value: 256, message: "Mật khẩu không quá 256 ký tự." },
-                    })}
-                  />
-                  <span id="register-password-help" className="field-help">
-                    Dùng tối thiểu 12 ký tự. Có thể dán từ trình quản lý mật khẩu.
-                  </span>
-                  {registrationErrors.password?.message && (
-                    <span id="register-password-error" className="field-error">
-                      {registrationErrors.password.message}
-                    </span>
-                  )}
-
-                  <label htmlFor="register-password-confirm">Nhập lại mật khẩu</label>
-                  <input
-                    id="register-password-confirm"
-                    type={showPasswords ? "text" : "password"}
-                    autoComplete="new-password"
-                    aria-invalid={Boolean(registrationErrors.confirmPassword)}
-                    aria-describedby={
-                      registrationErrors.confirmPassword
-                        ? "register-confirm-error"
-                        : undefined
-                    }
-                    {...registerRegistration("confirmPassword", {
-                      required: "Vui lòng nhập lại mật khẩu.",
-                      validate: (value, values) =>
-                        value === values.password || "Mật khẩu nhập lại chưa khớp.",
-                    })}
-                  />
-                  {registrationErrors.confirmPassword?.message && (
-                    <span id="register-confirm-error" className="field-error">
-                      {registrationErrors.confirmPassword.message}
-                    </span>
-                  )}
-                  <label className="auth-password-toggle">
-                    <input
-                      type="checkbox"
-                      checked={showPasswords}
-                      onChange={(event) => setShowPasswords(event.target.checked)}
-                    />
-                    <span>Hiện mật khẩu</span>
-                  </label>
-                  {error && (
-                    <p className="error" role="alert">
-                      {error}
-                    </p>
-                  )}
-                  <button type="submit" disabled={isRegistering}>
-                    {isRegistering ? "Đang gửi yêu cầu…" : "Gửi yêu cầu đăng ký"}
-                  </button>
-                </form>
-              </>
-            )}
-          </section>
-        </div>
-      )}
+      <AuthDialog auth={auth} />
     </>
   );
 }

@@ -1,33 +1,41 @@
-# Bảo mật và xác thực
+# Bảo mật, dữ liệu riêng và giới hạn
 
-Hệ thống sử dụng các tài khoản quản trị viên, mật khẩu băm Argon2id, phiên làm việc không trong suốt phía máy chủ và cookie HttpOnly. Cơ sở dữ liệu chỉ lưu HMAC-SHA-256 của phiên và token CSRF bằng khóa `SESSION_SECRET`; thay khóa này sẽ thu hồi toàn bộ phiên hiện có. Cookie có thuộc tính `Secure` trong production và dùng `SameSite=Strict`.
+## Xác thực và quyền
 
-Mọi endpoint thay đổi trạng thái có xác thực đều yêu cầu `X-CSRF-Token` được trả về khi đăng nhập. Frontend chỉ giữ token CSRF không phải thông tin đăng nhập này trong bộ nhớ, không lưu vào localStorage. Đăng nhập được giới hạn đồng thời theo IP và tổ hợp IP/tên đăng nhập trong cửa sổ 15 phút. Bộ giới hạn đặt trần số khóa theo dõi để tránh làm cạn bộ nhớ bằng username giả, phù hợp với phạm vi một máy chủ.
+Mật khẩu băm Argon2id. Session opaque phía server, database lưu HMAC-SHA-256 token bằng SESSION_SECRET; đổi khóa thu hồi phiên cũ. Cookie HttpOnly, SameSite=Strict, Secure trong production, TTL mặc định 8 giờ. CSRF token chỉ trong bộ nhớ frontend, không localStorage; mọi thay đổi có xác thực yêu cầu X-CSRF-Token.
 
-Endpoint đăng ký công khai chỉ tạo tài khoản `is_active=false`; tài khoản không thể đăng nhập hoặc truy cập chức năng nghiệp vụ trước khi một quản trị viên hiện hữu kích hoạt tại trang Quản trị. Mỗi IP được gửi tối đa năm yêu cầu trong một giờ. Phản hồi đăng ký luôn giống nhau dù tên đăng nhập đã tồn tại, nhằm hạn chế dò danh sách tài khoản. Mật khẩu đăng ký được băm Argon2id ngay trên backend và không xuất hiện trong log hoặc audit.
+Đăng nhập giới hạn theo IP+tên (5 lần sai/15 phút) và IP (30 lần sai/15 phút). Đăng ký giới hạn 5 yêu cầu/IP/giờ, phản hồi không tiết lộ username tồn tại; luôn tạo VIEWER chưa kích hoạt. Rate limiter trong bộ nhớ phù hợp một API process, không phải limiter phân tán. Restart process làm mất bộ đếm; scale replica cần kho limiter chung.
 
-Tạo quản trị viên sau khi áp dụng migration:
+Backend kiểm tra role cho từng nhóm API. VIEWER/guest không dùng nghiệp vụ; ADMIN không train/sửa hệ thống; SUPER_ADMIN có quyền hệ thống. Không tự khóa/xóa/hạ quyền hoặc xóa SUPER_ADMIN hoạt động cuối cùng. Xem [quyền](roles.md).
 
-```powershell
-docker compose exec -e "ADMIN_INITIAL_PASSWORD=<mat-khau-tam>" backend python -m app.scripts.init_admin --username admin_operator
-```
+Bộ khởi động nhập password quản trị không có giá trị mặc định, truyền env tạm không argv, không ghi password vào file/log. Không sử dụng script bootstrap làm bypass khóa/reset password.
 
-Không ghi mật khẩu thật trực tiếp vào lịch sử terminal; dùng quy trình nhập bảo mật trong [installation.md](installation.md). Sau khi có tài khoản đầu tiên, tạo các tài khoản khác trong trang Quản trị. Đổi mật khẩu hoặc khóa/xóa tài khoản sẽ thu hồi các phiên liên quan.
+## Upload, đường dẫn và database
 
-Trong production, đặt `SESSION_SECRET` thành giá trị ngẫu nhiên duy nhất dài ít nhất 32 ký tự, thay mật khẩu PostgreSQL mẫu và khai báo chính xác `ALLOWED_HOSTS`. Quá trình khởi động sẽ từ chối secret/mật khẩu mẫu, host ký tự đại diện, HTTP chưa được cưỡng chế và `FRONTEND_ORIGIN` không dùng HTTPS trong production. Tài liệu API tự động cũng bị tắt trong môi trường này. Không bao giờ commit tệp `.env`.
+Chỉ JPEG/PNG/WebP sau kiểm MIME, signature, giải mã, dung lượng và pixel count; JSON khách hàng tối đa 10 MB/10.000 dòng. Schema server validate chuỗi, số, tháng, đa giác, role và trạng thái. Mã/names từ người dùng không dùng làm đường dẫn gốc tùy ý.
 
-Nginx mặc định chỉ công bố cổng HTTP trên `127.0.0.1`. Chỉ đặt `NGINX_BIND_ADDRESS=0.0.0.0` khi dịch vụ nằm sau reverse proxy HTTPS đáng tin cậy hoặc tường lửa đã được cấu hình. API từ chối Host ngoài danh sách, không cho trình duyệt cache phản hồi và các tệp ảnh/JSON/Excel yêu cầu phiên quản trị hợp lệ.
+File gốc UUID bên dưới STORAGE_ROOT, model dưới MODELS_ROOT có resolve/containment/checksum. Xem ảnh/export yêu cầu quyền; kho volume không được static serve. Excel vô hiệu hóa ký tự đầu công thức. SQLAlchemy bind parameters; không ghép input thành SQL. SQL restore là mã thực thi: chỉ dùng backup từ nguồn tin cậy.
 
-API gắn mã `X-Request-ID`, trả thông báo chung cho lỗi ngoài dự kiến và chỉ ghi loại ngoại lệ ở log máy chủ. Không đưa chuỗi lỗi nội bộ, đường dẫn hoặc thông tin kết nối vào phản hồi người dùng. Header chống MIME sniffing, clickjacking, cô lập cross-origin và quyền camera/microphone/vị trí được đặt ở cả API và Nginx.
+Nhãn chưa xác nhận không vào bảng chỉ số tháng. Revision và unique(customer,month) chống ghi đè stale/trùng tháng. Log hành động lưu trước/sau nhưng không lưu token/password.
 
-Khi triển khai tên miền, dùng cấu hình mẫu `docker/nginx.https.conf.example`, gắn chứng thư vào `/etc/nginx/tls`, công bố cổng 443, rồi đặt `APP_ENV=production`, `ENFORCE_HTTPS=true`, `FRONTEND_ORIGIN=https://<tên-miền>` và `ALLOWED_HOSTS=<tên-miền>`. Cấu hình mẫu chuyển hướng HTTP bằng 308 và chỉ bật HSTS ở máy chủ TLS. Không bật HSTS trước khi chứng thư và toàn bộ subdomain đã được kiểm tra.
+## Mạng, HTTPS và headers
 
-Các container ứng dụng chạy bằng người dùng không đặc quyền, loại bỏ toàn bộ Linux capabilities, bật `no-new-privileges` và dùng filesystem gốc chỉ đọc ở các tiến trình Python. Thư mục tạm được cấp bằng `tmpfs`; chỉ volume dữ liệu hoặc mô hình đúng vai trò mới có quyền ghi. Log ứng dụng được phát ra stdout để Docker quản lý thay vì gắn một volume log không được sử dụng.
+Compose tách edge/application/data; PostgreSQL không publish cổng và không dùng chung network với frontend/nginx. Reader không truy cập database hoặc ảnh trên volume. Python runtime filesystem chỉ đọc, quyền thấp, cap_drop ALL, no-new-privileges; init volume chạy riêng một lần.
 
-Docker xoay vòng log theo giới hạn 10 MB × 5 tệp cho mỗi container. Theo dõi `health/ready`, trạng thái healthcheck và các sự kiện JSON có mức `ERROR`; dùng `request_id`, `job_id` hoặc `run_id` để đối chiếu. Không hạ `LOG_LEVEL` xuống `DEBUG` trong production.
+Local HTTP chỉ 127.0.0.1. Production bắt buộc HTTPS với cấu hình/CA hợp lệ; không chỉ đặt ENFORCE_HTTPS=true mà bỏ triển khai TLS. Khởi động production từ chối secret/mật khẩu mẫu, ALLOWED_HOSTS=* và origin HTTP. Tài liệu API tự động tắt trong production.
 
-Docker Compose tách mạng `edge`, `application` và `data`. PostgreSQL chỉ tham gia mạng `data`, không dùng chung mạng với frontend/nginx và không ánh xạ cổng ra host. Mã ứng dụng dùng biểu thức SQLAlchemy có bind parameter; SQL tĩnh chỉ xuất hiện trong migration và healthcheck, không ghép dữ liệu người dùng vào câu lệnh.
+CORS chỉ FRONTEND_ORIGIN; proxy không tin X-Forwarded-For/Proto tự gửi từ client. Nginx/API có chống MIME sniffing/clickjacking, CSP và hạn chế camera/mic/location. CSP còn cho unsafe-inline để tương thích Next.js/style hiện tại; không tuyên bố CSP nghiêm ngặt tuyệt đối. HSTS chỉ giữ khi TLS/subdomain đã kiểm tra.
 
-Image nền được ghim theo digest để bản dựng có thể tái lập và tránh tag bị thay thế ngoài ý muốn. Cần định kỳ cập nhật digest sau khi kiểm tra release bảo mật chính thức; PostgreSQL giữ cùng major version khi cập nhật minor để volume dữ liệu tương thích.
+## Log, backup và repo công khai
 
-Dashboard là trang chỉ đọc công khai theo yêu cầu sản phẩm hiện tại và có thể hiển thị mã khách hàng cùng dữ liệu tiền điện. Trước khi công bố hệ thống ra Internet, cần quyết định rõ dữ liệu này có được phép công khai hay phải ẩn mã khách hàng/yêu cầu đăng nhập. Tệp sao lưu chứa dữ liệu nghiệp vụ và hiện không tự mã hóa; lưu chúng trong vùng được mã hóa, giới hạn quyền truy cập và quản lý khóa tách biệt.
+API lỗi bất ngờ trả thông báo chung cùng request_id; log server có loại lỗi và thông tin định danh tác vụ, không trả stacktrace/DSN cho người dùng. Docker log xoay 10 MB × 5/container; INFO mặc định. Audit có dữ liệu khách hàng/nghiệp vụ, chỉ SUPER_ADMIN xem.
+
+.env, TLS, backups, log, ảnh, nhãn, model và database **không được commit**. Quét pattern secret chỉ bắt một số token/key phổ biến, không thay review thủ công và không bảo đảm bắt mọi PII. Nếu secret từng công khai, phải thu hồi/rotate tại nhà cung cấp; xóa file mới không xóa bản cũ trong Git.
+
+Backup chứa dữ liệu nhạy cảm, không tự mã hóa. Mã hóa nơi lưu, phân quyền, bản ngoài host, retention, lịch chạy/cảnh báo và thử restore là nhiệm vụ người triển khai; script chưa tự cung cấp dịch vụ giám sát hoặc offsite. Xem [backup](backup-restore.md).
+
+Dashboard công khai có thể lộ mã/số liệu khách hàng theo thiết kế hiện tại. Chốt quyền công khai hoặc bổ sung kiểm soát/ẩn danh trước Internet. Không thể cam kết “không rò rỉ” chỉ từ test source hoặc trạng thái CI xanh.
+
+## Kiểm tra định kỳ
+
+Kiểm CI/CodeQL, secret policy, npm audit và cập nhật digest/dependency có thử nghiệm. Xác minh API thiếu quyền/CSRF, session bị thu hồi, upload, path traversal và headers/cookie trên hạ tầng thật. Theo dõi health, 5xx, LOGIN_FAILED, job/train FAILED và dung lượng. Không chạy kiểm thử ghi dữ liệu lên production.

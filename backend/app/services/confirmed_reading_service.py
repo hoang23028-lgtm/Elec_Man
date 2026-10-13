@@ -4,7 +4,8 @@ from uuid import UUID
 
 from fastapi import HTTPException
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session, defer
 
 from app.models.confirmed_monthly_reading import ConfirmedMonthlyReading
 from app.models.customer import Customer
@@ -25,7 +26,9 @@ def save_confirmed_monthly_reading(
     if reading.reviewed_at is None or reading.reading_value is None:
         raise ValueError("Kết quả chưa có đủ dữ liệu xác nhận.")
     source_record = db.scalar(
-        select(ConfirmedMonthlyReading).where(ConfirmedMonthlyReading.source_image_id == image.id)
+        select(ConfirmedMonthlyReading)
+        .options(defer(ConfirmedMonthlyReading.image_data, raiseload=True))
+        .where(ConfirmedMonthlyReading.source_image_id == image.id)
     )
     month = selected_month or (source_record.reading_month if source_record else None)
     if month is None or month.day != 1:
@@ -33,7 +36,9 @@ def save_confirmed_monthly_reading(
             status_code=422, detail="Vui lòng chọn kỳ tháng ghi điện trước khi xác nhận."
         )
     monthly_record = db.scalar(
-        select(ConfirmedMonthlyReading).where(
+        select(ConfirmedMonthlyReading)
+        .options(defer(ConfirmedMonthlyReading.image_data, raiseload=True))
+        .where(
             ConfirmedMonthlyReading.customer_id == customer.id,
             ConfirmedMonthlyReading.reading_month == month,
         )
@@ -53,7 +58,11 @@ def save_confirmed_monthly_reading(
         record = ConfirmedMonthlyReading()
         db.add(record)
 
-    image_path = resolve_storage_path(image.relative_path)
+    if record.customer_id != customer.id:
+        record.initial_reading_snapshot = customer.initial_reading
+        record.usage_purpose_snapshot = customer.usage_purpose
+    if record.source_image_id != image.id or record.image_sha256 != image.sha256:
+        record.image_data = resolve_storage_path(image.relative_path).read_bytes()
     record.customer_id = customer.id
     record.source_image_id = image.id
     record.customer_code = customer.customer_code
@@ -62,16 +71,32 @@ def save_confirmed_monthly_reading(
     record.original_filename = image.original_filename
     record.image_mime_type = image.mime_type
     record.image_sha256 = image.sha256
-    record.image_data = image_path.read_bytes()
     record.confirmed_at = reading.reviewed_at
     record.confirmed_by = confirmed_by
-    db.flush()
+    try:
+        db.flush()
+    except IntegrityError as exc:
+        # The preflight SELECT cannot prevent two transactions inserting the
+        # same customer/month. The database constraint is the final authority.
+        constraint = getattr(getattr(exc.orig, "diag", None), "constraint_name", None)
+        db.rollback()
+        if constraint == "uq_confirmed_customer_month":
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "Khách hàng đã có chỉ số trong kỳ này. "
+                    "Hãy tải lại và chỉnh sửa bản ghi đã xác nhận."
+                ),
+            ) from None
+        raise
     return record, replaced
 
 
 def remove_confirmed_monthly_reading(db: Session, image_id: UUID) -> UUID | None:
     record = db.scalar(
-        select(ConfirmedMonthlyReading).where(ConfirmedMonthlyReading.source_image_id == image_id)
+        select(ConfirmedMonthlyReading)
+        .options(defer(ConfirmedMonthlyReading.image_data, raiseload=True))
+        .where(ConfirmedMonthlyReading.source_image_id == image_id)
     )
     if record is None:
         return None

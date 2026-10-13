@@ -200,6 +200,7 @@ def list_results(
     rows = db.execute(statement).all()
     items = [
         ResultRow(
+            revision=reading.revision if reading else 0,
             reading_month=month,
             image_id=image.id,
             original_filename=image.original_filename,
@@ -273,6 +274,45 @@ def review_result(
     if record is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy kết quả.")
     image, ai_result, reading = record
+    from app.services.review_revision import check_review_revision
+
+    check_review_revision(db, reading, payload.expected_revision)
+    if payload.action == "REOPEN":
+        if image.status != ImageStatus.REJECTED or reading is None:
+            raise HTTPException(status_code=409, detail="Chỉ có thể khôi phục ảnh đã từ chối.")
+        previous_status = reading.review_status
+        reading.review_status = (
+            "LABELED"
+            if reading.final_meter_reading
+            and reading.reading_polygon_json
+            and reading.bbox_reviewed_by
+            else "PENDING"
+        )
+        reading.reviewed_by = user.id
+        reading.reviewed_at = datetime.now(UTC)
+        image.status = ImageStatus.REVIEW_REQUIRED
+        db.flush()
+        refresh_batch_counters(db, image.batch_id)
+        db.add(
+            AuditLog(
+                user_id=user.id,
+                action="REOPEN_RESULT",
+                target_type="image",
+                target_id=str(image_id),
+                details_json={
+                    "previous_status": previous_status,
+                    "new_status": reading.review_status,
+                    "reason": payload.reason,
+                    "original_filename": image.original_filename,
+                    "batch_id": str(image.batch_id),
+                    "meter_reading_before": reading.final_meter_reading,
+                    "meter_reading_after": reading.final_meter_reading,
+                },
+                ip_address=ip_address,
+            )
+        )
+        db.commit()
+        return reading
     if payload.action == "CONFIRM" and (
         not payload.final_customer_id or not payload.final_meter_reading
     ):
@@ -297,6 +337,10 @@ def review_result(
     final_customer = (
         matched_customer.customer_code if matched_customer else payload.final_customer_id
     )
+    if payload.action == "REJECT":
+        # Reject is a decision, not an implicit save of possibly unfinished form edits.
+        final_customer = reading.final_customer_id if reading else ai_result.customer_id_ai
+        final_meter = reading.final_meter_reading if reading else ai_result.meter_reading_ai
 
     previous_review_status = reading.review_status if reading else "UNREVIEWED"
     if reading is None:

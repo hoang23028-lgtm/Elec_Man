@@ -1,5 +1,7 @@
 # Chẩn đoán nhãn công tơ ngày 29/09/2026
 
+> Báo cáo lịch sử theo ngày, không phải hướng dẫn bản hiện hành. Xem [danh mục tài liệu](../README.md).
+
 Đọc dữ liệu đang chạy: 61 ảnh, 37 ảnh có nhãn chỉ số và vùng dãy số do người dùng
 lưu; chưa có nhãn vùng toàn bộ công tơ hoặc mã khách hàng. Các nhãn bao phủ 0–9.
 Pipeline đầy đủ hiện yêu cầu 200 mẫu; số mẫu đủ điều kiện hiện tại là 0.

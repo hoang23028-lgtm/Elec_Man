@@ -15,11 +15,12 @@ from app.api.routes.results import router as results_router
 from app.api.routes.settings import router as settings_router
 from app.api.routes.training import router as training_router
 from app.api.routes.users import router as users_router
-from app.security.dependencies import require_admin
+from app.security.dependencies import require_admin, require_super_admin
 
 api_router = APIRouter()
 api_router.include_router(auth_router, prefix="/auth", tags=["Xác thực"])
 admin_only = [Depends(require_admin)]
+system_only = [Depends(require_super_admin)]
 api_router.include_router(
     batches_router, prefix="/batches", tags=["Lô dữ liệu"], dependencies=admin_only
 )
@@ -39,20 +40,20 @@ api_router.include_router(
     exports_router, prefix="/exports", tags=["Xuất dữ liệu"], dependencies=admin_only
 )
 api_router.include_router(
-    audit_router, prefix="/audit", tags=["Kiểm toán"], dependencies=admin_only
+    audit_router, prefix="/audit", tags=["Kiểm toán"], dependencies=system_only
 )
 api_router.include_router(
-    settings_router, prefix="/settings", tags=["Cấu hình"], dependencies=admin_only
+    settings_router, prefix="/settings", tags=["Cấu hình"], dependencies=system_only
 )
 api_router.include_router(
-    models_router, prefix="/models", tags=["Mô hình"], dependencies=admin_only
+    models_router, prefix="/models", tags=["Mô hình"], dependencies=system_only
 )
 api_router.include_router(
-    evaluation_router, prefix="/evaluation", tags=["Đánh giá"], dependencies=admin_only
+    evaluation_router, prefix="/evaluation", tags=["Đánh giá"], dependencies=system_only
 )
 api_router.include_router(
-    users_router, prefix="/users", tags=["Tài khoản"], dependencies=admin_only
+    users_router, prefix="/users", tags=["Tài khoản"], dependencies=system_only
 )
 api_router.include_router(
-    training_router, prefix="/training", tags=["Huấn luyện"], dependencies=admin_only
+    training_router, prefix="/training", tags=["Huấn luyện"], dependencies=system_only
 )

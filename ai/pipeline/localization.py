@@ -44,8 +44,19 @@ def _ocr_reading_candidate(
     lines: list[TextLine], width: int, height: int
 ) -> tuple[tuple[int, int, int, int], float] | None:
     best: tuple[tuple[int, int, int, int], float] | None = None
+    best_rank = -1.0
+    unit_lines = [
+        line
+        for line in lines
+        if re.fullmatch(r"kwh", re.sub(r"\s+", "", line.text), re.IGNORECASE)
+    ]
     for line in lines:
         compact = re.sub(r"\s+", "", line.text)
+        # Nameplate specifications and serials are not the energy register.
+        if re.search(
+            r"rev|vong|vòng|/|s[ốo6]sx|serial|no\.|pdm", compact, re.IGNORECASE
+        ):
+            continue
         groups = re.findall(r"(?<!\d)\d{4,8}(?!\d)", compact)
         if not groups:
             continue
@@ -68,8 +79,23 @@ def _ocr_reading_candidate(
         )
         length_score = min(len(max(groups, key=len)) / 6, 1.0)
         score = min(0.88, line.confidence * 0.8 + length_score * 0.08)
-        if best is None or score > best[1]:
+        # Rank using meter semantics, but never inflate the reported confidence.
+        # A high-confidence stamp/year must not outrank the register beside kWh.
+        unit_context = bool(re.search(r"kwh$", compact, re.IGNORECASE))
+        for unit in unit_lines:
+            unit_left = min(point[0] for point in unit.box)
+            unit_top = min(point[1] for point in unit.box)
+            unit_bottom = max(point[1] for point in unit.box)
+            unit_height = max(1, unit_bottom - unit_top)
+            center_delta = abs((top + bottom - unit_top - unit_bottom) / 2)
+            if 0 <= unit_left - right <= box_width and center_delta <= 0.6 * max(
+                box_height, unit_height
+            ):
+                unit_context = True
+        rank = score + (1.0 if unit_context else 0.0)
+        if best is None or rank > best_rank:
             best = region, score
+            best_rank = rank
     return best
 
 

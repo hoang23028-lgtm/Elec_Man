@@ -17,7 +17,7 @@
 5. Đánh giá riêng các trường hợp có điểm cao nhưng sai. Chọn ngưỡng theo tỷ lệ sai trong nhóm được tự động chấp nhận, không theo tên gọi “độ tin cậy”.
 6. Chạy thử có người kiểm duyệt, lưu phiên bản mô hình và dữ liệu đánh giá. Chỉ xây chính sách tự động xác nhận sau khi có bằng chứng trên tập kiểm thử độc lập.
 
-Unit test và ảnh tổng hợp chỉ xác nhận hợp đồng phần mềm, không chứng minh độ chính xác trên ảnh thực tế. Phiên bản này chưa thay thế các mô hình cơ sở bằng mạng học sâu và chưa thực hiện đánh giá thực địa.
+Unit test và ảnh tổng hợp chỉ xác nhận hợp đồng phần mềm, không chứng minh độ chính xác trên ảnh thực tế. Bộ đọc chuỗi hiện dùng mạng học sâu pretrained PP-OCR/PARSeq; tầng định vị học Ridge, chưa thay bằng deep detector được fine-tune riêng và chưa có đánh giá thực địa độc lập.
 
 ## Kiểm thử mã nguồn
 

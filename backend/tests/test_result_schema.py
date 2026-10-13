@@ -6,6 +6,7 @@ from app.schemas.result import ReadingBoundingBox, ReadingPolygon, ReviewRequest
 
 def test_reading_bbox_accepts_normalized_coordinates() -> None:
     payload = ReviewRequest(
+        expected_revision=0,
         action="CONFIRM",
         final_customer_id="PN2.001",
         final_meter_reading="63751",

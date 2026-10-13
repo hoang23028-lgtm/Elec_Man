@@ -2,7 +2,7 @@ from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import DateTime, Float, ForeignKey, Index, Numeric, String
+from sqlalchemy import DateTime, Float, ForeignKey, Index, Integer, Numeric, String
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -17,6 +17,8 @@ class MeterReading(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         Index("ix_meter_readings_training", "review_status", "reviewed_by"),
         Index("ix_meter_readings_customer_match", "customer_match_status", "matched_customer_id"),
     )
+    revision: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
+    __mapper_args__ = {"version_id_col": revision}
     image_id: Mapped[UUID] = mapped_column(
         ForeignKey("images.id", ondelete="RESTRICT"), unique=True
     )

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from app.core.database import get_db
+from app.core.database import get_db, get_read_snapshot_db
 from app.schemas.dashboard import BillingDashboard
 from app.services.dashboard_service import billing_dashboard, statistics
 
@@ -21,7 +21,7 @@ def dashboard_billing(
     year: int | None = Query(default=None, ge=2000, le=2100),
     offset: int = Query(default=0, ge=0),
     limit: int = Query(default=12, ge=1, le=100),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_read_snapshot_db),
 ) -> BillingDashboard:
     """Expose confirmed readings and transparent bill estimates as read-only data."""
     return billing_dashboard(db, customer_id, month, year, offset, limit)

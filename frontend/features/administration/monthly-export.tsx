@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLeaveGuard } from "@/hooks/use-leave-guard";
+import { useLatestRequest } from "@/hooks/use-latest-request";
 
 import { exportConfirmed, type ExportBundle } from "@/services/system";
 
@@ -9,12 +10,32 @@ const today = new Date();
 const currentPeriod = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
 
 export function MonthlyExport({ csrfToken }: { csrfToken: string }) {
+  const request = useLatestRequest();
   const [period, setPeriod] = useState(currentPeriod);
   const [exporting, setExporting] = useState(false);
   const [bundle, setBundle] = useState<ExportBundle | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   useLeaveGuard(false, exporting, "tạo báo cáo tháng");
+
+  useEffect(() => {
+    function invalidateReport() {
+      request.invalidate();
+      setBundle(null);
+      setError(null);
+      setMessage("Dữ liệu chỉ số đã thay đổi. Hãy tạo lại báo cáo để tải bản mới nhất.");
+    }
+    window.addEventListener("confirmed-data-changed", invalidateReport);
+    return () => window.removeEventListener("confirmed-data-changed", invalidateReport);
+  }, [request]);
+
+  function changePeriod(value: string) {
+    request.invalidate();
+    setPeriod(value);
+    setBundle(null);
+    setMessage(null);
+    setError(null);
+  }
 
   async function createReport() {
     if (exporting) return;
@@ -24,16 +45,19 @@ export function MonthlyExport({ csrfToken }: { csrfToken: string }) {
       return;
     }
     setExporting(true);
+    const revision = request.begin();
     setBundle(null);
     setError(null);
     setMessage(null);
     try {
       const result = await exportConfirmed(csrfToken, month, year);
+      if (!request.isCurrent(revision)) return;
       setBundle(result);
       setMessage(
         `Đã tạo báo cáo tháng ${month}/${year} gồm ${result.exported_rows} khách hàng.`,
       );
     } catch (reason) {
+      if (!request.isCurrent(revision)) return;
       setError(reason instanceof Error ? reason.message : "Không thể tạo báo cáo theo tháng.");
     } finally {
       setExporting(false);
@@ -66,12 +90,8 @@ export function MonthlyExport({ csrfToken }: { csrfToken: string }) {
             type="month"
             disabled={exporting}
             value={period}
-            onChange={(event) => {
-              setPeriod(event.target.value);
-              setBundle(null);
-              setMessage(null);
-              setError(null);
-            }}
+            onInput={(event) => changePeriod(event.currentTarget.value)}
+            onChange={(event) => changePeriod(event.target.value)}
             min="2000-01"
             max="2100-12"
             required

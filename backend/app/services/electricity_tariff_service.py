@@ -2,37 +2,15 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import ROUND_HALF_UP, Decimal
 
-MONEY_UNIT = Decimal("1")
-REDUCED_VAT_START = date(2025, 7, 1)
-REDUCED_VAT_END = date(2026, 12, 31)
-
-RESIDENTIAL_TIERS = (
-    (Decimal("50"), Decimal("1984")),
-    (Decimal("50"), Decimal("2050")),
-    (Decimal("100"), Decimal("2380")),
-    (Decimal("100"), Decimal("2998")),
-    (Decimal("100"), Decimal("3350")),
-    (None, Decimal("3460")),
+from app.services.electricity_billing_policy import (
+    TariffVersion,
+    billing_unavailable_reason,
+    normalize_purpose,
+    tariff_for_month,
+    vat_for_month,
 )
 
-TIME_OF_USE_TARIFFS = {
-    "SAN_XUAT": {
-        "AT_LEAST_110_KV": {"NORMAL": 1811, "OFF_PEAK": 1146, "PEAK": 3266},
-        "22_TO_UNDER_110_KV": {"NORMAL": 1833, "OFF_PEAK": 1190, "PEAK": 3398},
-        "6_TO_UNDER_22_KV": {"NORMAL": 1899, "OFF_PEAK": 1234, "PEAK": 3508},
-        "UNDER_6_KV": {"NORMAL": 1987, "OFF_PEAK": 1300, "PEAK": 3640},
-    },
-    "KINH_DOANH": {
-        "AT_LEAST_22_KV": {"NORMAL": 2887, "OFF_PEAK": 1609, "PEAK": 5025},
-        "6_TO_UNDER_22_KV": {"NORMAL": 3108, "OFF_PEAK": 1829, "PEAK": 5202},
-        "UNDER_6_KV": {"NORMAL": 3152, "OFF_PEAK": 1918, "PEAK": 5422},
-    },
-}
-
-ADMINISTRATIVE_TARIFFS = {
-    "TRUONG_HOC_Y_TE": {"AT_LEAST_6_KV": 1940, "UNDER_6_KV": 2072},
-    "UB_HANH_CHINH": {"AT_LEAST_6_KV": 2138, "UNDER_6_KV": 2226},
-}
+MONEY_UNIT = Decimal("1")
 
 
 @dataclass(frozen=True)
@@ -43,25 +21,25 @@ class ElectricityBill:
     vat_rate: Decimal
     tariff_label: str
     estimated: bool
+    tariff_version: str
+    tariff_source_url: str
+    vat_policy: str
+    vat_source_url: str
 
 
-def vat_rate_for(reading_at: date | datetime) -> Decimal:
-    effective_date = reading_at.date() if isinstance(reading_at, datetime) else reading_at
-    return (
-        Decimal("0.08")
-        if REDUCED_VAT_START <= effective_date <= REDUCED_VAT_END
-        else Decimal("0.10")
-    )
+def vat_rate_for(reading_at: date | datetime) -> Decimal | None:
+    version = vat_for_month(reading_at)
+    return version.rate if version else None
 
 
 def _round_money(value: Decimal) -> int:
     return int(value.quantize(MONEY_UNIT, rounding=ROUND_HALF_UP))
 
 
-def _residential_charge(consumption: Decimal) -> Decimal:
+def _residential_charge(consumption: Decimal, tariff: TariffVersion) -> Decimal:
     remaining = consumption
     charge = Decimal("0")
-    for allowance, price in RESIDENTIAL_TIERS:
+    for allowance, price in tariff.residential_tiers:
         quantity = remaining if allowance is None else min(remaining, allowance)
         charge += quantity * price
         remaining -= quantity
@@ -70,47 +48,40 @@ def _residential_charge(consumption: Decimal) -> Decimal:
     return charge
 
 
-def _purpose_tariff(usage_purpose: str) -> tuple[str, int] | None:
-    purpose = usage_purpose.strip().upper()
-    if purpose in {"HO_SAN_XUAT", "SAN_XUAT"}:
-        return "Sản xuất dưới 6 kV, giờ bình thường", 1987
-    if purpose in {"HO_KINH_DOANH", "KINH_DOANH", "VIETTEL"}:
-        return "Kinh doanh dưới 6 kV, giờ bình thường", 3152
-    if purpose == "TRUONG_HOC_Y_TE":
-        return "Trường học/Y tế dưới 6 kV", 2072
-    if purpose == "UB_HANH_CHINH":
-        return "Hành chính sự nghiệp dưới 6 kV", 2226
-    return None
-
-
 def calculate_electricity_bill(
     consumption_kwh: Decimal,
     usage_purpose: str,
     reading_at: date | datetime,
 ) -> ElectricityBill | None:
-    if consumption_kwh < 0:
+    """Estimate one calendar month's bill, refusing unresolved tariff transitions."""
+    if billing_unavailable_reason(consumption_kwh, usage_purpose, reading_at):
         return None
-    purpose = usage_purpose.strip().upper()
+    tariff = tariff_for_month(reading_at)
+    vat = vat_for_month(reading_at)
+    assert tariff is not None and vat is not None
+    purpose = normalize_purpose(usage_purpose)
     if purpose == "SINH_HOAT":
-        energy_charge = _residential_charge(consumption_kwh)
+        energy_charge = _residential_charge(consumption_kwh, tariff)
         tariff_label = "Sinh hoạt lũy tiến 6 bậc"
         estimated = False
     else:
-        tariff = _purpose_tariff(purpose)
-        if tariff is None:
-            return None
-        tariff_label, unit_price = tariff
+        flat = tariff.flat_tariff(purpose)
+        assert flat is not None
+        tariff_label, unit_price = flat
         energy_charge = consumption_kwh * Decimal(unit_price)
         estimated = True
 
     rounded_energy = _round_money(energy_charge)
-    vat_rate = vat_rate_for(reading_at)
-    vat_amount = _round_money(Decimal(rounded_energy) * vat_rate)
+    vat_amount = _round_money(Decimal(rounded_energy) * vat.rate)
     return ElectricityBill(
         energy_charge_before_vat=rounded_energy,
         vat_amount=vat_amount,
         total_amount=rounded_energy + vat_amount,
-        vat_rate=vat_rate,
+        vat_rate=vat.rate,
         tariff_label=tariff_label,
         estimated=estimated,
+        tariff_version=tariff.code,
+        tariff_source_url=tariff.source_url,
+        vat_policy=vat.code,
+        vat_source_url=vat.source_url,
     )

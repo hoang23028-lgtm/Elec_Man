@@ -1,0 +1,11 @@
+[
+  {
+    "ma_khach_hang": "DEMO.001",
+    "ho_ten": "Khách hàng mẫu 1 — dữ liệu giả",
+    "dia_chi": "Địa chỉ minh họa, không phải dữ liệu thực",
+    "tuyen_dien": "TUYEN-DEMO",
+    "so_seri_cong_to": "DEMO-METER-001",
+    "chi_so_khoi_tao": 1000,
+    "muc_dich_su_dung": "Sinh hoạt"
+  }
+]

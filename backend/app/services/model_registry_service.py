@@ -1,9 +1,10 @@
 from datetime import UTC, datetime
 from hashlib import sha256
+from math import isfinite
 from pathlib import Path
 
 from fastapi import HTTPException, status
-from sqlalchemy import select, update
+from sqlalchemy import select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -16,6 +17,7 @@ from app.schemas.model_registry import ModelCreate, ModelRow
 READING_REGION_MODEL_TYPES = {"reading_region_ridge"}
 METER_LOCATOR_MODEL_TYPES = {"meter_locator_ridge"}
 SUPPORTED_MODEL_TYPES = READING_REGION_MODEL_TYPES | METER_LOCATOR_MODEL_TYPES
+MODEL_ACTIVATION_LOCK = 73051028
 
 
 def _row(record: ModelRecord) -> ModelRow:
@@ -62,20 +64,40 @@ def _verified_model_path(relative_path: str, claimed_sha256: str) -> Path:
 
 
 def _validate_activation_metrics(record: ModelRecord) -> None:
+    metrics = record.metrics_json
+    if metrics.get("validation_groups_verified") is not True or (
+        not isinstance(metrics.get("validation_images"), int)
+        or isinstance(metrics.get("validation_images"), bool)
+        or metrics["validation_images"] < 30
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=(
+                "Cần ít nhất 30 ảnh kiểm định tách theo nhóm công tơ "
+                "đã xác minh trước khi kích hoạt."
+            ),
+        )
+
+    def validated_score(key):
+        value = metrics.get(key)
+        if isinstance(value, bool) or not isinstance(value, int | float) or not isfinite(value):
+            return 0.0
+        return float(value) if 0 <= value <= 1 else 0.0
+
     if record.model_type in METER_LOCATOR_MODEL_TYPES:
-        meter_accuracy = float(record.metrics_json.get("validation_meter_region_accuracy") or 0)
+        meter_accuracy = validated_score("validation_meter_region_accuracy")
         if meter_accuracy < 0.8:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail="Model định vị công tơ chỉ được kích hoạt khi độ chính xác đạt ít nhất 80%.",
+                detail="Mô hình định vị công tơ cần điểm đánh giá vùng tối thiểu 0,8 để kích hoạt.",
             )
         return
     if record.model_type in READING_REGION_MODEL_TYPES:
-        region_accuracy = float(record.metrics_json.get("validation_region_accuracy") or 0)
+        region_accuracy = validated_score("validation_region_accuracy")
         if region_accuracy < 0.8:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail="Model vùng chỉ số chỉ được kích hoạt khi độ chính xác đạt ít nhất 80%.",
+                detail="Mô hình vùng chỉ số cần điểm đánh giá vùng tối thiểu 0,8 để kích hoạt.",
             )
         return
     raise HTTPException(
@@ -127,6 +149,10 @@ def register_model(
 
 
 def activate_model(db: Session, model_id: object, user: User, ip_address: str | None) -> ModelRow:
+    # Serialize activation before reading/archive updates: two admins must not
+    # leave two ACTIVE models of the same type after simultaneous requests.
+    if db.get_bind().dialect.name == "postgresql":
+        db.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": MODEL_ACTIVATION_LOCK})
     record = db.get(ModelRecord, model_id)
     if record is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy mô hình.")

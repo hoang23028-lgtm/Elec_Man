@@ -10,6 +10,8 @@ class SettingRow(BaseModel):
     value: SettingValue
     description: str
     updated_at: datetime
+    editable: bool = True
+    source: str = "database"
 
 
 class SettingsUpdate(BaseModel):

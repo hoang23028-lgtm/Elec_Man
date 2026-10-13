@@ -102,3 +102,56 @@ def test_customer_code_cannot_escape_reviewed_directory(
 
     assert relative_path.startswith("reviewed/25-09-2026/")
     assert (tmp_path / relative_path).resolve().is_relative_to((tmp_path / "reviewed").resolve())
+
+
+@pytest.mark.parametrize("ending", ["rollback", "close", "commit"])
+def test_rename_keeps_old_copy_until_transaction_finishes(monkeypatch, tmp_path, ending):
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session
+
+    _configure_storage(monkeypatch, tmp_path)
+    reviewed_at = datetime(2026, 9, 25, tzinfo=UTC)
+    image = SimpleNamespace(relative_path="original/meter.jpg", reviewed_path=None)
+    old_path = reviewed_image_service.archive_reviewed_image(image, "PN2.001", reviewed_at)
+    db = Session(create_engine("sqlite://"))
+    new_path = reviewed_image_service.archive_reviewed_image(image, "PN2.009", reviewed_at, db)
+    assert (tmp_path / old_path).exists()
+    assert (tmp_path / new_path).exists()
+    getattr(db, ending)()
+    assert (tmp_path / old_path).exists() == (ending != "commit")
+    assert (tmp_path / new_path).exists() == (ending == "commit")
+    db.close()
+
+
+def test_reject_rollback_preserves_copy(monkeypatch, tmp_path):
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session
+
+    _configure_storage(monkeypatch, tmp_path)
+    image = SimpleNamespace(relative_path="original/meter.jpg", reviewed_path=None)
+    path = reviewed_image_service.archive_reviewed_image(
+        image, "PN2.001", datetime(2026, 9, 25, tzinfo=UTC)
+    )
+    with Session(create_engine("sqlite://")) as db:
+        reviewed_image_service.remove_reviewed_image(image, db)
+        assert (tmp_path / path).exists()
+        db.rollback()
+    assert (tmp_path / path).exists()
+
+
+def test_savepoint_rejected_before_creating_or_deleting_files(monkeypatch, tmp_path):
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session
+
+    _configure_storage(monkeypatch, tmp_path)
+    image = SimpleNamespace(relative_path="original/meter.jpg", reviewed_path=None)
+    now = datetime(2026, 9, 25, tzinfo=UTC)
+    path = reviewed_image_service.archive_reviewed_image(image, "PN2.001", now)
+    with Session(create_engine("sqlite://")) as db, db.begin_nested():
+        with pytest.raises(RuntimeError, match="root database transaction"):
+            reviewed_image_service.archive_reviewed_image(image, "PN2.009", now, db)
+        with pytest.raises(RuntimeError, match="root database transaction"):
+            reviewed_image_service.remove_reviewed_image(image, db)
+    assert image.reviewed_path == path
+    assert (tmp_path / path).is_file()
+    assert len(list((tmp_path / "reviewed").rglob("*.jpg"))) == 1

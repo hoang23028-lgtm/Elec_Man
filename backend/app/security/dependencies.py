@@ -49,10 +49,19 @@ def get_current_user(context: AuthContext = Depends(get_auth_context)) -> User:
 
 
 def require_admin(user: User = Depends(get_current_user)) -> User:
-    if user.role != "ADMIN":
+    if user.role not in {"ADMIN", "SUPER_ADMIN"}:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Tài khoản không có quyền quản trị.",
+        )
+    return user
+
+
+def require_super_admin(user: User = Depends(get_current_user)) -> User:
+    if user.role != "SUPER_ADMIN":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Chức năng chỉ dành cho quản trị toàn hệ thống.",
         )
     return user
 

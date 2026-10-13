@@ -10,7 +10,7 @@ class UserCreate(BaseModel):
     username: str = Field(min_length=3, max_length=64, pattern=USERNAME_PATTERN)
     password: str = Field(min_length=12, max_length=256)
     is_active: bool = True
-    role: str = Field(default="ADMIN", pattern=r"^(ADMIN|VIEWER)$")
+    role: str = Field(default="VIEWER", pattern=r"^(SUPER_ADMIN|ADMIN|VIEWER)$")
 
     @field_validator("username")
     @classmethod
@@ -23,7 +23,7 @@ class UserUpdate(BaseModel):
         default=None, min_length=3, max_length=64, pattern=USERNAME_PATTERN
     )
     is_active: bool | None = None
-    role: str | None = Field(default=None, pattern=r"^(ADMIN|VIEWER)$")
+    role: str | None = Field(default=None, pattern=r"^(SUPER_ADMIN|ADMIN|VIEWER)$")
 
     @field_validator("username")
     @classmethod

@@ -1,63 +1,67 @@
 # Hệ thống AI quản lý đồng hồ điện
 
-Hệ thống web nội bộ dành cho các tài khoản quản trị, hỗ trợ xử lý ảnh đồng hồ điện theo lô và kiểm duyệt kết quả. Tự động xác nhận hiện bị chặn cho đến khi độ chính xác được đánh giá độc lập.
+Ứng dụng tiếng Việt xử lý ảnh công tơ theo lô, gắn nhãn/kiểm duyệt, đối chiếu khách hàng, lưu chỉ số từng tháng và xuất JSON/Excel. Bản chia sẻ chuẩn ở nhánh **master** của [Elec_Man](https://github.com/hoang23028-lgtm/Elec_Man).
 
-## Trạng thái hiện tại
+## Chạy ngay trên máy mới
 
-Tầng đọc chỉ số vận hành dùng đồng thuận PP-OCRv6 small và PARSeq-tiny. Hai model chạy trong dịch vụ nội bộ riêng; kết quả xung đột hoặc không hợp lệ luôn chuyển kiểm duyệt.
+Cài Git và Docker (Linux containers + Compose), mở Docker, rồi:
 
-Kết quả phải được kiểm duyệt và chọn kỳ tháng trước khi lưu chính thức. Xem [chính sách độ tin cậy và kế hoạch kiểm thử AI](docs/AI_RELIABILITY.md). Các chỉ số validation hiện tại chưa phải độ chính xác toàn bộ quy trình trên ảnh thực tế.
-
-Nguyên mẫu có thể chạy gồm giao diện Next.js, backend FastAPI, PostgreSQL, migration Alembic, lưu trữ ảnh cục bộ có xác thực, hàng đợi tác vụ PostgreSQL, tiến trình OCR riêng, đối chiếu dữ liệu khách hàng, quy trình kiểm duyệt, bảng điều khiển, xuất JSON/Excel, proxy Nginx, nhật ký có cấu trúc và kiểm tra trạng thái dịch vụ.
-
-## Khởi động
-
-Sao chép `.env.example` thành `.env`, thay `POSTGRES_PASSWORD` và mật khẩu trong `DATABASE_URL` bằng cùng một mật khẩu mạnh, sau đó chạy:
-
-```powershell
-docker compose up --build
+```text
+git clone https://github.com/hoang23028-lgtm/Elec_Man.git
+cd Elec_Man
 ```
 
-Mở `http://localhost/`. Endpoint kiểm tra hoạt động của backend là `/api/v1/health/live`; endpoint kiểm tra sẵn sàng là `/api/v1/health/ready`.
+Windows:
 
-Để cài trên một máy mới từ đầu, làm theo [hướng dẫn cài đặt từng bước](docs/installation.md). Cấu trúc và quy ước đặt source code được mô tả trong [tài liệu cấu trúc](docs/source-structure.md).
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\start.ps1
+```
 
-## Migration và kiểm thử
+Linux/macOS:
 
-Chạy migration bằng `docker compose exec backend alembic upgrade head`. Kiểm thử Python yêu cầu Python 3.12 trở lên cùng các dependency phát triển của backend, sau đó chạy `pytest backend/tests`.
+```bash
+bash scripts/start.sh
+```
 
-GitHub Actions tự động kiểm tra backend, frontend, AI, Docker Compose, secret policy và CodeQL. Dependabot theo dõi dependency hằng tuần. Xem [checklist phát hành](docs/release-checklist.md) trước khi đưa hệ thống ra Internet.
+Bộ cài tự tạo cấu hình riêng bằng secret ngẫu nhiên, build các dịch vụ/trọng số, áp dụng migration và chờ readiness. Lần đầu nhập mật khẩu 12–256 ký tự cho tài khoản **admin**; không có mật khẩu mặc định. Mở [http://localhost/](http://localhost/).
 
-## Khởi tạo quản trị viên
+Lần build đầu cần Internet và có thể lâu vì tải hai bộ đọc AI. Không cần cài Python/Node/PostgreSQL trên host để dùng Docker. [Hướng dẫn cài chi tiết](docs/installation.md) có đổi cổng, chọn tên quản trị và xử lý 502/build/login.
 
-Sau khi áp dụng migration, truyền tạm thời `ADMIN_INITIAL_PASSWORD` vào lệnh khởi tạo trong container backend theo [hướng dẫn cài đặt](docs/installation.md). Sau khi đăng nhập, quản trị viên có thể thêm, sửa, khóa, xóa mềm và đổi mật khẩu tài khoản tại trang Quản trị. Đăng ký công khai chỉ tạo tài khoản chưa kích hoạt; một quản trị viên hiện hữu phải kích hoạt trước khi tài khoản có thể đăng nhập. Xem thêm [tài liệu bảo mật](docs/security.md). Hệ thống không cung cấp mật khẩu mặc định.
+## Sử dụng
 
-## Tải ảnh
+1. Quản trị → nhập khách hàng JSON hoặc thêm thủ công. Có [mẫu dữ liệu giả](examples/customers.json).
+2. Vận hành → tải ảnh → kiểm tra/khoanh vùng → lưu nhãn hoặc xác nhận mã, chỉ số nguyên và tháng.
+3. Quản trị → chỉ số tháng → tải báo cáo JSON/Excel; Tổng quan hiển thị thống kê/tiền tạm tính.
 
-Hệ thống hỗ trợ tải ảnh theo lô đã xác thực, mỗi yêu cầu tải một ảnh. Ảnh gốc được lưu cục bộ bằng tên UUID và chỉ có thể xem qua endpoint đã xác thực. Xem [tài liệu lưu trữ](docs/storage.md).
+Guest/VIEWER chỉ xem Tổng quan. ADMIN làm nghiệp vụ. SUPER_ADMIN quản lý thêm tài khoản, huấn luyện, cấu hình và truy vết. [Hướng dẫn sử dụng](docs/usage.md) · [Ma trận quyền](docs/roles.md).
 
-## Tác vụ xử lý
+## AI và dữ liệu: điều gì có sẵn?
 
-Hàng đợi dựa trên PostgreSQL xử lý ảnh bên ngoài yêu cầu HTTP. Xem [tài liệu tác vụ](docs/jobs.md).
+- Bộ đọc toàn chuỗi **PP-OCRv6 small + PARSeq-tiny** trong hai dịch vụ nội bộ; không mock, không gửi ảnh lên cloud.
+- Tiền xử lý/crop OpenCV, OCR mã khách hàng, đối chiếu database; khoanh bốn góc và lưu nhãn thủ công.
+- Trainer huấn luyện **hai bộ định vị Ridge**, xuất crop dataset và benchmark reader pretrained. **Chưa tự fine-tune PP-OCR/PARSeq.**
+- Tất cả kết quả cần con người xác nhận. Score OCR chưa là xác suất đúng; đồng thuận không bảo đảm crop đúng.
+- Máy mới có **database rỗng**, không kèm khách hàng thật, ảnh/nhãn, backup hoặc model định vị riêng. Chỉ thêm data chưa đủ để chứng minh AI đạt độ chính xác sản xuất.
 
-## Quy trình AI
+[Pipeline](docs/ai-pipeline.md) · [Huấn luyện](docs/training.md) · [Độ tin cậy](docs/ai-reliability.md).
 
-Pipeline dùng OpenCV cho tiền xử lý/hiệu chỉnh phối cảnh, RapidOCR cho mã khách hàng và đồng thuận PP-OCRv6 small + PARSeq-tiny cho toàn chuỗi số điện. Không còn bộ phân loại HOG từng ô hoặc Tesseract fallback cho số điện. Xem [tài liệu quy trình AI](docs/ai-pipeline.md) và [kết quả benchmark](docs/MODERN_READER_BENCHMARK_20261001.md).
+## Vận hành và bảo mật
 
-## Dữ liệu và huấn luyện
+Docker Compose duy nhất gồm Next.js, FastAPI, PostgreSQL, worker/trainer, hai reader và Nginx. Database/ảnh/model nằm trong ba volume lâu dài; dừng container không xóa data. Migrations và lịch sử Git được giữ để truy vết, không phải các bản ứng dụng cũ phải chạy.
 
-Ảnh tải lên và được con người xác nhận tự động trở thành mẫu đủ điều kiện trong PostgreSQL. Trainer độc lập dùng nhãn bốn góc để huấn luyện hai tầng định vị, đánh giá validation và đăng ký artifact có checksum. Bộ đọc chuỗi hiện đại dùng trọng số dựng sẵn, còn dữ liệu mới được dùng để đo exact-match/coverage và hiệu chỉnh chính sách xác nhận. Xem [hướng dẫn huấn luyện](docs/training.md).
+```text
+docker compose --project-name elec_man --env-file .env stop
+docker compose --project-name elec_man --env-file .env up -d --wait --wait-timeout 300
+```
 
-## Kiểm duyệt
+Mặc định chỉ mở HTTP trên loopback. Trước Internet phải cấu hình HTTPS, quyết định dữ liệu dashboard được công khai hay không, backup ngoài máy và giám sát. Không commit .env, password, ảnh hay dữ liệu khách hàng. Không dùng down -v/volume prune để sửa lỗi.
 
-Trang Vận hành hiển thị vùng tải ảnh toàn chiều ngang, sau đó là hàng chờ kiểm duyệt và danh sách đã xác nhận song song. Trang Các lô dữ liệu cho phép mở từng lô để xem danh sách ảnh, trạng thái và kết quả nhận diện. Hệ thống tách biệt đầu ra AI bất biến với giá trị cuối cùng, đồng thời ghi lại mọi xác nhận, từ chối và chỉnh sửa; xem [tài liệu kiểm duyệt](docs/review.md).
+[Triển khai/cập nhật](docs/deployment.md) · [Bảo mật](docs/security.md) · [Backup/restore](docs/backup-restore.md).
 
-## Bảng điều khiển và xuất dữ liệu
+## Phát triển và tài liệu
 
-Bảng điều khiển cung cấp số liệu tổng hợp công khai ở chế độ chỉ xem. Quản trị viên nhập danh sách khách hàng JSON và tạo đồng thời báo cáo JSON, Excel theo tháng tại trang Quản trị. Hai tệp xuất có cùng bảy trường như dữ liệu khách hàng đầu vào; xem [tài liệu xuất dữ liệu](docs/export.md).
+[Danh mục tài liệu đầy đủ](docs/README.md) · [Cấu trúc source](docs/source-structure.md) · [Phát triển](docs/development.md) · [Kiểm thử](docs/testing.md).
 
-## Quản trị và sao lưu
+CI kiểm backend, PostgreSQL integration, frontend, AI, Compose, bootstrap/docs và secret policy; CodeQL riêng. Báo cáo theo ngày tại docs/reports không dùng benchmark nhỏ như cam kết accuracy.
 
-Hệ thống gồm cấu hình có kiểm toán, kho mô hình được xác minh checksum, đánh giá AI vận hành và lịch sử kiểm toán. Xem [tài liệu quản trị](docs/administration.md) và [sao lưu/khôi phục](docs/backup-restore.md).
-
-PostgreSQL chủ động không mở cổng ra ngoài. Trong môi trường sản xuất, hãy dùng endpoint HTTPS nội bộ và chỉ bật HSTS sau khi TLS được xác minh. Docker Desktop phải đang chạy trước khi build hoặc khởi động hệ thống.
+Repo chưa có giấy phép mã nguồn tổng quát; thống nhất với chủ dự án trước phân phối lại. Trọng số/dependency có giấy phép riêng.

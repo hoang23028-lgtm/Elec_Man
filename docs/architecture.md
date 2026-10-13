@@ -1,5 +1,38 @@
-# Kiến trúc
+# Kiến trúc hệ thống
 
-Đây là mô hình triển khai đơn giản trên một máy chủ. Nginx định tuyến lưu lượng trình duyệt cùng nguồn đến Next.js và FastAPI. FastAPI giao tiếp với PostgreSQL và vùng lưu trữ cục bộ gắn volume. Một tiến trình xử lý riêng nhận tác vụ từ PostgreSQL. PostgreSQL chỉ khả dụng trong mạng Docker; Nginx là dịch vụ duy nhất công khai cổng.
+## Thành phần
 
-Các dependency AI nặng được tách khỏi API và worker. Hai container nội bộ `reader-ppocr` và `reader-parseq` giữ model trong bộ nhớ, nhận vùng chỉ số đã hiệu chỉnh và trả dự đoán độc lập. Worker gọi hai dịch vụ song song rồi chỉ chấp nhận chuỗi khi chúng đồng thuận. Container `trainer` đọc ảnh, ghi artifact định vị vào volume model và cập nhật trạng thái phiên huấn luyện trong PostgreSQL. Worker chỉ đọc volume model và xác minh checksum trước khi nạp artifact đang hoạt động.
+```text
+Trình duyệt → Nginx → Next.js
+                  → FastAPI → PostgreSQL
+                         ↘ kho ảnh (volume)
+PostgreSQL job queue → worker → PP-OCR reader
+                            → PARSeq reader
+PostgreSQL training queue → trainer → kho model/dataset (volume)
+```
+
+Nginx là cổng vào duy nhất. PostgreSQL không publish cổng host; reader không có database hoặc volume ảnh. Frontend không giữ secret/backend credentials.
+
+| Dịch vụ Compose | Nhiệm vụ |
+|---|---|
+| postgres | Khách hàng, tài khoản/phiên/audit, metadata ảnh, nhãn, job/train queue, chỉ số tháng/ảnh BYTEA |
+| storage-init / model-init | Cấp quyền volume cho UID 10001, chạy một lần |
+| migrate | Alembic upgrade head trước ứng dụng, chạy một lần |
+| backend | API, xác thực/phân quyền/CSRF, upload, review, dashboard, report |
+| worker | Nhận job có khóa SKIP LOCKED, chạy pipeline và lưu đề xuất bất biến |
+| reader-ppocr / reader-parseq | Model pretrained nạp trong tiến trình, trả chuỗi số |
+| trainer | Nhận phiên train, huấn luyện định vị/export crop/benchmark, registry TESTING |
+| frontend | UI tiếng Việt, dữ liệu/API cùng origin, route theo vai trò |
+| nginx | Proxy, giới hạn request, security headers, healthcheck đường vào |
+
+## Vòng đời dữ liệu
+
+Upload tạo metadata/file gốc/job. Job thành công lưu kết quả AI, **không** tạo chỉ số tháng. Con người lưu vùng/nhãn riêng để học; xác nhận mã+số+tháng tạo bản ghi nghiệp vụ và bản sao ảnh chuẩn tên khách hàng. Dashboard/export dùng bảng đã xác nhận. Từ chối/sửa dữ liệu có audit và kiểm soát revision.
+
+Ba volume lâu dài: postgres_data, storage_data, model_data, đều có tiền tố project. Không có volume log; stdout được Docker xoay vòng. Mạng edge dùng frontend/nginx, application nối nginx/backend, data internal nối các tiến trình dữ liệu.
+
+## Giới hạn thiết kế
+
+Đây là triển khai một host bằng Compose, không phải cluster HA. Login rate limit lưu bộ nhớ một API process; scale nhiều replica cần limiter chung. PostgreSQL và file volume không có distributed transaction; thao tác file có cleanup khi rollback nhưng crash cứng có thể để bản sao dư. Backup cần tạm dừng writer để nhất quán cả ba kho.
+
+Job/training có khóa và kiểm thử cạnh tranh trên PostgreSQL; điều đó không chứng minh mọi mức tải lớn đều đạt SLA. Chưa có fine-tune deep reader tích hợp hay tự xác nhận an toàn. Xem [bảo mật](security.md), [backup](backup-restore.md) và [pipeline](ai-pipeline.md).

@@ -49,7 +49,11 @@ def test_region_model_activation_requires_region_accuracy() -> None:
         file_path="test/region.npz",
         sha256="0" * 64,
         status="TESTING",
-        metrics_json={"validation_region_accuracy": 0.79},
+        metrics_json={
+            "validation_region_accuracy": 0.79,
+            "validation_groups_verified": True,
+            "validation_images": 30,
+        },
     )
     with pytest.raises(HTTPException):
         _validate_activation_metrics(record)
@@ -66,7 +70,11 @@ def test_meter_locator_activation_requires_region_accuracy() -> None:
         file_path="test/meter.npz",
         sha256="0" * 64,
         status="TESTING",
-        metrics_json={"validation_meter_region_accuracy": 0.79},
+        metrics_json={
+            "validation_meter_region_accuracy": 0.79,
+            "validation_groups_verified": True,
+            "validation_images": 30,
+        },
     )
     with pytest.raises(HTTPException):
         _validate_activation_metrics(record)

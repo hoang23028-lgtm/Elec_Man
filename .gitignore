@@ -37,3 +37,6 @@ Thumbs.db
 .agents/
 .tmp-ocr/
 .codex-tmp/
+tls/
+compose.production.yaml
+docker/nginx.production.conf

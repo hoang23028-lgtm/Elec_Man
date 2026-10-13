@@ -29,6 +29,12 @@ class BillingRecord(BaseModel):
     estimated_amount_vnd: int | None
     tariff_label: str | None
     tariff_estimated: bool
+    tariff_version: str | None
+    tariff_source_url: str | None
+    vat_rate_percent: int | None
+    vat_policy: str | None
+    vat_source_url: str | None
+    billing_note: str | None
 
 
 class BillingTrendPoint(BaseModel):
@@ -46,7 +52,7 @@ class BillingDashboard(BaseModel):
     records: list[BillingRecord]
     trend: list[BillingTrendPoint]
     available_years: list[int]
-    vat_rate_percent: int
+    vat_rate_percent: int | None
     total: int
     offset: int
     limit: int

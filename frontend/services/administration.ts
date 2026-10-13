@@ -1,6 +1,8 @@
 import { apiJson } from "@/services/http";
 
 export type Setting = {
+  editable: boolean;
+  source: "database" | "deployment";
   key: string;
   value: string | number | boolean | null;
   description: string;

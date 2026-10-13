@@ -29,6 +29,7 @@ const actions = [
   "AUTO_CONFIRM_RESULT",
   "UPDATE_CONFIRMED_RESULT",
   "REJECT_RESULT",
+  "REOPEN_RESULT",
   "EXPORT_RECONCILIATION_REPORT",
   "IMPORT_CUSTOMERS",
   "CREATE_CUSTOMER",
@@ -66,6 +67,7 @@ const actionLabels: Record<string, string> = {
   AUTO_CONFIRM_RESULT: "AI tự động xác nhận",
   UPDATE_CONFIRMED_RESULT: "Cập nhật kết quả đã xác nhận",
   REJECT_RESULT: "Từ chối kết quả",
+  REOPEN_RESULT: "Khôi phục ảnh cần xử lý",
   EXPORT_RECONCILIATION_REPORT: "Xuất báo cáo đối chiếu",
   IMPORT_CUSTOMERS: "Nhập dữ liệu khách hàng",
   CREATE_CUSTOMER: "Thêm khách hàng thủ công",
@@ -95,6 +97,10 @@ const targetLabels: Record<string, string> = {
 };
 
 const detailLabels: Record<string, string> = {
+  timings_ms: "Thời gian từng bước (ms)",
+  skipped_stages: "Các bước được bỏ qua",
+  reader_diagnostics: "Chẩn đoán bộ đọc chỉ số",
+  human_review_preserved: "Giữ nguyên nhãn người dùng đã kiểm tra",
   trigger: "Nguồn khởi chạy",
   sample_count: "Tổng số mẫu",
   minimum_samples: "Số mẫu tối thiểu",
@@ -262,7 +268,7 @@ function AuditDetails({ details }: { details: Record<string, unknown> }) {
     <details className="audit-details">
       <summary>
         {changes.length
-          ? `${changes.length} thay đổi thủ công · Xem chi tiết`
+          ? `${changes.length} thay đổi dữ liệu · Xem chi tiết`
           : `${entries.length} thông tin · Xem chi tiết`}
       </summary>
       {changes.length > 0 && (

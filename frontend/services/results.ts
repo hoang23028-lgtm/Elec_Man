@@ -8,6 +8,7 @@ export type ReadingBoundingBox = {
 export type ReadingPoint = { x: number; y: number };
 export type ReadingPolygon = { points: ReadingPoint[] };
 export type Result = {
+  revision: number;
   reading_month: string | null;
   image_id: string;
   original_filename: string;
@@ -78,18 +79,20 @@ export async function getResultsPage(
 export async function reviewResult(
   id: string,
   csrf: string,
-  action: "CONFIRM" | "REJECT",
+  action: "CONFIRM" | "REJECT" | "REOPEN",
   customer: string,
   reading: string,
   readingPolygon: ReadingPolygon | null,
   readingMonth: string,
   meterPolygon?: ReadingPolygon | null,
+  expectedRevision?: number,
 ): Promise<void> {
   await apiFetch(`/results/${id}/review`, {
     method: "PUT",
     headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
     body: JSON.stringify({
       action,
+      expected_revision: expectedRevision,
       final_customer_id: customer || null,
       final_meter_reading: reading || null,
       reading_polygon: readingPolygon,
@@ -118,26 +121,28 @@ export async function saveTrainingLabel(
   reading: string,
   readingPolygon: ReadingPolygon,
   meterPolygon: ReadingPolygon | null,
-): Promise<void> {
-  await apiFetch(`/results/${id}/training-label`, {
+  expectedRevision: number,
+): Promise<{ revision: number }> {
+  const response = await apiFetch(`/results/${id}/training-label`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
     body: JSON.stringify({
+      expected_revision: expectedRevision,
       final_meter_reading: reading,
       reading_polygon: readingPolygon,
       meter_polygon: meterPolygon,
     }),
   }, "Không thể lưu nhãn huấn luyện.");
+  return response.json() as Promise<{ revision: number }>;
 }
 
-export async function saveMeterRegion(id: string, csrf: string, polygon: ReadingPolygon): Promise<ReadingPolygon> {
+export async function saveMeterRegion(id: string, csrf: string, polygon: ReadingPolygon, expectedRevision: number): Promise<{meter_polygon: ReadingPolygon; revision: number}> {
   const response = await apiFetch(`/results/${id}/meter-region`, {
     method: "PUT",
     headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
-    body: JSON.stringify({ meter_polygon: polygon }),
+    body: JSON.stringify({ meter_polygon: polygon, expected_revision: expectedRevision }),
   }, "Không lưu được vùng công tơ. Vùng bạn vẽ vẫn được giữ để thử lại.");
-  const result = await response.json() as { meter_polygon: ReadingPolygon };
-  return result.meter_polygon;
+  return response.json() as Promise<{ meter_polygon: ReadingPolygon; revision: number }>;
 }
 
 export async function getRecognitionStatus(id: string): Promise<RecognitionStatus> {

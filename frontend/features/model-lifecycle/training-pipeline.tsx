@@ -103,6 +103,12 @@ export function TrainingPipeline({ csrfToken }: { csrfToken: string }) {
       </div>
       {error && <p className="error" role="alert">{error}</p>}
       {notice && <p className="notice" role="status">{notice}</p>}
+      {overview?.runs[0]?.status === "FAILED" && <p className="notice" role="status">Huấn luyện tự động đang tạm dừng sau lỗi. Kiểm tra nguyên nhân, sửa dữ liệu hoặc cấu hình rồi bấm Huấn luyện ngay. Chỉ sau một phiên thành công hệ thống mới tự huấn luyện tiếp.</p>}
+      {dataset && <section className="training-readiness" aria-label="Mức sẵn sàng huấn luyện">
+        <div><strong>{active ? "Một phiên đang được xử lý" : dataset.ready ? "Dữ liệu đã đủ điều kiện huấn luyện" : "Cần hoàn thiện dữ liệu huấn luyện"}</strong>
+          <p>{dataset.eligible_samples} mẫu hợp lệ / ngưỡng {dataset.minimum_samples} mẫu. Mẫu cần đủ vùng công tơ, vùng chỉ số và chuỗi số đúng.</p></div>
+        <progress value={Math.min(dataset.eligible_samples, Math.max(1, dataset.minimum_samples))} max={Math.max(1, dataset.minimum_samples)} aria-label="Số mẫu hợp lệ so với ngưỡng huấn luyện" />
+      </section>}
       <div className="metrics training-metrics">
         <div><strong>{dataset?.uploaded_images ?? "—"}</strong><span>Ảnh đã tải</span></div>
         <div><strong>{dataset?.confirmed_images ?? "—"}</strong><span>Đã gắn nhãn</span></div>
@@ -115,7 +121,11 @@ export function TrainingPipeline({ csrfToken }: { csrfToken: string }) {
           : "Tự động huấn luyện đang tắt. Có thể bật trong Cấu hình hệ thống."}
         {" "}Chỉ ảnh duy nhất có số điện đúng, vùng toàn bộ công tơ và vùng dãy số
         đã được người dùng lưu nhãn mới được đưa vào tập huấn luyện; không bắt buộc có mã khách hàng.
+        {" "}Để kiểm định trước khi kích hoạt, cần bổ sung định danh công tơ hoặc mã khách hàng
+        nhằm tách ảnh của cùng một công tơ vào cùng một nhóm, và có ít nhất 30 ảnh kiểm định.
+        Pipeline hiện học vùng ảnh và đánh giá hai bộ đọc có sẵn, chưa tinh chỉnh trọng số bộ đọc chuỗi số.
       </p>
+      <h3>Lịch sử huấn luyện & đánh giá</h3>
       <div className="table-wrap training-table" aria-busy={loading}>
         <table>
           <thead><tr><th className="row-number">STT</th><th>Thời điểm</th><th>Trạng thái</th><th>Tiến trình</th><th>Dataset</th><th>Kết quả</th></tr></thead>

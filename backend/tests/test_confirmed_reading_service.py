@@ -15,10 +15,10 @@ def test_review_rejects_non_month_start_date():
     from app.schemas.result import ReviewRequest
 
     with pytest.raises(ValidationError):
-        ReviewRequest(action="CONFIRM", reading_month="2026-08-15")
-    assert ReviewRequest(action="CONFIRM", reading_month="2026-08-01").reading_month == date(
-        2026, 8, 1
-    )
+        ReviewRequest(expected_revision=0, action="CONFIRM", reading_month="2026-08-15")
+    assert ReviewRequest(
+        expected_revision=0, action="CONFIRM", reading_month="2026-08-01"
+    ).reading_month == date(2026, 8, 1)
 
 
 @pytest.mark.parametrize("selected_month", [None, date(2026, 8, 1)])
@@ -32,7 +32,11 @@ def test_edit_retains_official_month_unless_explicitly_changed(
     monkeypatch.setattr(service, "resolve_storage_path", lambda _: image_path)
     db = MagicMock()
     record = SimpleNamespace(
-        reading_month=date(2026, 7, 1), source_image_id=uuid4(), meter_reading=100
+        reading_month=date(2026, 7, 1),
+        source_image_id=uuid4(),
+        meter_reading=100,
+        customer_id=uuid4(),
+        image_sha256="old",
     )
     db.scalar.side_effect = [record, None]
     image = SimpleNamespace(
@@ -43,12 +47,53 @@ def test_edit_retains_official_month_unless_explicitly_changed(
         sha256="0" * 64,
     )
     reading = SimpleNamespace(reviewed_at=datetime(2026, 9, 29, tzinfo=UTC), reading_value=200)
-    customer = SimpleNamespace(id=uuid4(), customer_code="PN2.001")
+    customer = SimpleNamespace(
+        id=uuid4(), customer_code="PN2.001", initial_reading=50, usage_purpose="SINH_HOAT"
+    )
     saved, changes = save_confirmed_monthly_reading(
         db, image, reading, customer, uuid4(), selected_month
     )
     assert saved.reading_month == (selected_month or date(2026, 7, 1))
     assert changes["reading_month_before"] == "2026-07-01"
+    assert saved.initial_reading_snapshot == 50
+    assert saved.usage_purpose_snapshot == "SINH_HOAT"
+
+
+def test_edit_preserves_billing_snapshot_and_does_not_reread_same_image(monkeypatch):
+    from app.models.confirmed_monthly_reading import ConfirmedMonthlyReading
+    from app.services import confirmed_reading_service as service
+
+    customer_id, image_id = uuid4(), uuid4()
+    record = ConfirmedMonthlyReading(
+        customer_id=customer_id,
+        source_image_id=image_id,
+        reading_month=date(2026, 9, 1),
+        meter_reading=100,
+        image_sha256="unchanged",
+        initial_reading_snapshot=50,
+        usage_purpose_snapshot="SINH_HOAT",
+        image_data=b"original",
+    )
+    db = MagicMock()
+    db.scalar.side_effect = [record, record]
+    read_path = MagicMock(side_effect=AssertionError("Must not reload unchanged image"))
+    monkeypatch.setattr(service, "resolve_storage_path", read_path)
+    customer = SimpleNamespace(
+        id=customer_id, customer_code="PN2.001", initial_reading=999, usage_purpose="KINH_DOANH"
+    )
+    image = SimpleNamespace(
+        id=image_id, sha256="unchanged", original_filename="meter.jpg", mime_type="image/jpeg"
+    )
+    save_confirmed_monthly_reading(
+        db,
+        image,
+        SimpleNamespace(reviewed_at=datetime.now(UTC), reading_value=150),
+        customer,
+        uuid4(),
+    )
+    assert record.initial_reading_snapshot == 50
+    assert record.usage_purpose_snapshot == "SINH_HOAT"
+    assert record.image_data == b"original"
 
 
 def test_first_confirmation_requires_explicit_month():

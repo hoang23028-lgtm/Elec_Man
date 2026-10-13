@@ -1,5 +1,7 @@
 # Benchmark bộ đọc chuỗi hiện đại — 2026-10-01
 
+> Báo cáo lịch sử theo ngày, không phải hướng dẫn bản hiện hành. Xem [danh mục tài liệu](../README.md).
+
 ## Kết luận
 
 PP-OCRv6 small và PARSeq-tiny đều đọc đúng 5/7 vùng chỉ số đã gắn nhãn, trong khi mô hình HOG thử nghiệm trước đó đạt 0/7 chuỗi đúng. Hai model hiện đã thay thế HOG trong pipeline vận hành theo chế độ đồng thuận an toàn. Tập xác nhận chỉ có 7 mẫu, không phải holdout độc lập, nên confidence vẫn bị giới hạn dưới ngưỡng tự xác nhận và kết quả phải qua Human Review.

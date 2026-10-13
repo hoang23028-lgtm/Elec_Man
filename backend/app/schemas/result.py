@@ -87,6 +87,7 @@ class ReadingPolygon(BaseModel):
 
 
 class ResultRow(BaseModel):
+    revision: int = 0
     reading_month: date | None = None
     image_id: UUID
     original_filename: str
@@ -120,12 +121,16 @@ class ResultStatusCounts(BaseModel):
     rejected: int
 
 
-class ReviewRequest(BaseModel):
+class RevisionRequest(BaseModel):
+    expected_revision: int = Field(ge=0)
+
+
+class ReviewRequest(RevisionRequest):
     meter_polygon: ReadingPolygon | None = None
     reading_month: date | None = None
     final_customer_id: str | None = Field(default=None, max_length=128)
     final_meter_reading: str | None = Field(default=None, max_length=64)
-    action: str = Field(pattern="^(CONFIRM|REJECT)$")
+    action: str = Field(pattern="^(CONFIRM|REJECT|REOPEN)$")
     reason: str | None = Field(default=None, max_length=1000)
     reading_bbox: ReadingBoundingBox | None = None
     reading_polygon: ReadingPolygon | None = None
@@ -138,6 +143,7 @@ class ReviewRequest(BaseModel):
 
 
 class ReviewResponse(BaseModel):
+    revision: int
     image_id: UUID
     review_status: str
     reviewed_at: datetime
@@ -148,17 +154,19 @@ class RecognitionRequest(BaseModel):
     integer_digits: int | None = Field(default=None, ge=4, le=8)
 
 
-class TrainingLabelRequest(BaseModel):
+class TrainingLabelRequest(RevisionRequest):
     final_meter_reading: str = Field(min_length=1, max_length=64)
     reading_polygon: ReadingPolygon
     meter_polygon: ReadingPolygon | None = None
 
 
-class MeterRegionRequest(BaseModel):
+class MeterRegionRequest(RevisionRequest):
     meter_polygon: ReadingPolygon
 
 
-class MeterRegionResponse(MeterRegionRequest):
+class MeterRegionResponse(BaseModel):
+    revision: int
+    meter_polygon: ReadingPolygon
     image_id: UUID
     saved_at: datetime
 

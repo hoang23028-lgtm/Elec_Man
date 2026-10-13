@@ -4,10 +4,12 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.models.audit_log import AuditLog
 from app.models.system_setting import SystemSetting
 from app.models.user import User
 from app.schemas.settings import SettingRow
+from app.services.training_service import MINIMUM_TRAINING_SAMPLES
 
 RULES: dict[str, tuple[type, float, float]] = {
     "confidence_ok_threshold": (float, 0.0, 1.0),
@@ -18,8 +20,13 @@ RULES: dict[str, tuple[type, float, float]] = {
     "worker_poll_interval_seconds": (float, 0.1, 60.0),
     "electricity_unit_price_vnd": (int, 1, 1_000_000),
     "training_auto_start": (int, 0, 1),
-    "training_min_samples": (int, 2, 100_000),
+    "training_min_samples": (int, MINIMUM_TRAINING_SAMPLES, 100_000),
     "training_min_new_samples": (int, 1, 100_000),
+}
+DEPLOYMENT_SETTINGS = {
+    "max_upload_size_mb": "max_image_size_mb",
+    "max_retry_count": "max_retry_count",
+    "worker_poll_interval_seconds": "worker_poll_interval_seconds",
 }
 
 
@@ -34,12 +41,19 @@ def _audit_target(keys: list[str]) -> str:
 
 def list_settings(db: Session) -> list[SettingRow]:
     records = db.scalars(select(SystemSetting).order_by(SystemSetting.key)).all()
+    runtime = get_settings()
     return [
         SettingRow(
             key=record.key,
-            value=record.value_json,
+            value=(
+                getattr(runtime, DEPLOYMENT_SETTINGS[record.key])
+                if record.key in DEPLOYMENT_SETTINGS
+                else record.value_json
+            ),
             description=record.description,
             updated_at=record.updated_at,
+            editable=record.key not in DEPLOYMENT_SETTINGS,
+            source="deployment" if record.key in DEPLOYMENT_SETTINGS else "database",
         )
         for record in records
     ]
@@ -69,6 +83,13 @@ def _validated_value(key: str, value: Any) -> int | float:
 def update_settings(
     db: Session, values: dict[str, Any], user: User, ip_address: str | None
 ) -> list[SettingRow]:
+    if set(values) & DEPLOYMENT_SETTINGS.keys():
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "Cấu hình triển khai chỉ đọc. Hãy sửa biến môi trường và tạo lại dịch vụ liên quan."
+            ),
+        )
     validated = {key: _validated_value(key, value) for key, value in values.items()}
     if "confidence_ok_threshold" in validated or "confidence_review_threshold" in validated:
         current = {

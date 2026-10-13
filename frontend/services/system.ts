@@ -28,6 +28,12 @@ export type BillingRecord = {
   estimated_amount_vnd: number | null;
   tariff_label: string | null;
   tariff_estimated: boolean;
+  tariff_version: string | null;
+  tariff_source_url: string | null;
+  vat_rate_percent: number | null;
+  vat_policy: string | null;
+  vat_source_url: string | null;
+  billing_note: string | null;
 };
 export type BillingTrendPoint = {
   month: number;
@@ -43,7 +49,7 @@ export type BillingDashboard = {
   records: BillingRecord[];
   trend: BillingTrendPoint[];
   available_years: number[];
-  vat_rate_percent: number;
+  vat_rate_percent: number | null;
   total: number;
   offset: number;
   limit: number;

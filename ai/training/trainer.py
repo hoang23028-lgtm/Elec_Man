@@ -8,7 +8,7 @@ from ai.pipeline.preprocessing import load_prepared_image
 from ai.pipeline.geometry import perspective_crop
 from ai.pipeline.register import integer_register_strip
 from ai.readers.consensus import ConsensusMeterReader
-from ai.training.dataset import export_sequence_dataset, split_by_meter
+from ai.training.dataset import export_sequence_dataset, split_by_meter, split_metadata
 from ai.training.keypoint_regressor import (
     KeypointRegionRegressor,
     extract_region_features,
@@ -252,7 +252,7 @@ def train_run(run_id) -> None:
         "validation_scope": "ground_truth_crop_and_digit_count",
         "end_to_end_evaluated": False,
         "preprocessing_version": "baseline-v1",
-        "validation_split": "customer_group_or_image_hash_when_unknown",
+        **split_metadata(rows),
         "sequence_reader": "ppocr-v6-small-parseq-tiny-consensus-v1",
         "sequence_reader_trainable": False,
         "sequence_dataset": sequence_dataset,

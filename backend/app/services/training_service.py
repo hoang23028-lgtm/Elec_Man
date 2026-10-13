@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 
 from fastapi import HTTPException, status
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
 from app.models.audit_log import AuditLog
@@ -17,6 +17,21 @@ _TRAINING_DEFAULTS = {
     "training_min_samples": 200,
     "training_min_new_samples": 25,
 }
+MINIMUM_TRAINING_SAMPLES = 3
+TRAINING_QUEUE_LOCK = 73051027
+
+
+def _lock_training_queue(db: Session) -> None:
+    """All producers serialize through the same transaction-scoped PostgreSQL lock."""
+    if db.get_bind().dialect.name == "postgresql":
+        db.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": TRAINING_QUEUE_LOCK})
+
+
+def _auto_failure_blocked(db: Session) -> bool:
+    latest = db.scalar(
+        select(TrainingRun.status).order_by(TrainingRun.created_at.desc(), TrainingRun.id).limit(1)
+    )
+    return latest == "FAILED"
 
 
 def _training_settings(db: Session) -> dict[str, int]:
@@ -88,7 +103,7 @@ def dataset_summary(db: Session, training_settings: dict[str, int] | None = None
         )
         or 0
     )
-    minimum = settings["training_min_samples"]
+    minimum = max(MINIMUM_TRAINING_SAMPLES, settings["training_min_samples"])
     new_samples = max(0, eligible - last_count)
     return DatasetSummary(
         uploaded_images=uploaded,
@@ -116,6 +131,7 @@ def enqueue_training(
 ) -> TrainingRunRow:
     if experimental and trigger != "MANUAL":
         raise ValueError("Huấn luyện thử nghiệm chỉ được khởi chạy thủ công.")
+    _lock_training_queue(db)
     active = db.scalar(
         select(TrainingRun).where(TrainingRun.status.in_(("PENDING", "RUNNING"))).limit(1)
     )
@@ -125,6 +141,14 @@ def enqueue_training(
             detail="Đã có một phiên huấn luyện đang chờ hoặc đang chạy.",
         )
     summary = dataset_summary(db)
+    if trigger == "AUTO" and (
+        _auto_failure_blocked(db)
+        or not summary.auto_start_enabled
+        or summary.new_samples_since_last_run < _training_settings(db)["training_min_new_samples"]
+    ):
+        raise HTTPException(
+            status_code=409, detail="Huấn luyện tự động đang tạm dừng hoặc chưa đủ mẫu mới."
+        )
     if not summary.ready and not experimental:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -133,7 +157,7 @@ def enqueue_training(
                 f"hiện có {summary.eligible_samples}."
             ),
         )
-    if summary.eligible_samples < 3:
+    if summary.eligible_samples < MINIMUM_TRAINING_SAMPLES:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Cần ít nhất ba ảnh đủ nhãn để tách tập huấn luyện và kiểm định.",
@@ -191,5 +215,13 @@ def maybe_enqueue_auto(db: Session) -> bool:
         select(TrainingRun.id).where(TrainingRun.status.in_(("PENDING", "RUNNING"))).limit(1)
     ):
         return False
-    enqueue_training(db, "AUTO", None)
+    if _auto_failure_blocked(db):
+        return False
+    try:
+        enqueue_training(db, "AUTO", None)
+    except HTTPException as exc:
+        db.rollback()
+        if exc.status_code in (409, 422):
+            return False
+        raise
     return True

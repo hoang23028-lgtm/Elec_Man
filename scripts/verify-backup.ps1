@@ -17,9 +17,10 @@ foreach ($name in $required) {
 
 $expected = @{}
 foreach ($line in Get-Content -LiteralPath (Join-Path $backup "checksums.sha256")) {
-    if ($line -notmatch '^([a-fA-F0-9]{64})\s+(.+)$') {
+    if ($line -notmatch '^([a-fA-F0-9]{64})\s{2}(database\.sql|storage\.tar\.gz|models\.tar\.gz)$') {
         throw "Dòng checksum không hợp lệ."
     }
+    if ($expected.ContainsKey($Matches[2])) { throw "Checksum bị trùng: $($Matches[2])" }
     $expected[$Matches[2]] = $Matches[1].ToLowerInvariant()
 }
 foreach ($name in $required | Where-Object { $_ -ne "checksums.sha256" }) {
@@ -28,8 +29,7 @@ foreach ($name in $required | Where-Object { $_ -ne "checksums.sha256" }) {
     if ($actual -ne $expected[$name]) { throw "Checksum không khớp: $name" }
 }
 
-docker run --rm -v "${backup}:/backup:ro" alpine:3.21 tar -tzf /backup/storage.tar.gz | Out-Null
-if ($LASTEXITCODE -ne 0) { throw "Kho ảnh sao lưu không đọc được." }
-docker run --rm -v "${backup}:/backup:ro" alpine:3.21 tar -tzf /backup/models.tar.gz | Out-Null
-if ($LASTEXITCODE -ne 0) { throw "Kho mô hình sao lưu không đọc được." }
+$workspace = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")).Path
+docker run --rm --network none --user 0 --cap-drop ALL --security-opt no-new-privileges --read-only --mount "type=bind,source=$workspace,target=/workspace,readonly" --mount "type=bind,source=$backup,target=/backup,readonly" --entrypoint python elec_man-backend:latest /workspace/scripts/verify_backup.py /backup
+if ($LASTEXITCODE -ne 0) { throw "Kho sao lưu có đường dẫn không an toàn hoặc không đọc được." }
 Write-Output "Backup hợp lệ: $backup"

@@ -22,6 +22,10 @@ jobs:
         with:
           python-version: "3.12"
       - run: python scripts/check-repository-secrets.py
+      - run: python scripts/check_docs.py
+      - run: bash -n scripts/start.sh && sh -n scripts/backup.sh && sh -n scripts/verify-backup.sh
+      - run: python -m pip install "ruff>=0.8,<1.0"
+      - run: python -m ruff check scripts && python -m ruff format --check scripts
 
   backend:
     runs-on: ubuntu-latest
@@ -40,6 +44,22 @@ jobs:
       - run: python -m ruff check app tests
       - run: python -m ruff format --check app tests
       - run: python -m pytest -q
+
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/pyproject.toml
+      - run: python -m pip install -e "./backend[dev]"
+      - run: python -m ruff check backend/integration_tests scripts/test-integration.py scripts/rehearse_backup.py scripts/verification_sandbox.py scripts/verification_probe.py
+      - run: python -m ruff format --check backend/integration_tests scripts/test-integration.py scripts/rehearse_backup.py scripts/verification_sandbox.py scripts/verification_probe.py
+      - name: Verify API and concurrent mutations on isolated PostgreSQL
+        run: python scripts/test-integration.py
 
   frontend:
     runs-on: ubuntu-latest
