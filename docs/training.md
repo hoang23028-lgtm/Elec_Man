@@ -15,7 +15,7 @@ Chỉ SUPER_ADMIN điều khiển phiên train/kích hoạt/cấu hình. ADMIN �
 - SHA-256 giúp loại ảnh trùng hoàn toàn. Xác định cùng công tơ bằng mã/nhóm đã xác minh để tách train/validation, không tách ngẫu nhiên ảnh cùng công tơ vào cả hai tập.
 - Nếu chưa có mã/nhóm, chia theo hash ảnh không bảo đảm độc lập theo công tơ. Registry sẽ không coi nhóm chưa xác minh là đủ điều kiện kích hoạt.
 
-Mẫu/nhãn và tập crop nằm trong database/volume riêng, không có trên GitHub. Không chỉnh số nhãn chỉ để “đạt 200”.
+Nhãn đang vận hành nằm trong database/volume riêng. Snapshot 37 mẫu/crop đã được chủ dự án cho phép công khai có ở [data/](../data/README.md); dữ liệu mới không tự đồng bộ hoặc tự được phép công khai. Không chỉnh số nhãn chỉ để “đạt 200”.
 
 ## 2. Theo dõi và chạy phiên
 

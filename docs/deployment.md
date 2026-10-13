@@ -4,7 +4,7 @@
 
 Repo chính: [hoang23028-lgtm/Elec_Man](https://github.com/hoang23028-lgtm/Elec_Man), nhánh master. Một checkout và một docker-compose.yml là bản vận hành chuẩn; không chạy folder bản cũ song song hoặc đẩy dữ liệu private lên repo. Lịch sử Git/migrations vẫn được giữ.
 
-Máy mới làm theo [cài đặt](installation.md). Chia sẻ mã nguồn không chuyển database/ảnh/nhãn của máy cũ. Nếu cần chuyển dữ liệu, dùng backup riêng được bảo vệ theo [hướng dẫn backup](backup-restore.md), không Git.
+Máy mới làm theo [cài đặt](installation.md); snapshot khách hàng/ảnh/nhãn đã được phép công khai tự seed ở database mới. Không sao chép tài khoản/secret/session cũ, không ghi đè máy đang có dữ liệu. Dữ liệu phát sinh sau snapshot cần backup riêng theo [hướng dẫn backup](backup-restore.md), không tự công khai lên Git.
 
 ## 2. Cập nhật máy đang có dữ liệu
 

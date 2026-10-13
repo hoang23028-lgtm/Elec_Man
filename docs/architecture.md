@@ -18,6 +18,7 @@ Nginx là cổng vào duy nhất. PostgreSQL không publish cổng host; reader 
 | postgres | Khách hàng, tài khoản/phiên/audit, metadata ảnh, nhãn, job/train queue, chỉ số tháng/ảnh BYTEA |
 | storage-init / model-init | Cấp quyền volume cho UID 10001, chạy một lần |
 | migrate | Alembic upgrade head trước ứng dụng, chạy một lần |
+| seed | Kiểm tra/import snapshot đã được phép vào database mới; bỏ qua database có tài khoản/nghiệp vụ |
 | backend | API, xác thực/phân quyền/CSRF, upload, review, dashboard, report |
 | worker | Nhận job có khóa SKIP LOCKED, chạy pipeline và lưu đề xuất bất biến |
 | reader-ppocr / reader-parseq | Model pretrained nạp trong tiến trình, trả chuỗi số |

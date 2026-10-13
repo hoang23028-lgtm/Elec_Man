@@ -1,6 +1,6 @@
 # Cấu hình triển khai
 
-`.env.example` là mẫu công khai, **không chứa secret dùng thật**. Bộ khởi động tạo `.env` riêng; giữ file ở máy triển khai/kho secret. Không sao chép cấu hình và dữ liệu thật vào repo.
+`.env.example` là mẫu công khai, **không chứa secret dùng thật**. Bộ khởi động tạo `.env` riêng; giữ file ở máy triển khai/kho secret. Snapshot dữ liệu đã được phép công khai là ngoại lệ có kiểm tra riêng; không sao chép cấu hình secret hoặc dữ liệu khác vào repo.
 
 ## Giá trị và phạm vi hiệu lực
 
@@ -10,6 +10,7 @@
 | FRONTEND_ORIGIN | http://localhost | Origin chính xác của trình duyệt, không có dấu / cuối; bao gồm cổng nếu khác 80/443 |
 | NGINX_BIND_ADDRESS | 127.0.0.1 | Chỉ nghe loopback; không tự công bố Internet |
 | NGINX_HTTP_PORT | 80 | Cổng host của proxy HTTP local |
+| IMPORT_SHARED_DATA | true | Seed snapshot công khai chỉ khi database chưa có tài khoản/nghiệp vụ; false để cài trống |
 | ALLOWED_HOSTS | localhost,127.0.0.1 | Danh sách Host được API chấp nhận, không dùng * trong production |
 | ENFORCE_HTTPS | false | Chỉ local dùng HTTP; production đặt true sau cấu hình TLS |
 | POSTGRES_DB / POSTGRES_USER | electric_meter_ai / electric_meter_app | Database và role PostgreSQL |

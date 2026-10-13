@@ -4,7 +4,8 @@ param(
     [ValidateRange(1, 65535)][int]$Port = 80,
     [string]$Username = "admin",
     [switch]$SkipBuild,
-    [switch]$NonInteractive
+    [switch]$NonInteractive,
+    [switch]$EmptyDatabase
 )
 
 $ErrorActionPreference = "Stop"
@@ -15,6 +16,8 @@ function Invoke-Docker {
     if ($LASTEXITCODE -ne 0) { throw "Docker thất bại (mã $LASTEXITCODE). Xem hướng dẫn xử lý lỗi." }
 }
 Push-Location -LiteralPath $workspace
+$previousImport = $env:IMPORT_SHARED_DATA
+if ($EmptyDatabase) { $env:IMPORT_SHARED_DATA = "false" }
 try {
     Invoke-Docker info --format '{{.ServerVersion}}'
     Invoke-Docker compose version
@@ -55,4 +58,4 @@ try {
     } elseif ($adminStatus -ne 0) { throw "Không kiểm tra được tài khoản quản trị." }
     Write-Output "Hệ thống đã sẵn sàng. Mở FRONTEND_ORIGIN trong $EnvFile (mặc định http://localhost/)."
     Write-Output "Dừng: docker compose --project-name $ProjectName --env-file $EnvFile stop"
-} finally { Pop-Location }
+} finally { $env:IMPORT_SHARED_DATA = $previousImport; Pop-Location }

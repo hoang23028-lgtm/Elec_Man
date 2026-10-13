@@ -57,6 +57,41 @@ services:
       postgres:
         condition: service_healthy
     networks: [data]
+  seed:
+    image: elec_man-backend:latest
+    build:
+      context: ./backend
+    logging: *default-logging
+    command: ["python", "-m", "app.scripts.share_data", "import", "/snapshot"]
+    environment:
+      APP_ENV: ${APP_ENV:-production}
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost}
+      ENFORCE_HTTPS: ${ENFORCE_HTTPS:-false}
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
+      SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET}
+      STORAGE_ROOT: ${STORAGE_ROOT:-/data/electric-meter-ai}
+      MODELS_ROOT: ${MODELS_ROOT:-/models}
+      IMPORT_SHARED_DATA: ${IMPORT_SHARED_DATA:-true}
+    volumes:
+      - ./data/snapshot:/snapshot:ro
+      - storage_data:${STORAGE_ROOT:-/data/electric-meter-ai}
+      - model_data:${MODELS_ROOT:-/models}
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      storage-init:
+        condition: service_completed_successfully
+      model-init:
+        condition: service_completed_successfully
+    networks: [data]
   backend:
     image: elec_man-backend:latest
     build:
@@ -99,6 +134,8 @@ services:
       storage-init:
         condition: service_completed_successfully
       migrate:
+        condition: service_completed_successfully
+      seed:
         condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health/live')"]
@@ -156,6 +193,8 @@ services:
       reader-parseq:
         condition: service_healthy
       migrate:
+        condition: service_completed_successfully
+      seed:
         condition: service_completed_successfully
     networks: [data]
   reader-ppocr:
@@ -243,6 +282,8 @@ services:
       model-init:
         condition: service_completed_successfully
       migrate:
+        condition: service_completed_successfully
+      seed:
         condition: service_completed_successfully
     networks: [data]
   frontend:

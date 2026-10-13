@@ -1,6 +1,6 @@
 # Cài đặt và khởi động trên máy mới
 
-Hướng dẫn này dành cho bản mã nguồn tại nhánh `master`. Máy mới có database rỗng, không chứa khách hàng, ảnh, nhãn hoặc mô hình định vị của người phát triển. Bạn có thể nhập khách hàng, tải ảnh và kiểm duyệt ngay sau khi tạo quản trị. Bộ đọc PP-OCR/PARSeq dùng trọng số dựng sẵn; đây không phải cam kết nhận diện đúng mọi công tơ.
+Hướng dẫn này dành cho bản mã nguồn tại nhánh `master`. Máy mới mặc định nhập snapshot đã được chủ dự án cho phép công khai: 660 khách hàng, 61 ảnh, 37 nhãn và artifact/dữ liệu huấn luyện. Tài khoản cũ không được khôi phục; bạn tạo quản trị bằng mật khẩu mới. Xem [dữ liệu chia sẻ](shared-data.md). Bộ đọc PP-OCR/PARSeq dùng trọng số dựng sẵn; đây không phải cam kết nhận diện đúng mọi công tơ.
 
 ## 1. Chuẩn bị
 
@@ -51,7 +51,7 @@ Bộ khởi động thực hiện:
 1. Kiểm tra Docker và tên dự án; nếu đã có container/volume nhưng mất cấu hình, dừng lại để tránh tạo secret sai.
 2. Build image backend; tạo `.env` riêng bằng mật khẩu PostgreSQL và khóa session ngẫu nhiên. File đã tồn tại được giữ nguyên, không đổi secret/mật khẩu.
 3. Kiểm tra Compose mà không in cấu hình chứa secret; build các image còn lại, gồm trọng số hai reader.
-4. Chờ PostgreSQL; chạy migration Alembic; chờ backend, frontend, reader và Nginx sẵn sàng.
+4. Chờ PostgreSQL; chạy migration Alembic, seed dữ liệu công khai nếu database còn trống; chờ backend, frontend, reader và Nginx sẵn sàng.
 5. Nếu chưa có SUPER_ADMIN chưa bị xóa mềm, yêu cầu mật khẩu cho tài khoản `admin` (12–256 ký tự). Mật khẩu chỉ được truyền tạm qua môi trường tiến trình, không nằm trong đối số lệnh hay được ghi vào `.env`.
 6. In trạng thái hoàn tất. Mở [http://localhost/](http://localhost/), đăng nhập tài khoản vừa tạo.
 
@@ -76,9 +76,9 @@ docker compose --project-name elec_man --env-file .env ps -a
 curl http://localhost/api/v1/health/ready
 ```
 
-Đổi URL nếu chọn cổng khác. Các tiến trình lâu dài phải chạy; backend/frontend/readers/nginx có healthcheck phải healthy. `migrate`, `storage-init`, `model-init` **Exited (0)** là bình thường vì chạy một lần.
+Đổi URL nếu chọn cổng khác. Các tiến trình lâu dài phải chạy; backend/frontend/readers/nginx có healthcheck phải healthy. `migrate`, `seed`, `storage-init`, `model-init` **Exited (0)** là bình thường vì chạy một lần.
 
-Đăng nhập rồi kiểm tra sáu trang theo vai trò: Tổng quan, Vận hành, Các lô dữ liệu, Quản trị, Vòng đời mô hình, Truy vết. Không có dữ liệu trên dashboard của máy mới là bình thường.
+Đăng nhập rồi kiểm tra sáu trang theo vai trò: Tổng quan, Vận hành, Các lô dữ liệu, Quản trị, Vòng đời mô hình, Truy vết. Snapshot có ảnh/nhãn/khách hàng nhưng chưa có chỉ số tháng xác nhận, nên dashboard tiền điện chưa có số là đúng. Cài trống bằng `-EmptyDatabase` (Windows) hoặc `EMPTY_DATABASE=1 bash scripts/start.sh` (Linux); xem hướng dẫn dữ liệu chia sẻ trước khi chọn.
 
 ## 5. Nhập dữ liệu đầu tiên
 

@@ -6,6 +6,7 @@ PROJECT_NAME="${COMPOSE_PROJECT_NAME:-elec_man}"
 ENV_FILE="${ENV_FILE:-.env}"
 PORT="${NGINX_HTTP_PORT:-80}"
 USERNAME="${ADMIN_USERNAME:-admin}"
+if [[ "${EMPTY_DATABASE:-0}" == 1 ]]; then export IMPORT_SHARED_DATA=false; fi
 [[ "$PROJECT_NAME" =~ ^[a-z0-9][a-z0-9_-]*$ ]] || { echo 'Invalid project name' >&2; exit 1; }
 [[ "$ENV_FILE" =~ ^\.env(\.[a-zA-Z0-9_-]+)?$ && "$ENV_FILE" != .env.example ]] || { echo 'Invalid private environment filename' >&2; exit 1; }
 [[ "$PORT" =~ ^[0-9]+$ ]] && ((PORT >= 1 && PORT <= 65535)) || { echo 'Invalid HTTP port' >&2; exit 1; }

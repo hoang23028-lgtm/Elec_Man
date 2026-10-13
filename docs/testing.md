@@ -12,6 +12,7 @@ python -m ruff check backend/app backend/tests backend/alembic ai scripts
 python -m ruff format --check backend/app backend/tests backend/alembic ai scripts
 python scripts/check-repository-secrets.py
 python scripts/check_docs.py
+python scripts/check_shared_data.py
 ```
 
 Backend có regression cho auth/roles/CSRF, upload/path, review/revision/rollback, report/dashboard/tariff, training/model gates, bootstrap và backup archive safety. Warnings deprecation của TestClient/httpx có thể còn; không che warning bằng coi test thất bại là thành công.
@@ -58,7 +59,7 @@ python scripts/verification_sandbox.py --https --probe --report .codex-tmp/https
 
 Cần image backend/frontend đã build và dependency dev. Sandbox tự dọn, không dùng tài khoản thật; ảnh/OCR fixture. Report HTTPS cục bộ xác minh cookie/header/proxy, không xác minh CA/DNS Internet.
 
-Kiểm fresh-install bằng project/cổng/env riêng rồi dùng chỉ dữ liệu giả. Thử boot lần hai giữ secret/tài khoản, missing-env fail-closed, login/import/upload/worker/review/monthreport thật. **Hai reader thật** chỉ xác minh chúng nhận/chạy/trả contract trên ảnh thử; không suy thành accuracy công tơ.
+Kiểm fresh-install bằng project/cổng/env riêng. Dùng dữ liệu giả cho thử thao tác ghi; snapshot thật đã được phép chia sẻ có thể dùng cho kiểm tra khôi phục/đọc, không thao tác trên volume nguồn. Thử boot lần hai giữ secret/tài khoản, missing-env fail-closed, login/import/upload/worker/review/monthreport thật. **Hai reader thật** chỉ xác minh chúng nhận/chạy/trả contract trên ảnh thử; không suy thành accuracy công tơ.
 
 ## Backup và CI
 

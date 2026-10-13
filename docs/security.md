@@ -30,7 +30,7 @@ CORS chỉ FRONTEND_ORIGIN; proxy không tin X-Forwarded-For/Proto tự gửi t�
 
 API lỗi bất ngờ trả thông báo chung cùng request_id; log server có loại lỗi và thông tin định danh tác vụ, không trả stacktrace/DSN cho người dùng. Docker log xoay 10 MB × 5/container; INFO mặc định. Audit có dữ liệu khách hàng/nghiệp vụ, chỉ SUPER_ADMIN xem.
 
-.env, TLS, backups, log, ảnh, nhãn, model và database **không được commit**. Quét pattern secret chỉ bắt một số token/key phổ biến, không thay review thủ công và không bảo đảm bắt mọi PII. Nếu secret từng công khai, phải thu hồi/rotate tại nhà cung cấp; xóa file mới không xóa bản cũ trong Git.
+.env, TLS, backups, log riêng và thông tin xác thực **không được commit**. Ngoại lệ dữ liệu: snapshot khách hàng/ảnh/nhãn/model tại data/ được chủ dự án xác nhận có quyền công khai ngày 13/10/2026, đã bỏ tài khoản có thể đăng nhập, hash thật, sessions, audit auth và IP. Xem [phạm vi dữ liệu](shared-data.md). Không tự áp dụng cho dữ liệu mới. Quét pattern secret chỉ bắt một số token/key phổ biến, không thay review thủ công hoặc bảo đảm bắt mọi PII. Nếu secret từng công khai, phải thu hồi/rotate; xóa file mới không xóa bản cũ trong Git.
 
 Backup chứa dữ liệu nhạy cảm, không tự mã hóa. Mã hóa nơi lưu, phân quyền, bản ngoài host, retention, lịch chạy/cảnh báo và thử restore là nhiệm vụ người triển khai; script chưa tự cung cấp dịch vụ giám sát hoặc offsite. Xem [backup](backup-restore.md).
 

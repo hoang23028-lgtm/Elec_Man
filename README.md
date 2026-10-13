@@ -41,7 +41,7 @@ Guest/VIEWER chỉ xem Tổng quan. ADMIN làm nghiệp vụ. SUPER_ADMIN quản
 - Tiền xử lý/crop OpenCV, OCR mã khách hàng, đối chiếu database; khoanh bốn góc và lưu nhãn thủ công.
 - Trainer huấn luyện **hai bộ định vị Ridge**, xuất crop dataset và benchmark reader pretrained. **Chưa tự fine-tune PP-OCR/PARSeq.**
 - Tất cả kết quả cần con người xác nhận. Score OCR chưa là xác suất đúng; đồng thuận không bảo đảm crop đúng.
-- Máy mới có **database rỗng**, không kèm khách hàng thật, ảnh/nhãn, backup hoặc model định vị riêng. Chỉ thêm data chưa đủ để chứng minh AI đạt độ chính xác sản xuất.
+- Máy mới tự khôi phục **snapshot đã được chủ dự án cho phép công khai**: 660 khách hàng, 61 ảnh, 37 nhãn, 30 crop train/7 crop validation và 3 artifact TESTING. Không mang theo tài khoản/mật khẩu/phiên cũ; tạo quản trị mới. Xem [dữ liệu đầy đủ](docs/shared-data.md). Dùng `-EmptyDatabase` hoặc `EMPTY_DATABASE=1` nếu muốn cài trống.
 
 [Pipeline](docs/ai-pipeline.md) · [Huấn luyện](docs/training.md) · [Độ tin cậy](docs/ai-reliability.md).
 
@@ -54,7 +54,7 @@ docker compose --project-name elec_man --env-file .env stop
 docker compose --project-name elec_man --env-file .env up -d --wait --wait-timeout 300
 ```
 
-Mặc định chỉ mở HTTP trên loopback. Trước Internet phải cấu hình HTTPS, quyết định dữ liệu dashboard được công khai hay không, backup ngoài máy và giám sát. Không commit .env, password, ảnh hay dữ liệu khách hàng. Không dùng down -v/volume prune để sửa lỗi.
+Mặc định chỉ mở HTTP trên loopback. Trước Internet phải cấu hình HTTPS, quyết định dữ liệu dashboard được công khai hay không, backup ngoài máy và giám sát. Snapshot trong data/ đã được cho phép công khai; không commit .env, password, raw dump hoặc dữ liệu mới chưa được phép. Không dùng down -v/volume prune để sửa lỗi.
 
 [Triển khai/cập nhật](docs/deployment.md) · [Bảo mật](docs/security.md) · [Backup/restore](docs/backup-restore.md).
 

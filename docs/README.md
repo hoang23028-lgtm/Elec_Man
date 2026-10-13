@@ -7,6 +7,7 @@ Tài liệu trong thư mục này mô tả **bản mã nguồn hiện hành**. B
 - [Cài trên máy mới](installation.md): chuẩn bị Docker, một lệnh khởi động, quản trị đầu tiên, xử lý lỗi.
 - [Hướng dẫn sử dụng](usage.md): khách hàng → upload → khoanh/lưu nhãn → xác nhận tháng → thống kê/báo cáo.
 - [Cấu hình](configuration.md): env, phạm vi hiệu lực, cổng/origin, secret.
+- [Dữ liệu chia sẻ đầy đủ](shared-data.md): snapshot công khai đã được phép, tự seed máy mới và cài trống.
 - [Phân quyền](roles.md): guest/VIEWER/ADMIN/SUPER_ADMIN.
 - [Quản trị](administration.md), [kiểm duyệt](review.md), [xuất JSON/Excel](export.md).
 
@@ -35,5 +36,6 @@ Tài liệu trong thư mục này mô tả **bản mã nguồn hiện hành**. B
 - [Kiểm tra UI 12/10](reports/ui-verification-2026-10-12.md).
 - [Xác minh toàn hệ thống 13/10](reports/final-verification-2026-10-13.md).
 - [Xác minh bản chia sẻ 13/10](reports/sharing-verification-2026-10-13.md).
+- [Xác minh bản công khai có dữ liệu 13/10](reports/public-data-verification-2026-10-13.md).
 
-Không kèm dữ liệu khách hàng, ảnh/nhãn, backup hoặc trọng số riêng trong Git. Mẫu examples/customers.json là giả. Điều kiện AI/HTTPS/privacy còn lại phải đọc trước khi triển khai rộng.
+Snapshot data/ có khách hàng/ảnh/nhãn và artifact thật đã được phép công khai, không có thông tin xác thực hoặc backup SQL thô. Mẫu examples/customers.json vẫn là giả. Điều kiện AI/HTTPS/privacy còn lại phải đọc trước khi triển khai rộng; không tự công khai dữ liệu mới.

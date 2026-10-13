@@ -41,6 +41,7 @@ Elec_Man/
 ├── docker/                     Nginx HTTP/TLS mẫu
 ├── scripts/                    Startup, backup/restore, kiểm thử và kiểm tra repo
 ├── examples/                   JSON khách hàng giả
+├── data/snapshot/              Snapshot khách hàng/ảnh/nhãn/training đã được phép công khai
 ├── docs/                       Tài liệu hiện hành
 │   └── reports/                Báo cáo theo ngày, không thay hướng dẫn hiện hành
 └── design-system/              Tài liệu thiết kế, không phải bản frontend thứ hai
@@ -56,6 +57,6 @@ Dùng service tách logic khỏi HTTP, schema validate ở server, parameterized
 
 ## Thành phần không đưa lên GitHub
 
-.env*, credentials, khách hàng thật, ảnh/nhãn, database dump, backups/logs, model/dataset, .agents/.codex-tmp, venv, node_modules, .next và binary build. Chỉ .env.example và .gitkeep khung được giữ. Không dùng git add -f để “đẩy toàn bộ”.
+.env*, credentials, raw database dump, backups/logs riêng, dữ liệu mới chưa được phép, .agents/.codex-tmp, venv, node_modules, .next và binary build. Snapshot trong data/ là ngoại lệ đã được chủ dự án chấp thuận và kiểm tra auth/checksum; xem [dữ liệu chia sẻ](shared-data.md). Không dùng git add -f để bỏ qua chính sách secret.
 
 Xem [kiểm thử](testing.md), [hướng dẫn phát triển](development.md) và [danh mục tài liệu](README.md).

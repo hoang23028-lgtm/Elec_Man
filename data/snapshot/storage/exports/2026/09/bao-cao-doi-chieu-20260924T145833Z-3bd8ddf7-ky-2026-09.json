@@ -1,0 +1,4 @@
+[
+  {"ma_khach_hang": "KH003", "ho_ten": null, "dia_chi": null, "tuyen_dien": null, "so_seri_cong_to": null, "chi_so_khoi_tao": null, "muc_dich_su_dung": null, "chi_so_moi": 5068, "do_tin_cay": 0.0, "ket_qua_doi_chieu": "KHONG_TIM_THAY"},
+  {"ma_khach_hang": "KH004", "ho_ten": null, "dia_chi": null, "tuyen_dien": null, "so_seri_cong_to": null, "chi_so_khoi_tao": null, "muc_dich_su_dung": null, "chi_so_moi": 63751, "do_tin_cay": 0.662, "ket_qua_doi_chieu": "KHONG_TIM_THAY"}
+]

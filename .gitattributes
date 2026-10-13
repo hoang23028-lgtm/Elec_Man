@@ -16,3 +16,7 @@
 *.png binary
 *.jpg binary
 *.xlsx binary
+*.npz binary
+*.webp binary
+*.jsonl text eol=lf
+*.tsv text eol=lf
