@@ -4,7 +4,7 @@ Hướng dẫn này dành cho bản mã nguồn tại nhánh `master`. Máy mớ
 
 ## 1. Chuẩn bị
 
-- Git; Docker Engine/Desktop đang chạy với **Linux containers** và Docker Compose có `up --wait`.
+- Git; Docker Engine/Desktop đang chạy với **Linux containers**, Docker Compose **2.22 trở lên** (cần `additional_contexts: service:` cho trainer).
 - Windows: dùng Docker Desktop theo [hướng dẫn chính thức](https://docs.docker.com/desktop/setup/install/windows-install/). Bật WSL 2/ảo hóa theo yêu cầu của Docker, không chạy chế độ Windows containers.
 - Linux: cài Docker Engine và [Compose plugin chính thức](https://docs.docker.com/compose/install/linux/). Dùng Bash để chạy bộ khởi động.
 - Cấp đủ RAM/ổ đĩa cho hai bộ đọc CPU. 8 GB RAM dành cho Docker là điểm bắt đầu để thử; 16 GB RAM máy và hàng chục GB đĩa trống thoải mái hơn. Đây là gợi ý triển khai, không phải benchmark hay mức tối thiểu đã chứng nhận.

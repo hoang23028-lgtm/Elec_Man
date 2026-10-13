@@ -5,6 +5,11 @@ from typing import Protocol
 import cv2
 import numpy as np
 
+from ai.pipeline.geometry import (
+    normalized_bbox_polygon,
+    perspective_crop,
+    transform_polygon,
+)
 from ai.pipeline.scene_ocr import TextLine
 
 
@@ -20,6 +25,7 @@ class MeterLocation:
     meter_region: tuple[int, int, int, int]
     customer_region: tuple[int, int, int, int]
     source: str
+    meter_polygon: tuple[tuple[float, float], ...] | None = None
 
 
 @dataclass(frozen=True)
@@ -123,7 +129,7 @@ class MeterLocator:
                     min(height, max(1, y + round(meter_height * 0.18))),
                 )
                 return MeterLocation(
-                    confidence, meter, customer, "TRAINED_METER_KEYPOINTS"
+                    confidence, meter, customer, "TRAINED_METER_KEYPOINTS", polygon
                 )
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         edges = cv2.Canny(cv2.GaussianBlur(gray, (5, 5), 0), 45, 135)
@@ -171,19 +177,44 @@ class ReadingRegionLocator:
         lines: list[TextLine] | None = None,
     ) -> ReadingRegionLocation:
         height, width = image.shape[:2]
+        relative = (
+            getattr(self.region_predictor, "coordinate_space", "image") == "meter"
+        )
+        frame = meter.meter_polygon or normalized_bbox_polygon(
+            tuple(
+                value / scale
+                for value, scale in zip(
+                    meter.meter_region, (width, height, width, height), strict=True
+                )
+            )
+        )
+        model_input = perspective_crop(image, frame) if relative else image
         learned = (
-            self.region_predictor.predict_region(image)
+            self.region_predictor.predict_region(model_input)
             if self.region_predictor
             else None
         )
         if learned is not None:
             polygon, confidence = learned
+            if relative:
+                polygon = transform_polygon(polygon, frame, inverse=True)
+                confidence = min(confidence, meter.confidence)
+            if not all(
+                np.isfinite(x)
+                and np.isfinite(y)
+                and -1e-6 <= x <= 1.000001
+                and -1e-6 <= y <= 1.000001
+                for x, y in polygon
+            ):
+                confidence = 0.0
             if confidence >= 0.55:
                 return ReadingRegionLocation(
                     confidence,
                     _polygon_bbox(polygon, width, height),
                     polygon,
-                    "TRAINED_KEYPOINTS",
+                    "TRAINED_METER_RELATIVE_KEYPOINTS"
+                    if relative
+                    else "TRAINED_KEYPOINTS",
                 )
 
         ocr_candidate = _ocr_reading_candidate(lines or [], width, height)

@@ -1,0 +1,4 @@
+# PARSeq's pinned CPU Torch 2.2 uses NumPy 1.x ABI; keep this environment separate.
+numpy>=1.26.4,<2.0
+opencv-python-headless==4.10.0.84
+-r requirements.shared.txt

@@ -58,6 +58,7 @@ class KeypointRegionRegressor:
     scale: np.ndarray
     distance_threshold: float
     validation_error: float = 1.0
+    coordinate_space: str = "image"
 
     @classmethod
     def load(cls, path: Path) -> "KeypointRegionRegressor":
@@ -69,6 +70,9 @@ class KeypointRegionRegressor:
                 data["scale"].astype(np.float32),
                 float(data["distance_threshold"][0]),
                 float(data["validation_error"][0]),
+                str(data["coordinate_space"][0])
+                if "coordinate_space" in data
+                else "image",
             )
         if (
             model.weights.ndim != 2
@@ -85,6 +89,7 @@ class KeypointRegionRegressor:
             or model.distance_threshold <= 0
             or not np.isfinite(model.validation_error)
             or model.validation_error < 0
+            or model.coordinate_space not in {"image", "meter"}
         ):
             raise ValueError("Artifact mô hình vùng chỉ số không hợp lệ.")
         return model
@@ -98,6 +103,7 @@ class KeypointRegionRegressor:
             scale=self.scale,
             distance_threshold=np.array([self.distance_threshold], dtype=np.float32),
             validation_error=np.array([self.validation_error], dtype=np.float32),
+            coordinate_space=np.array([self.coordinate_space]),
         )
 
     @classmethod
@@ -142,7 +148,13 @@ class KeypointRegionRegressor:
             self.scale,
             self.distance_threshold,
             max(0.0, float(error)),
+            self.coordinate_space,
         )
+
+    def in_meter_coordinates(self):
+        from dataclasses import replace
+
+        return replace(self, coordinate_space="meter")
 
     def predict_region(
         self, image: np.ndarray

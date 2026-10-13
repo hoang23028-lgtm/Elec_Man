@@ -9,7 +9,9 @@ import shutil
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from hashlib import sha256
+from itertools import batched
 from pathlib import Path, PurePosixPath
+from tempfile import NamedTemporaryFile
 from types import SimpleNamespace
 from uuid import UUID
 
@@ -21,7 +23,10 @@ from app.models.base import Base
 from app.services.settings_service import RULES
 
 FORMAT = "elec-man-public-snapshot-v1"
+BASELINE_MIGRATION = "20261012_0028"
+DATASET_MIGRATION = "20261013_0029"
 SEED_LOCK = 2026101302
+INSERT_BATCH_SIZE = 200
 TABLES = [table for table in Base.metadata.sorted_tables if table.name != "sessions"]
 SECRET_KEY = re.compile(
     r"password|secret|token|csrf|session|cookie|authorization|database_url|dsn|ip_address", re.I
@@ -270,13 +275,20 @@ def verify_snapshot(directory):
         ):
             raise ValueError("Credential-like content in public snapshot")
     data = json.loads((directory / "database.json").read_text(encoding="utf-8"))
-    if data.get("format") != FORMAT or set(data["tables"]) != {table.name for table in TABLES}:
+    expected_tables = {table.name for table in TABLES}
+    baseline_tables = expected_tables - {"dataset_annotations"}
+    table_set = set(data["tables"])
+    compatible_baseline = data["migration"] == BASELINE_MIGRATION and table_set == baseline_tables
+    if data.get("format") != FORMAT or (table_set != expected_tables and not compatible_baseline):
         raise ValueError("Unexpected table set; authentication sessions must be absent")
     if data["migration"] != manifest["migration"]:
         raise ValueError("Snapshot migration metadata mismatch")
     for name, rows in data["tables"].items():
         if len(rows) != manifest["counts"][name]:
             raise ValueError("Snapshot row count mismatch")
+        columns = set(Base.metadata.tables[name].columns.keys())
+        if any(set(row) != columns for row in rows):
+            raise ValueError("Snapshot rows must contain exactly the application columns")
     for actor in data["tables"]["users"]:
         if (
             actor["password_hash"] != "!"
@@ -294,6 +306,9 @@ def verify_snapshot(directory):
     for row in data["tables"]["models"]:
         if file_digest(safe_path(directory / "models", row["file_path"])) != row["sha256"]:
             raise ValueError("Model does not match its registry checksum")
+    if compatible_baseline:
+        # Explicit additive schema upgrade; original manifest/labels remain unchanged.
+        data["tables"]["dataset_annotations"] = []
     return data
 
 
@@ -318,8 +333,51 @@ def decode_row(table, row):
     return decoded
 
 
+def copy_seed_file(source, target, expected_digest):
+    """Publish only a complete, verified file; never replace an existing target."""
+    if target.is_symlink() or target.exists():
+        if target.is_symlink() or not target.is_file() or file_digest(target) != expected_digest:
+            raise ValueError("Existing data file differs; refusing to overwrite")
+        return False
+    target.parent.mkdir(parents=True, exist_ok=True)
+    temporary = None
+    try:
+        with NamedTemporaryFile(
+            dir=target.parent, prefix=".seed-", suffix=".tmp", delete=False
+        ) as outgoing:
+            temporary = Path(outgoing.name)
+            digest = sha256()
+            with source.open("rb") as incoming:
+                while chunk := incoming.read(1024 * 1024):
+                    outgoing.write(chunk)
+                    digest.update(chunk)
+            if digest.hexdigest() != expected_digest:
+                raise ValueError("Snapshot file changed during import")
+            outgoing.flush()
+            os.fsync(outgoing.fileno())
+        try:
+            # Atomic creation without replacement on the local Docker volume/NTFS.
+            os.link(temporary, target)
+        except FileExistsError:
+            if (
+                target.is_symlink()
+                or not target.is_file()
+                or file_digest(target) != expected_digest
+            ):
+                raise ValueError("Existing data file differs; refusing to overwrite") from None
+            return False
+        return True
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+
+
+def insert_seed_rows(connection, table, rows):
+    for batch in batched(rows, INSERT_BATCH_SIZE):
+        connection.execute(table.insert(), [decode_row(table, row) for row in batch])
+
+
 def import_snapshot(directory, storage, models, database_engine=engine):
-    data = verify_snapshot(directory)
     with database_engine.begin() as connection:
         if connection.dialect.name == "postgresql":
             connection.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": SEED_LOCK})
@@ -329,25 +387,28 @@ def import_snapshot(directory, storage, models, database_engine=engine):
             if table.name != "system_settings"
         ):
             return False  # An existing account, label or customer is never overwritten.
-        if connection.scalar(text("SELECT version_num FROM alembic_version")) != data["migration"]:
+        # Existing installations must not depend on the optional seed payload.
+        data = verify_snapshot(directory)
+        current_revision = connection.scalar(text("SELECT version_num FROM alembic_version"))
+        compatible_upgrade = (
+            data["migration"] == BASELINE_MIGRATION
+            and current_revision == DATASET_MIGRATION
+            and not data["tables"]["dataset_annotations"]
+        )
+        if current_revision != data["migration"] and not compatible_upgrade:
             raise ValueError("Snapshot and database migration revisions must match")
+        files = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))["files"]
         for prefix, target_root in (("storage", storage), ("models", models)):
             source = directory / prefix
             for path in sorted(source.rglob("*")):
                 if not path.is_file():
                     continue
-                target = safe_path(target_root, path.relative_to(source).as_posix())
-                if target.exists():
-                    if not target.is_file() or file_digest(target) != file_digest(path):
-                        raise ValueError("Existing data file differs; refusing to overwrite")
-                    continue
-                target.parent.mkdir(parents=True, exist_ok=True)
-                with path.open("rb") as incoming, target.open("xb") as outgoing:
-                    shutil.copyfileobj(incoming, outgoing)
+                relative = path.relative_to(source).as_posix()
+                target = safe_path(target_root, relative)
+                copy_seed_file(path, target, files[f"{prefix}/{relative}"]["sha256"])
         connection.execute(delete(Base.metadata.tables["system_settings"]))
         for table in TABLES:
-            for row in data["tables"][table.name]:
-                connection.execute(table.insert().values(**decode_row(table, row)))
+            insert_seed_rows(connection, table, data["tables"][table.name])
     return True
 
 

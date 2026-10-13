@@ -1,0 +1,15 @@
+FROM parseq_runtime
+USER root
+RUN apt-get update \
+    && DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends tesseract-ocr \
+    && rm -rf /var/lib/apt/lists/*
+COPY backend/pyproject.toml ./pyproject.toml
+COPY ai/requirements.trainer.txt ./ai-requirements.txt
+COPY ai/requirements.shared.txt ./requirements.shared.txt
+RUN mkdir -p app && touch app/__init__.py \
+    && pip install --no-compile . -r ai-requirements.txt \
+    && pip install --no-compile --no-deps rapidocr-onnxruntime==1.4.4
+COPY backend/app ./app
+COPY ai ./ai
+USER reader
+CMD ["python", "-m", "ai.trainer"]

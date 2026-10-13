@@ -71,6 +71,14 @@ const TrainingPipeline = dynamic(
     ),
   { loading: loadingPanel, ssr: false },
 );
+const TrainingDataQuality = dynamic(
+  () => import("@/features/model-lifecycle/training-data-quality").then((module) => module.TrainingDataQuality),
+  { loading: loadingPanel, ssr: false },
+);
+const OperationalHealth = dynamic(
+  () => import("@/features/model-lifecycle/operational-health").then((module) => module.OperationalHealth),
+  { loading: loadingPanel, ssr: false },
+);
 const OperationsResults = dynamic(
   () =>
     import("@/features/operations/operations-results").then(
@@ -261,9 +269,11 @@ export default function HomePage() {
               )}
               {isSystemAdmin && displayedPage === "model-lifecycle" && (
                 <SectionTabs label="Vòng đời mô hình" items={[
+                  { id: "data", label: "Dữ liệu huấn luyện", content: <TrainingDataQuality csrfToken={csrfToken} /> },
                   { id: "training", label: "Huấn luyện", content: <TrainingPipeline csrfToken={csrfToken} /> },
                   { id: "models", label: "Kho mô hình", content: <ModelOperations csrfToken={csrfToken} /> },
                   { id: "settings", label: "Cấu hình hệ thống", content: <SystemSettings csrfToken={csrfToken} /> },
+                  { id: "health", label: "Giám sát", content: <OperationalHealth /> },
                 ]} />
               )}
               {isSystemAdmin && displayedPage === "traceability" && (

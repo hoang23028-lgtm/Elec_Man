@@ -134,6 +134,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--minutes", type=int, default=30)
     parser.add_argument(
+        "--stop-file",
+        type=Path,
+        help="Exit cleanly when an orchestrator creates this marker",
+    )
+    parser.add_argument(
         "--https",
         action="store_true",
         help="Use production HTTPS configuration with a temporary trusted test certificate",
@@ -355,6 +360,8 @@ def main():
             )
             deadline = time.monotonic() + options.minutes * 60
             while time.monotonic() < deadline:
+                if options.stop_file and options.stop_file.exists():
+                    break
                 time.sleep(1)
         finally:
             for name in reversed(created):

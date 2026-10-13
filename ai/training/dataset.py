@@ -2,77 +2,13 @@ import json
 import shutil
 from hashlib import sha256
 from pathlib import Path
+from uuid import uuid4
 
 import cv2
 
 from ai.pipeline.geometry import perspective_crop
 from ai.pipeline.preprocessing import load_prepared_image
 from ai.pipeline.register import integer_register_strip
-
-
-def _identity_tokens(image, reading):
-    tokens = [f"image:{image.sha256}"]
-    customer = getattr(reading, "matched_customer_id", None)
-    code = (reading.final_customer_id or "").strip().upper()
-    if customer:
-        tokens.append(f"customer:{customer}")
-    if code:
-        tokens.append(f"code:{code}")
-    return tokens
-
-
-def meter_groups(rows):
-    """Link UUID/code aliases and duplicate hashes before assigning partitions."""
-    parents = {}
-
-    def root(token):
-        parents.setdefault(token, token)
-        while parents[token] != token:
-            parents[token] = parents[parents[token]]
-            token = parents[token]
-        return token
-
-    for image, reading in rows:
-        tokens = _identity_tokens(image, reading)
-        for token in tokens[1:]:
-            left, right = sorted((root(tokens[0]), root(token)))
-            parents[right] = left
-    groups = {}
-    for image, reading in rows:
-        groups.setdefault(root(f"image:{image.sha256}"), []).append((image, reading))
-    return groups
-
-
-def split_metadata(rows):
-    unknown = sum(len(_identity_tokens(image, reading)) == 1 for image, reading in rows)
-    group_count = len(meter_groups(rows))
-    return {
-        "validation_split": "linked_customer_identity_v2",
-        "unknown_meter_identity_samples": unknown,
-        "meter_identity_groups": group_count,
-        "validation_groups_verified": unknown == 0 and group_count >= 2,
-        "independent_holdout": False,
-    }
-
-
-def split_by_meter(rows):
-    """Group-disjoint when identity is known; unknown images remain diagnostic."""
-    groups = meter_groups(rows)
-    if len(groups) < 2:
-        raise ValueError(
-            "Cần ít nhất hai nhóm công tơ để tách train và validation độc lập."
-        )
-    keys = sorted(groups, key=lambda key: sha256(key.encode()).hexdigest())
-    validation_keys = set(keys[: max(1, len(keys) // 5)])
-    training = [
-        row for key in keys if key not in validation_keys for row in groups[key]
-    ]
-    validation = [row for key in keys if key in validation_keys for row in groups[key]]
-    if len(training) < 2:
-        raise ValueError(
-            "Tập train cần ít nhất hai ảnh sau khi tách riêng nhóm validation."
-        )
-    return training, validation
 
 
 def _reading_polygon(reading) -> tuple[tuple[float, float], ...]:
@@ -87,23 +23,29 @@ def export_sequence_dataset(
     validation_rows,
     storage_root: Path,
     target: Path,
+    holdout_rows=None,
 ) -> dict:
     """Create deterministic whole-register crops without exposing source photos."""
-    temporary = target.with_name(f".{target.name}.tmp")
-    if temporary.exists():
-        shutil.rmtree(temporary)
+    temporary = target.with_name(f".{target.name}.{uuid4().hex}.tmp")
     if target.exists():
         raise ValueError("Bộ dữ liệu chuỗi của phiên huấn luyện đã tồn tại.")
     temporary.mkdir(parents=True)
     manifest: list[dict] = []
     try:
-        for split, rows in (("train", training_rows), ("validation", validation_rows)):
+        splits = [("train", training_rows), ("validation", validation_rows)]
+        if holdout_rows is not None:
+            splits.append(("holdout", holdout_rows))
+        for split, rows in splits:
             image_dir = temporary / split
             image_dir.mkdir()
             labels: list[str] = []
             for image, reading in rows:
                 label = str(reading.final_meter_reading or "").strip()
-                if not label.isdigit() or not 4 <= len(label) <= 8:
+                if (
+                    not label.isascii()
+                    or not label.isdigit()
+                    or not 4 <= len(label) <= 8
+                ):
                     raise ValueError("Nhãn chỉ số phải gồm 4–8 chữ số nguyên.")
                 source = load_prepared_image(storage_root / image.relative_path)
                 if source is None:
@@ -125,7 +67,7 @@ def export_sequence_dataset(
                     }
                 )
             (temporary / f"{split}.tsv").write_text(
-                "\n".join(labels) + "\n", encoding="utf-8"
+                "\n".join(labels) + ("\n" if labels else ""), encoding="utf-8"
             )
         manifest.sort(key=lambda row: (row["split"], row["source_sha256"]))
         manifest_bytes = json.dumps(
@@ -140,6 +82,7 @@ def export_sequence_dataset(
         "path": target.name,
         "train_samples": len(training_rows),
         "validation_samples": len(validation_rows),
+        "holdout_samples": len(holdout_rows or []),
         "manifest_sha256": sha256(manifest_bytes).hexdigest(),
         "format": "image-tab-label-tsv-v1",
     }

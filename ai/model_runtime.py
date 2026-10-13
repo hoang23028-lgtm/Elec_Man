@@ -7,10 +7,11 @@ from sqlalchemy import select
 
 from ai.pipeline.meter_pipeline import MeterReadingPipeline
 
-_cached_ids: tuple[object | None, object | None] | None = None
+_cached_ids: tuple[object | None, ...] | None = None
 _cached_pipeline: MeterReadingPipeline | None = None
 SUPPORTED_REGION_MODEL_TYPES = ("reading_region_ridge",)
 SUPPORTED_METER_LOCATOR_MODEL_TYPES = ("meter_locator_ridge",)
+SUPPORTED_READER_MODEL_TYPES = ("parseq_tiny_finetuned",)
 
 
 def _digest(path) -> str:
@@ -42,7 +43,9 @@ def current_pipeline() -> MeterReadingPipeline:
             select(ModelRecord)
             .where(
                 ModelRecord.model_type.in_(
-                    SUPPORTED_REGION_MODEL_TYPES + SUPPORTED_METER_LOCATOR_MODEL_TYPES
+                    SUPPORTED_REGION_MODEL_TYPES
+                    + SUPPORTED_METER_LOCATOR_MODEL_TYPES
+                    + SUPPORTED_READER_MODEL_TYPES
                 ),
                 ModelRecord.status == "ACTIVE",
             )
@@ -57,26 +60,43 @@ def current_pipeline() -> MeterReadingPipeline:
             (r for r in records if r.model_type in SUPPORTED_METER_LOCATOR_MODEL_TYPES),
             None,
         )
+        reader_record = next(
+            (r for r in records if r.model_type in SUPPORTED_READER_MODEL_TYPES), None
+        )
     record_ids = (
         region_record.id if region_record else None,
         meter_record.id if meter_record else None,
+        reader_record.id if reader_record else None,
     )
     if _cached_pipeline is not None and record_ids == _cached_ids:
         return _cached_pipeline
-    if region_record is None and meter_record is None:
+    if region_record is None and meter_record is None and reader_record is None:
+        if _cached_pipeline is not None:
+            _cached_pipeline.meter_reader.close()
         _cached_ids = record_ids
         _cached_pipeline = MeterReadingPipeline()
         return _cached_pipeline
     region_path = _verified_path(region_record)
     meter_path = _verified_path(meter_record)
+    _verified_path(reader_record)
     versions = "+".join(
-        record.version for record in (region_record, meter_record) if record is not None
+        record.version
+        for record in (region_record, meter_record, reader_record)
+        if record is not None
     )
     pipeline = MeterReadingPipeline(
         f"modern-sequence-{versions}",
         region_model_path=region_path,
         meter_model_path=meter_path,
+        parseq_model={
+            "model_file": reader_record.file_path,
+            "model_sha256": reader_record.sha256,
+        }
+        if reader_record
+        else None,
     )
+    if _cached_pipeline is not None:
+        _cached_pipeline.meter_reader.close()
     _cached_pipeline = pipeline
     _cached_ids = record_ids
     return _cached_pipeline

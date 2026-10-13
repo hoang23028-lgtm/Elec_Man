@@ -22,7 +22,7 @@ Nginx là cổng vào duy nhất. PostgreSQL không publish cổng host; reader 
 | backend | API, xác thực/phân quyền/CSRF, upload, review, dashboard, report |
 | worker | Nhận job có khóa SKIP LOCKED, chạy pipeline và lưu đề xuất bất biến |
 | reader-ppocr / reader-parseq | Model pretrained nạp trong tiến trình, trả chuỗi số |
-| trainer | Nhận phiên train, huấn luyện định vị/export crop/benchmark, registry TESTING |
+| trainer | Đóng băng dataset, học định vị trong mặt công tơ/fine-tune PARSeq/export crop/benchmark holdout, registry TESTING |
 | frontend | UI tiếng Việt, dữ liệu/API cùng origin, route theo vai trò |
 | nginx | Proxy, giới hạn request, security headers, healthcheck đường vào |
 
@@ -36,4 +36,4 @@ Ba volume lâu dài: postgres_data, storage_data, model_data, đều có tiền 
 
 Đây là triển khai một host bằng Compose, không phải cluster HA. Login rate limit lưu bộ nhớ một API process; scale nhiều replica cần limiter chung. PostgreSQL và file volume không có distributed transaction; thao tác file có cleanup khi rollback nhưng crash cứng có thể để bản sao dư. Backup cần tạm dừng writer để nhất quán cả ba kho.
 
-Job/training có khóa và kiểm thử cạnh tranh trên PostgreSQL; điều đó không chứng minh mọi mức tải lớn đều đạt SLA. Chưa có fine-tune deep reader tích hợp hay tự xác nhận an toàn. Xem [bảo mật](security.md), [backup](backup-restore.md) và [pipeline](ai-pipeline.md).
+Job/training có khóa và kiểm thử cạnh tranh trên PostgreSQL; điều đó không chứng minh mọi mức tải lớn đều đạt SLA. Fine-tune PARSeq đã tích hợp, nhưng chưa có mô hình chuyên biệt đạt kiểm định thực địa. Tự xác nhận vẫn khóa. Trainer chạy một replica, mặc định giới hạn 1 CPU/2 GiB, tách ABI NumPy khỏi worker. Xem [bảo mật](security.md), [backup](backup-restore.md) và [pipeline](ai-pipeline.md).

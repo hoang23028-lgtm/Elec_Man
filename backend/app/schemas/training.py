@@ -12,6 +12,12 @@ class DatasetSummary(BaseModel):
     new_samples_since_last_run: int
     auto_start_enabled: bool
     ready: bool
+    verified_samples: int = 0
+    training_samples: int = 0
+    validation_samples: int = 0
+    holdout_samples: int = 0
+    unverified_identity_samples: int = 0
+    data_issues: list[str] = []
 
 
 class TrainingRunRow(BaseModel):

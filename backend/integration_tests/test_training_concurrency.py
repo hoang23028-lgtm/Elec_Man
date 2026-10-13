@@ -74,6 +74,19 @@ def test_simultaneous_training_requests_create_exactly_one_run(login):
             },
         )
         assert labeled.status_code == 200, labeled.text
+        index = image_ids.index(image_id)
+        annotated = clients[0].put(
+            API + f"/training/data/{image_id}",
+            json={
+                "expected_revision": 0,
+                "expected_label_revision": labeled.json()["revision"],
+                "group_key": f"TEST-QUEUE-{index}",
+                "partition": "VALIDATION" if index == 2 else "TRAIN",
+                "identity_verified": True,
+                "label_verified": True,
+            },
+        )
+        assert annotated.status_code == 200, annotated.text
     with SessionLocal() as db:
         settings = db.scalars(
             select(SystemSetting).where(

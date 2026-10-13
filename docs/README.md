@@ -16,6 +16,7 @@ Tài liệu trong thư mục này mô tả **bản mã nguồn hiện hành**. B
 - [Kiến trúc](architecture.md), [tổ chức source](source-structure.md), [phát triển](development.md).
 - [Kho ảnh/database](storage.md), [hàng đợi](jobs.md).
 - [Pipeline AI](ai-pipeline.md), [huấn luyện](training.md), [độ tin cậy](ai-reliability.md).
+- [Giám sát, backup định kỳ và cập nhật local](operations-monitoring.md), [kế hoạch cải tiến](improvement-plan.md).
 - [Kiểm thử](testing.md), [checklist phát hành](release-checklist.md).
 
 ## Triển khai và bảo vệ dữ liệu
@@ -37,5 +38,7 @@ Tài liệu trong thư mục này mô tả **bản mã nguồn hiện hành**. B
 - [Xác minh toàn hệ thống 13/10](reports/final-verification-2026-10-13.md).
 - [Xác minh bản chia sẻ 13/10](reports/sharing-verification-2026-10-13.md).
 - [Xác minh bản công khai có dữ liệu 13/10](reports/public-data-verification-2026-10-13.md).
+- [Cải tiến độ tin cậy nhập dữ liệu 13/10](reports/seed-reliability-2026-10-13.md).
+- [Pipeline huấn luyện và vận hành mới 13/10](reports/training-pipeline-upgrade-2026-10-13.md).
 
 Snapshot data/ có khách hàng/ảnh/nhãn và artifact thật đã được phép công khai, không có thông tin xác thực hoặc backup SQL thô. Mẫu examples/customers.json vẫn là giả. Điều kiện AI/HTTPS/privacy còn lại phải đọc trước khi triển khai rộng; không tự công khai dữ liệu mới.

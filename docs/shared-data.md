@@ -29,7 +29,11 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\start.ps1
 bash scripts/start.sh
 ```
 
-Sau PostgreSQL/migration, dịch vụ seed kiểm tra manifest và chỉ nhập khi database chưa có tài khoản hoặc dữ liệu nghiệp vụ. Seed chép kho tệp sang volume mới, nhập JSON bằng SQLAlchemy trong transaction, giữ nhãn/UUID/revision rồi tạo quản trị mới theo mật khẩu bạn nhập. Không thực thi SQL từ payload JSON.
+Sau PostgreSQL/migration, dịch vụ seed kiểm tra database trước. Nếu đã có tài khoản hoặc dữ liệu nghiệp vụ, seed bỏ qua mà không đọc snapshot. Với database mới, seed kiểm tra manifest, chép kho tệp sang volume và nhập JSON bằng SQLAlchemy theo lô tối đa 200 bản ghi trong một transaction. Giữ nhãn/UUID/revision rồi tạo quản trị mới theo mật khẩu bạn nhập. Không thực thi SQL từ payload JSON.
+
+Tệp được chép vào tệp tạm cùng thư mục, kiểm checksum, flush/fsync rồi công bố bằng hard link không ghi đè tệp đích. Lỗi đọc/ghi trước khi công bố sẽ dọn tệp tạm của lần chạy đó; không để lại ảnh đích bị chép dở. Nếu đích đã tồn tại đúng checksum, lần thử lại dùng lại tệp đó.
+
+Database và filesystem **không phải một transaction chung**: lỗi nhập/commit database rollback các hàng nhưng có thể giữ các tệp hoàn chỉnh đã công bố. Chạy lại sẽ kiểm tra và dùng lại chúng, không xóa tệp đã có. Nếu tiến trình bị kill/mất điện, có thể còn tệp `.seed-*.tmp`; không tự xóa tệp không biết chủ sở hữu. Cơ chế công bố yêu cầu filesystem hỗ trợ hard link (NTFS host và tmpfs Linux trong Docker đã kiểm tra; chưa thử mọi loại network/cloud volume); lỗi hỗ trợ filesystem sẽ dừng an toàn.
 
 Chờ seed Exited(0), backend/frontend/readers/nginx healthy; đăng nhập admin mới. Quản trị thấy 660 khách hàng; Vận hành thấy 37 ảnh cần xử lý đã gắn nhãn và 24 ảnh từ chối; Vòng đời mô hình thấy 37 mẫu/ngưỡng mặc định 200. Không cần import lại ảnh hoặc gắn nhãn lại.
 
@@ -51,7 +55,7 @@ EMPTY_DATABASE=1 bash scripts/start.sh
 
 Hoặc đặt IMPORT_SHARED_DATA=false trong .env. Với starter -EmptyDatabase/EMPTY_DATABASE, biến môi trường chỉ có hiệu lực cho lần chạy; tài khoản quản trị tạo sau đó sẽ ngăn seed tự nhập trong lần sau. Với lệnh Compose trực tiếp, dùng cấu hình env false nếu muốn luôn tắt.
 
-Đã có bất kỳ tài khoản/khách hàng/nhãn/lô/model/audit thì seed giữ database hiện tại, không merge/upsert dữ liệu chia sẻ. Không dùng nút restore phá hủy để “nạp thêm” snapshot. Nếu muốn thử bản chia sẻ, tạo project/env/cổng mới theo [cấu hình](configuration.md).
+Đã có bất kỳ tài khoản/khách hàng/nhãn/lô/model/audit thì seed giữ database hiện tại, không merge/upsert dữ liệu chia sẻ. Snapshot thiếu/hỏng không chặn khởi động database đã có dữ liệu; checker repo/CI vẫn yêu cầu snapshot công khai hợp lệ. Không dùng nút restore phá hủy để “nạp thêm” snapshot. Nếu muốn thử bản chia sẻ, tạo project/env/cổng mới theo [cấu hình](configuration.md).
 
 ## 4. Kiểm tra không có secret hoặc hỏng file
 
@@ -62,7 +66,7 @@ python scripts/check_shared_data.py
 python scripts/check-repository-secrets.py
 ```
 
-Checker snapshot không nối database thật: verify file set/hash/size, bảng hợp lệ, không có sessions, actor không thể đăng nhập, ảnh gốc khớp metadata. CI cũng chạy checker. Giữ manifest gắn đúng payload; đừng chỉnh một nhãn trực tiếp trong Git rồi giữ manifest cũ. Đổi nhãn qua UI và tạo snapshot mới được review.
+Checker snapshot không nối database thật: verify file set/hash/size, bảng và các cột đúng schema, không có sessions, actor không thể đăng nhập, ảnh gốc khớp metadata. CI cũng chạy checker. Giữ manifest gắn đúng payload; đừng chỉnh một nhãn trực tiếp trong Git rồi giữ manifest cũ. Đổi nhãn qua UI và tạo snapshot mới được review.
 
 Checksum phát hiện lỗi/chỉnh file, không chứng minh nguồn đáng tin hay tự cấp quyền chia sẻ. Chỉ import snapshot từ repo/commit đã xác minh. Import từ chối schema revision không khớp hoặc file volume đã có nội dung khác, không ghi đè chúng.
 

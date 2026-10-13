@@ -39,7 +39,7 @@ Guest/VIEWER chỉ xem Tổng quan. ADMIN làm nghiệp vụ. SUPER_ADMIN quản
 
 - Bộ đọc toàn chuỗi **PP-OCRv6 small + PARSeq-tiny** trong hai dịch vụ nội bộ; không mock, không gửi ảnh lên cloud.
 - Tiền xử lý/crop OpenCV, OCR mã khách hàng, đối chiếu database; khoanh bốn góc và lưu nhãn thủ công.
-- Trainer huấn luyện **hai bộ định vị Ridge**, xuất crop dataset và benchmark reader pretrained. **Chưa tự fine-tune PP-OCR/PARSeq.**
+- Trainer học **hai bộ định vị Ridge** và **fine-tune PARSeq-tiny** từ nhãn được kiểm tra. Phân nhóm công tơ, khóa holdout, đối chứng reader và kiểm định toàn quy trình trước khi kích hoạt; xem [huấn luyện](docs/training.md).
 - Tất cả kết quả cần con người xác nhận. Score OCR chưa là xác suất đúng; đồng thuận không bảo đảm crop đúng.
 - Máy mới tự khôi phục **snapshot đã được chủ dự án cho phép công khai**: 660 khách hàng, 61 ảnh, 37 nhãn, 30 crop train/7 crop validation và 3 artifact TESTING. Không mang theo tài khoản/mật khẩu/phiên cũ; tạo quản trị mới. Xem [dữ liệu đầy đủ](docs/shared-data.md). Dùng `-EmptyDatabase` hoặc `EMPTY_DATABASE=1` nếu muốn cài trống.
 

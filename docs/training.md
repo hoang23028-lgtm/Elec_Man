@@ -1,50 +1,86 @@
-# Gắn nhãn, huấn luyện và đánh giá mô hình
+# Gắn nhãn, huấn luyện và kiểm định mô hình
 
-## Phạm vi đã triển khai
+## Những gì đã tích hợp
 
-Hệ thống **huấn luyện hai bộ định vị Ridge**, xuất crop dữ liệu chuỗi và benchmark hai reader pretrained. Không tự fine-tune trọng số PP-OCR/PARSeq; metrics ghi rõ `sequence_reader_trainable=False`. Tải thêm ảnh chưa gắn nhãn không tự biến thành dữ liệu học có giám sát.
+SUPER_ADMIN có thể chuẩn bị phân tập, chạy phiên học, fine-tune PARSeq-tiny, xem tiến trình/hủy và kích hoạt ứng viên đạt gate. ADMIN làm nghiệp vụ và gắn nhãn; VIEWER chỉ xem. Upload ảnh **không** tự tạo nhãn đúng hoặc bảo đảm mô hình chính xác.
 
-Chỉ SUPER_ADMIN điều khiển phiên train/kích hoạt/cấu hình. ADMIN được tải ảnh và lưu nhãn trong nghiệp vụ; VIEWER không sửa dữ liệu.
+Trainer học hai bộ định vị Ridge (không phải deep detector): mặt công tơ trên toàn ảnh, vùng số trong mặt công tơ đã chỉnh phối cảnh. Bộ đọc PARSeq-tiny được học có giám sát bằng teacher forcing tự hồi quy, cập nhật decoder/head và giữ encoder pretrained. Đây là một cách thích nghi dùng ít tài nguyên, không phải bản sao toàn bộ thuật toán huấn luyện permutation của bài PARSeq. PP-OCRv6 small và PARSeq pretrained vẫn làm đối chứng.
 
-## 1. Thu thập mẫu đúng
+## 1. Lưu nhãn ở Vận hành
 
-- Giữ ảnh gốc; thu thập góc chụp, ánh sáng, loại công tơ và tình huống chuyển bánh số đa dạng.
-- Lưu bốn góc toàn công tơ, bốn góc vùng chỉ số và chuỗi số nguyên đúng (giữ số 0 đầu, bỏ ô đỏ).
-- Bản ghi LABELED hoặc CONFIRMED có người xác nhận chỉ số và hai vùng mới đủ điều kiện pipeline định vị đầy đủ; không cần phải tạo chỉ số tháng chỉ để train.
-- Chỉ lưu vùng công tơ mà chưa có vùng chỉ số/nhãn số không được tính là mẫu đầy đủ.
-- SHA-256 giúp loại ảnh trùng hoàn toàn. Xác định cùng công tơ bằng mã/nhóm đã xác minh để tách train/validation, không tách ngẫu nhiên ảnh cùng công tơ vào cả hai tập.
-- Nếu chưa có mã/nhóm, chia theo hash ảnh không bảo đảm độc lập theo công tơ. Registry sẽ không coi nhóm chưa xác minh là đủ điều kiện kích hoạt.
+1. Upload và xử lý ảnh.
+2. Khoanh bốn góc toàn công tơ, rồi vùng các bánh số nguyên. Vùng số phải nằm trong vùng công tơ, không chứa bánh đỏ.
+3. Nhập **chuỗi số đúng**, giữ số 0 đầu (ví dụ `00120`), bỏ phần sau dấu phẩy. Kiểm tra kỹ bánh đang chuyển số; không tự đổi đáp án để hợp với OCR.
+4. Lưu nhãn. Chưa có mã khách hàng vẫn có thể LABELED để học, không cần tạo chỉ số tháng.
 
-Nhãn đang vận hành nằm trong database/volume riêng. Snapshot 37 mẫu/crop đã được chủ dự án cho phép công khai có ở [data/](../data/README.md); dữ liệu mới không tự đồng bộ hoặc tự được phép công khai. Không chỉnh số nhãn chỉ để “đạt 200”.
+Mẫu đủ nhãn cần trạng thái LABELED/CONFIRMED, người đã lưu chỉ số và hai vùng, 4–8 chữ số ASCII và hai polygon hợp lệ. Ảnh tải mới, bị từ chối hoặc chỉ có đề xuất AI không được coi là nhãn con người.
 
-## 2. Theo dõi và chạy phiên
+## 2. Xác minh nhóm và phân tập
 
-Vòng đời mô hình → Huấn luyện: đọc mẫu đủ điều kiện/ngưỡng/mẫu mới, kiểm tra phiên PENDING/RUNNING/FAILED/COMPLETED. Mặc định 200 mẫu đầy đủ và 25 mẫu mới cho tự động; ngưỡng kỹ thuật tối thiểu 3 chỉ để ngăn dữ liệu không thể chia, **không là mức đủ chất lượng**.
+Mở **Vòng đời mô hình → Dữ liệu huấn luyện**. Chọn Kiểm tra trên mỗi ảnh; xem ảnh lớn và nhãn số, sửa nhãn/vùng tại Vận hành nếu cần. Nhập mã nhóm như `CT001` khi chưa biết mã khách hàng; cùng công tơ trong nhiều ảnh/tháng phải dùng cùng nhóm. Mã nhóm được trim/viết hoa, không cho đường dẫn/ký tự tùy ý.
 
-Tự động train dùng chính sách đã bật và khóa advisory PostgreSQL chung để tránh tạo hai phiên đồng thời. Sau FAILED, tự động dừng; phải sửa nguyên nhân và chạy thủ công thành công trước khi tiếp tục tự động. Không tự retry train vô hạn.
+Đánh dấu đã xác minh định danh công tơ và đã kiểm tra nhãn/hai vùng. Phân tập:
 
-Nhấn Huấn luyện ngay khi UI và server xác nhận đủ điều kiện. Theo dõi tiến độ, lỗi chung và log có run_id. Không hạ ngưỡng để ép kích hoạt bằng vài mẫu.
+| Phân tập | Dùng làm gì | Lưu ý |
+|---|---|---|
+| Huấn luyện (TRAIN) | Cập nhật trọng số | Không chứa ảnh/nhóm của hai tập còn lại |
+| Chọn trọng số (VALIDATION) | Chọn epoch tốt nhất, đánh giá định vị và reader | Không phải test độc lập cuối cùng |
+| Kiểm tra độc lập (HOLDOUT) | Chỉ đánh giá sau chọn trọng số | Khóa ngay khi lưu, không chuyển sang học/đổi nhóm |
+| Chưa phân tập | Chưa đủ xác minh | Không vào phiên tiêu chuẩn |
 
-## 3. Những gì trainer tạo
+Nên dành holdout từ công tơ chưa dùng để phát triển; ảnh từng dùng để điều chỉnh thuật toán không thể trở thành test hoàn toàn mới chỉ bằng đổi dropdown. Cần thêm ảnh thực tế độc lập. Có thể bắt đầu với tỷ lệ nhóm 70/15/15, nhưng ưu tiên đủ độ đa dạng và số mẫu hơn một tỷ lệ cứng.
 
-- `meter_locator_ridge`: hồi quy bốn góc mặt công tơ.
-- `reading_region_ridge`: hồi quy bốn góc vùng bộ số.
-- Artifact NPZ không dùng pickle, checksum SHA-256, trạng thái TESTING.
-- `sequence_datasets/<version>/`: crop đã chỉnh phối cảnh, train.tsv, validation.tsv và manifest; không nhân bản toàn bộ ảnh gốc.
-- Benchmark PP-OCR/PARSeq trên crop validation: exact-match, coverage, CER. Reader không sẵn sàng thì ghi benchmark chưa thực hiện, không bịa độ chính xác.
+Server nối nhóm qua SHA-256 ảnh, mã khách hàng chuẩn, UUID khách hàng và nhóm thủ công. Ảnh trùng chỉ tính một lần. Cùng nhóm vào hai tập bị từ chối, kể cả khi có ảnh chưa xác minh. Nếu sửa nhãn/vùng sau xác minh, revision thay đổi: ảnh không còn được dùng trong phiên tiêu chuẩn cho đến khi kiểm tra lại. Ghi log đầy đủ trước–sau, kiểm tra revision chống ghi đè.
 
-Điểm vùng `max(0, 1 - mean_error × 4)` là điểm suy từ sai số tọa độ chuẩn hóa, **không** là mAP/IoU hay tỷ lệ đọc đúng số. Benchmark crop không đo khả năng tự định vị toàn ảnh.
+## 3. Tạo phiên
 
-## 4. Kích hoạt ứng viên
+Mở **Huấn luyện**. Xem số train/validation/holdout, lỗi dữ liệu và ngưỡng. Ngưỡng mặc định 200 mẫu **train + validation đã xác minh**, không cộng holdout. Tối thiểu kỹ thuật 2 train + 1 validation chỉ để chương trình chạy, không chứng minh đủ chất lượng.
 
-Chỉ loại model được runtime hỗ trợ, file tồn tại đúng MODELS_ROOT và checksum đúng mới được chấp nhận. Kích hoạt cần nhóm validation đã xác minh, ít nhất 30 ảnh validation và điểm vùng hợp lệ ≥0,8 cho đúng loại định vị. Gate kỹ thuật này không thay thế đánh giá nghiệp vụ độc lập.
+Bật Fine-tune PARSeq-tiny (mặc định bật); bắt đầu với 10 epoch, batch 8, learning rate 0,0001. Server giới hạn 1–100 epoch, batch 1–64, learning rate (0; 0,01]. Giảm batch nếu thiếu RAM. Chọn bỏ fine-tune để kiểm tra hai bộ định vị/reader cơ sở trước. Xác nhận tạo phiên, theo dõi stage/epoch/loss.
 
-Kích hoạt được kiểm toán; worker kiểm tra checksum trước nạp. Mô hình HOG cũ không được kích hoạt trong pipeline mới. Bản ghi lịch sử có thể giữ để truy vết, không có nghĩa còn chạy thuật toán cũ.
+**Chạy chẩn đoán** cho phép ít mẫu, có thể chia nhóm chưa xác minh theo hash để thử phần mềm. Holdout đã đặt trước vẫn không vào train; mọi kết quả chẩn đoán đều không được kích hoạt. Không dùng chế độ này để công bố độ chính xác sản xuất.
 
-## 5. Điều kiện cho mô hình chuyên biệt tốt hơn
+Nhãn/phân tập được đóng băng thành snapshot JSON có SHA-256 khi enqueue. Trainer không lấy các nhãn vừa sửa trong lúc phiên đang chạy. File ảnh/crop phải khớp checksum; file thay đổi làm phiên thất bại. Chỉ một phiên PENDING/RUNNING; phiên FAILED/CANCELLED dừng tự train cho đến khi sửa nguyên nhân và hoàn tất một phiên mới. Hủy được kiểm tra từng lô học/stage, không phải ngắt tức thời một HTTP inference đang chạy.
 
-Dành test set khóa độc lập theo công tơ trước fine-tune. Đo riêng định vị, đọc crop và end-to-end; exact-match/CER/coverage, lỗi khi có câu trả lời, P50/P95, RAM và từng nhóm ảnh. Đánh giá ảnh chuyển số và phản chiếu, không chỉ ảnh rõ.
+## 4. Artifact và đánh giá
 
-Fine-tune deep reader hoặc thay Ridge bằng detector/keypoint model là bước phát triển **chưa có nút hoàn tất tự động** trong bản này. Cần thêm chương trình train/export/import, tài nguyên GPU phù hợp, kiểm thử tương thích và xem giấy phép phụ thuộc. Không hứa chỉ thêm data là AI đã đạt độ chính xác sản xuất.
+- Hai bộ định vị: NPZ, `allow_pickle=False`; vùng số có metadata `coordinate_space=meter`.
+- PARSeq đã học: `parseq_tiny_finetuned/<version>/model.safetensors`, có SHA-256 và kiến trúc/base revision đóng gói.
+- `sequence_datasets/<version>/`: crop phối cảnh, train.tsv, validation.tsv, holdout.tsv, manifest SHA-256. Không nhân bản toàn ảnh gốc.
+- Validation chọn epoch tốt nhất theo exact-match, rồi CER. **Holdout không dùng chọn epoch**.
+- Đánh giá reader trên crop thật và số chữ số thật được ghi riêng, không nhầm với tự định vị toàn ảnh.
+- Holdout toàn luồng chạy từ ảnh nguyên, không đưa vùng/nhãn/số chữ số thật vào inference: ghi IoU mặt công tơ/vùng số, exact-match, coverage, CER, lỗi khi trả lời, p50/p95.
+- Score chưa hiệu chuẩn; thống kê lỗi score cao và cận trên Wilson 95% không tự biến score thành xác suất. Ví dụ không có lỗi trong 30 ảnh vẫn chưa chứng minh sai số thực dưới 1%.
 
-Xem [pipeline](ai-pipeline.md), [độ tin cậy](ai-reliability.md), [báo cáo chẩn đoán](reports/ai-diagnostic-2026-10-12.md).
+Artifact ban đầu luôn TESTING, kèm run_id, hash dataset và danh sách artifact/checksum thuộc phiên hoàn tất. Lỗi/timeout reader làm kiểm định toàn quy trình không hoàn tất; không bịa điểm. Snapshot đầy đủ không trả về UI mỗi lần polling, tránh payload lớn.
+
+## 5. Kích hoạt có kiểm soát
+
+Server kiểm tra file/checksum, loại hỗ trợ, provenance từ phiên COMPLETED và nhãn/nhóm holdout hiện tại còn khớp snapshot. Metrics JSON tự nhập khi đăng ký thủ công không thay thế phiên train thật.
+
+Gate hiện hành (điều kiện kỹ thuật tối thiểu, không phải chứng nhận sản xuất):
+
+- Validation tách nhóm đã xác minh, ít nhất 30 ảnh.
+- Holdout độc lập được xác minh, ít nhất 30 ảnh, kiểm định toàn quy trình hoàn tất.
+- Bộ định vị: điểm sai số tọa độ validation ≥0,8 và IoU vùng tương ứng trên holdout toàn luồng ≥0,8.
+- Bộ đọc: exact-match và coverage trên crop holdout ≥95%; trên toàn luồng ≥90%.
+- Kích hoạt theo thứ tự **định vị công tơ → vùng số → bộ đọc**, cùng phiên bản. Đổi bộ định vị sẽ lưu trữ bộ đọc khác phiên để tránh trộn pipeline chưa đánh giá.
+
+Mô hình cũ không đạt gate giữ lịch sử, không được tự dùng lại. Mọi kích hoạt có audit; worker nạp ứng viên đã xác minh ở job tiếp theo. **Tự xác nhận kết quả vẫn khóa**, kể cả khi đã kích hoạt bộ đọc.
+
+## 6. Tài nguyên và kiểm thử
+
+Compose ≥2.22 dùng named build context để trainer kế thừa môi trường PARSeq. Mặc định trainer CPU 1 core/2 GiB, ngân sách vòng học 7.200 giây. Trainer/reader dùng NumPy 1.x tương thích Torch CPU đã pin; worker dùng NumPy 2.x ở image riêng. Không đổi NumPy chung khiến Torch mất cầu nối ảnh. Chỉ chạy một replica trainer; hệ thống chưa có distributed training/HA.
+
+Smoke test ngoại tuyến, chỉ ảnh tổng hợp, không database/volume thật:
+
+```text
+docker compose --env-file .env.example build reader-parseq trainer
+docker run --rm --network none --read-only --tmpfs /tmp:size=256m,mode=1777 --cap-drop ALL --security-opt no-new-privileges:true elec_man-trainer python -m ai.tools.smoke_sequence_training
+```
+
+Lệnh kiểm chứng optimizer đổi decoder, encoder không đổi, safetensors nạp lại/inference giống nhau, checksum sai bị từ chối và reset pretrained đúng. Không dùng kết quả trên ảnh tổng hợp để tuyên bố độ chính xác công tơ thật.
+
+37 nhãn trong snapshot công khai vẫn được giữ nguyên. Chưa xác minh danh tính/nhóm nên chưa tự coi là dữ liệu đủ để kích hoạt. Cần bạn xác minh trong UI và bổ sung ảnh độc lập, ảnh mờ/phản chiếu/chuyển số/công tơ khác; chưa có cam kết chỉ thêm ảnh là hoàn thành AI sản xuất.
+
+Tham khảo triển khai từ [PARSeq chính thức](https://github.com/baudm/parseq), định dạng [safetensors](https://huggingface.co/docs/safetensors/main/en/api/torch) và bộ đối chứng [PaddleOCR 3.7.0](https://github.com/PaddlePaddle/PaddleOCR/releases/tag/v3.7.0). Xem [pipeline](ai-pipeline.md), [độ tin cậy](ai-reliability.md), [giám sát/sao lưu](operations-monitoring.md).

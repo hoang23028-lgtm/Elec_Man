@@ -47,6 +47,12 @@ export type DatasetSummary = {
   new_samples_since_last_run: number;
   auto_start_enabled: boolean;
   ready: boolean;
+  verified_samples: number;
+  training_samples: number;
+  validation_samples: number;
+  holdout_samples: number;
+  unverified_identity_samples: number;
+  data_issues: string[];
 };
 export type TrainingRun = {
   id: string;
@@ -140,10 +146,20 @@ export async function getTrainingOverview(): Promise<TrainingOverview> {
   return apiJson<TrainingOverview>("/training", {}, "Không thể tải trạng thái huấn luyện.");
 }
 
-export async function startTraining(csrfToken: string): Promise<TrainingRun> {
+export type TrainingOptions = { experimental: boolean; fine_tune_reader: boolean; epochs: number; batch_size: number; learning_rate: number };
+export async function startTraining(csrfToken: string, options?: TrainingOptions): Promise<TrainingRun> {
   return apiJson<TrainingRun>(
     "/training/runs",
-    { method: "POST", headers: { "X-CSRF-Token": csrfToken } },
+    { method: "POST", headers: { "X-CSRF-Token": csrfToken, "Content-Type": "application/json" }, body: JSON.stringify(options ?? {}) },
     "Không thể tạo phiên huấn luyện.",
   );
 }
+
+export type DatasetAnnotation = { revision: number; group_key: string | null; partition: string; identity_verified: boolean; label_verified: boolean; notes: string | null; holdout_locked_at: string | null };
+export type DatasetItem = { image_id: string; filename: string; label: string | null; label_revision: number; annotation: Partial<DatasetAnnotation>; issues: string[]; review_status: string };
+export type DatasetPage = { total: number; items: DatasetItem[]; summary: { total: number; eligible: number; verified: number; unverified_identity: number; stale_labels: number; train: number; validation: number; holdout: number; conflicts: string[] } };
+export const getTrainingData = (offset: number, search: string) => apiJson<DatasetPage>(`/training/data?offset=${offset}&limit=12&search=${encodeURIComponent(search)}`, {}, "Không thể tải dữ liệu huấn luyện.");
+export const saveTrainingData = (imageId: string, input: Omit<DatasetAnnotation, "revision" | "holdout_locked_at"> & { expected_revision: number; expected_label_revision: number }, csrfToken: string) => apiJson<DatasetAnnotation>(`/training/data/${imageId}`, { method: "PUT", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken }, body: JSON.stringify(input) }, "Không thể lưu phân tập/nhãn.");
+export const cancelTraining = (id: string, csrfToken: string) => apiJson(`/training/runs/${id}/cancel`, { method: "POST", headers: { "X-CSRF-Token": csrfToken } }, "Không thể hủy phiên huấn luyện.");
+export type OperationalHealth = { observed_at: string; queue: Record<string, number>; stuck_jobs: number; failed_last_24h: number; oldest_pending_seconds: number | null; latency: { samples: number; p50_ms: number | null; p95_ms: number | null }; training: { status: string; progress: number; stage: string; heartbeat_at: string | null } | null; disks: Record<string, { free_bytes: number; total_bytes: number; free_percent: number } | null>; backup: { status: string; completed_at: string | null; verified: boolean } | null; alerts: { severity: string; message: string }[]; note: string };
+export const getOperationalHealth = () => apiJson<OperationalHealth>("/training/health", {}, "Không thể tải giám sát hệ thống.");

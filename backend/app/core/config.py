@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     parseq_reader_url: str = "http://reader-parseq:8080"
     sequence_reader_timeout_seconds: float = Field(default=15.0, ge=1.0, le=60.0)
     meter_integer_digits_default: int = Field(default=5, ge=4, le=8)
+    training_timeout_seconds: int = Field(default=7200, ge=60, le=86400)
     session_cookie_name: str = "ema_session"
     session_ttl_hours: int = Field(default=8, ge=1, le=168)
     session_secret: str = Field(min_length=32)

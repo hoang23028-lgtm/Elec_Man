@@ -6,6 +6,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 COPY backend/pyproject.toml ./
 COPY ai/requirements.txt ./ai-requirements.txt
+COPY ai/requirements.shared.txt ./requirements.shared.txt
 RUN python -m pip install --no-compile "pip>=26.2,<27" \
     && mkdir -p app && touch app/__init__.py \
     && pip install --no-compile . -r ai-requirements.txt \

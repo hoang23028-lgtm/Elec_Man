@@ -51,6 +51,10 @@ def test_region_model_activation_requires_region_accuracy() -> None:
         status="TESTING",
         metrics_json={
             "validation_region_accuracy": 0.79,
+            "holdout_images": 30,
+            "independent_holdout": True,
+            "end_to_end_evaluated": True,
+            "holdout_end_to_end": {"reading_mean_iou": 0.9},
             "validation_groups_verified": True,
             "validation_images": 30,
         },
@@ -72,6 +76,10 @@ def test_meter_locator_activation_requires_region_accuracy() -> None:
         status="TESTING",
         metrics_json={
             "validation_meter_region_accuracy": 0.79,
+            "holdout_images": 30,
+            "independent_holdout": True,
+            "end_to_end_evaluated": True,
+            "holdout_end_to_end": {"meter_mean_iou": 0.9},
             "validation_groups_verified": True,
             "validation_images": 30,
         },

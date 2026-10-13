@@ -19,6 +19,7 @@ class ConsensusMeterReader:
         ppocr_endpoint: str | None = None,
         parseq_endpoint: str | None = None,
         timeout: float | None = None,
+        parseq_model: dict | None = None,
     ) -> None:
         settings = get_settings()
         self.endpoints = {
@@ -26,6 +27,7 @@ class ConsensusMeterReader:
             "parseq": (parseq_endpoint or settings.parseq_reader_url).rstrip("/"),
         }
         self.timeout = timeout or settings.sequence_reader_timeout_seconds
+        self.parseq_model = parseq_model
         self._executor = ThreadPoolExecutor(
             max_workers=len(self.endpoints),
             thread_name_prefix="meter-reader",
@@ -77,7 +79,13 @@ class ConsensusMeterReader:
         candidates = {}
         try:
             futures = {
-                backend: self._executor.submit(self._request, endpoint, body)
+                backend: self._executor.submit(
+                    self._request,
+                    endpoint,
+                    json.dumps({**json.loads(body), **self.parseq_model}).encode()
+                    if backend == "parseq" and self.parseq_model
+                    else body,
+                )
                 for backend, endpoint in self.endpoints.items()
             }
             for backend, future in futures.items():

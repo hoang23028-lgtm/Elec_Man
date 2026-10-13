@@ -11,10 +11,13 @@ export async function apiFetch(
   init: RequestInit = {},
   fallbackMessage = "Yêu cầu thất bại.",
 ): Promise<Response> {
-  const response = await fetch(`${apiBaseUrl}${path}`, {
-    ...init,
-    credentials: "include",
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${apiBaseUrl}${path}`, { ...init, credentials: "include" });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") throw error;
+    throw new ApiError("Không thể kết nối máy chủ. Hãy kiểm tra mạng và thử lại.", 0);
+  }
   if (response.ok) return response;
   if (response.status === 401 && path !== "/auth/login" && path !== "/auth/session" && typeof window !== "undefined") {
     window.dispatchEvent(new Event("session-expired"));
@@ -28,7 +31,9 @@ export async function apiJson<T>(
   init: RequestInit = {},
   fallbackMessage?: string,
 ): Promise<T> {
-  return (await apiFetch(path, init, fallbackMessage)).json() as Promise<T>;
+  const response = await apiFetch(path, init, fallbackMessage);
+  try { return await response.json() as T; }
+  catch { throw new ApiError("Phản hồi máy chủ không hợp lệ. Hãy tải lại dữ liệu.", response.status); }
 }
 
 export async function paginatedJson<T>(

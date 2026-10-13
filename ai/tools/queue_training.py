@@ -10,6 +10,8 @@ from app.core.database import SessionLocal
 from app.models.image import ImageRecord
 from app.models.meter_reading import MeterReading
 from app.schemas.result import ReadingPolygon
+from app.services.dataset_policy import make_manifest
+from app.services.dataset_service import dataset_samples
 from app.services.training_service import (
     dataset_summary,
     eligible_clause,
@@ -18,7 +20,6 @@ from app.services.training_service import (
 from sqlalchemy import select
 
 from ai.pipeline.preprocessing import load_prepared_image
-from ai.training.dataset import split_by_meter
 
 
 def main():
@@ -57,17 +58,18 @@ def main():
             ReadingPolygon.model_validate(reading.meter_polygon_json)
             if load_prepared_image(path) is None:
                 parser.error(f"Không giải mã được ảnh: {image.id}")
-        training, validation = split_by_meter(rows)
+        manifest = make_manifest(dataset_samples(db), experimental=args.experimental)
         summary = dataset_summary(db)
         print(
             json.dumps(
                 {
                     "samples": len(rows),
-                    "training_images": len(training),
-                    "validation_images": len(validation),
+                    "training_images": len(manifest["partitions"]["TRAIN"]),
+                    "validation_images": len(manifest["partitions"]["VALIDATION"]),
+                    "holdout_images": len(manifest["partitions"]["HOLDOUT"]),
                     "configured_minimum": summary.minimum_samples,
                     "experimental": args.experimental,
-                    "note": "Unknown customer identities are split by image hash; not proven independent meters.",
+                    "note": "Use verified partitions. Experimental unknown identity splits never unlock activation.",
                 },
                 ensure_ascii=False,
             ),
@@ -76,7 +78,10 @@ def main():
         if not args.check_only:
             run = enqueue_training(db, "MANUAL", None, experimental=args.experimental)
             print(
-                json.dumps(run.model_dump(mode="json"), ensure_ascii=False), flush=True
+                json.dumps(
+                    {"id": str(run.id), "status": run.status}, ensure_ascii=False
+                ),
+                flush=True,
             )
 
 

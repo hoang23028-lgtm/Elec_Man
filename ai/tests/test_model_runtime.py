@@ -40,7 +40,7 @@ def test_unchanged_registry_uses_one_query_and_keeps_loaded_pipeline(monkeypatch
     from ai import model_runtime as runtime
 
     pipeline = object()
-    monkeypatch.setattr(runtime, "_cached_ids", (None, None))
+    monkeypatch.setattr(runtime, "_cached_ids", (None, None, None))
     monkeypatch.setattr(runtime, "_cached_pipeline", pipeline)
     db = MagicMock()
     db.scalars.return_value.all.return_value = []

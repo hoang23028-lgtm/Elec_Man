@@ -12,7 +12,7 @@ from app.models.training_run import TrainingRun
 from app.services.training_service import maybe_enqueue_auto
 from sqlalchemy import select
 
-from ai.training.trainer import train_run
+from ai.training.trainer import TrainingCancelled, train_run
 
 running = True
 
@@ -117,6 +117,11 @@ def main() -> None:
                 "training_completed",
                 extra={"event": "training_completed", "run_id": str(run_id)},
             )
+        except TrainingCancelled:
+            logger.info(
+                "training_cancelled",
+                extra={"event": "training_cancelled", "run_id": str(run_id)},
+            )
         except Exception as exc:
             logger.exception(
                 "training_failed",
@@ -128,7 +133,7 @@ def main() -> None:
             if run_id is not None:
                 with SessionLocal() as db:
                     run = db.get(TrainingRun, run_id)
-                    if run is not None:
+                    if run is not None and run.status != "CANCELLED":
                         previous_stage = run.stage
                         run.status = "FAILED"
                         run.stage = "FAILED"

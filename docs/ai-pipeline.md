@@ -6,8 +6,8 @@
 |---|---|---|
 | Tiền xử lý | OpenCV, chuẩn hóa/crop/hiệu chỉnh phối cảnh | Ảnh đầu vào reader; ảnh gốc không đổi |
 | Định vị công tơ | Model meter_locator_ridge đã kích hoạt nếu có; phương pháp cơ sở khi chưa có | Bốn góc mặt công tơ |
-| Định vị vùng chỉ số | reading_region_ridge đã kích hoạt hoặc heuristic/OCR cảnh, ưu tiên ngữ cảnh kWh | Bốn góc vùng số nguyên |
-| Đọc chỉ số | Hai dịch vụ riêng reader-ppocr và reader-parseq, chạy PP-OCRv6 small/PARSeq-tiny | Đề xuất toàn chuỗi số theo đồng thuận |
+| Định vị vùng chỉ số | reading_region_ridge học trong mặt công tơ đã chỉnh phối cảnh; khi chưa có model dùng heuristic/OCR cảnh | Bốn góc vùng số nguyên |
+| Đọc chỉ số | Hai dịch vụ riêng PP-OCRv6 small/PARSeq-tiny; PARSeq dùng safetensors đã fine-tune nếu được kích hoạt | Đề xuất toàn chuỗi số theo đồng thuận |
 
 Không có mô hình học sâu tiền xử lý đã fine-tune riêng. Không gọi cả bốn tầng là bốn deep model đã huấn luyện. Chưa có model định vị đã kích hoạt thì vẫn có thể khoanh vùng thủ công để dùng hệ thống.
 
@@ -24,5 +24,7 @@ Bánh đỏ cuối, phần sau dấu phẩy không được tính vào chỉ s�
 ## Hiệu năng và cô lập
 
 Trọng số tải lúc build, nạp một lần trong tiến trình reader; không khởi tạo lại cả model cho mỗi ảnh. Hai reader chạy song song; upload/job bất đồng bộ tách API khỏi OCR. Reader không truy cập database, không gắn volume ảnh và không publish cổng host. Trong runtime, mạng dữ liệu internal, filesystem chỉ đọc.
+
+Reader PARSeq chỉ gắn kho model **chỉ đọc**. Kiểm tra đường dẫn, SHA-256, metadata kiến trúc, tên/kích thước/kiểu tensor và tính hữu hạn trước thay trọng số; chuyển về pretrained khi yêu cầu đối chứng. Runtime ghi nhận phiên bản bộ đọc và định vị. Khi bộ định vị trả vùng học hợp lệ, bỏ OCR toàn cảnh dư thừa; vẫn đọc mã khách hàng bằng crop riêng. Không dùng nhãn/vùng thật làm đầu vào kiểm định toàn quy trình.
 
 Thời gian người dùng đợi gồm hàng đợi, giải mã, định vị/OCR mã, crop, reader, database và mạng; không dùng thời gian đọc crop để quảng bá độ trễ toàn pipeline. Xem [tác vụ](jobs.md), [chính sách độ tin cậy](ai-reliability.md) và báo cáo [benchmark lịch sử](reports/modern-reader-benchmark-2026-10-01.md).

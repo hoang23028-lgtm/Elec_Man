@@ -5,6 +5,7 @@ from app.models.audit_log import AuditLog
 from app.models.batch import Batch
 from app.models.confirmed_monthly_reading import ConfirmedMonthlyReading
 from app.models.customer import Customer
+from app.models.dataset_annotation import DatasetAnnotation
 from app.models.image import ImageRecord
 from app.models.manual_correction import ManualCorrection
 from app.models.meter_reading import MeterReading
@@ -21,6 +22,7 @@ __all__ = [
     "Batch",
     "ConfirmedMonthlyReading",
     "Customer",
+    "DatasetAnnotation",
     "ImageRecord",
     "ManualCorrection",
     "MeterReading",

@@ -1,5 +1,7 @@
 # Sao lưu và khôi phục
 
+Ưu tiên helper mới [backup có khóa/tạm dừng writer/verify/đặt lịch](operations-monitoring.md): `python scripts/managed_backup.py --project elec_man`. Các script PS/sh bên dưới là công cụ cấp thấp, không tự dừng writer hoặc đặt lịch; phải quản lý cửa sổ bảo trì riêng khi dùng chúng.
+
 ## Diễn tập không ghi đè dữ liệu thật
 
 Sau khi có một bản backup đầy đủ, dùng Python 3.12 trở lên và Docker để thử

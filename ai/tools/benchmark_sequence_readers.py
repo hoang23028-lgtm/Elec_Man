@@ -14,6 +14,8 @@ from app.core.database import SessionLocal
 from app.models.image import ImageRecord
 from app.models.meter_reading import MeterReading
 from app.schemas.result import ReadingPolygon
+from app.services.dataset_policy import make_manifest
+from app.services.dataset_service import dataset_samples
 from sqlalchemy import select
 
 from ai.pipeline.geometry import perspective_crop
@@ -24,29 +26,16 @@ from ai.readers.sequence import (
     ParseqTinyReader,
     package_version,
 )
-from ai.training.dataset import split_by_meter
+from ai.training.metrics import edit_distance
 
 
-def edit_distance(left: str, right: str) -> int:
-    """Return Levenshtein distance without importing an optional OCR runtime."""
-    previous = list(range(len(right) + 1))
-    for left_index, left_character in enumerate(left, start=1):
-        current = [left_index]
-        for right_index, right_character in enumerate(right, start=1):
-            current.append(
-                min(
-                    current[-1] + 1,
-                    previous[right_index] + 1,
-                    previous[right_index - 1] + (left_character != right_character),
-                )
-            )
-        previous = current
-    return previous[-1]
-
-
-def load_validation_samples() -> list[dict]:
+def load_validation_samples(*, experimental=False) -> list[dict]:
     storage_root = get_settings().storage_root.resolve()
     with SessionLocal() as db:
+        manifest = make_manifest(dataset_samples(db), experimental=experimental)
+        validation_ids = {
+            s["image"]["id"] for s in manifest["partitions"]["VALIDATION"]
+        }
         rows = db.execute(
             select(ImageRecord, MeterReading)
             .join(MeterReading, MeterReading.image_id == ImageRecord.id)
@@ -63,6 +52,7 @@ def load_validation_samples() -> list[dict]:
         path = (storage_root / image.relative_path).resolve()
         if (
             image.sha256 in seen
+            or str(image.id) not in validation_ids
             or not re.fullmatch(r"[0-9]{4,8}", expected)
             or not reading.reading_polygon_json
             or not path.is_relative_to(storage_root)
@@ -72,9 +62,8 @@ def load_validation_samples() -> list[dict]:
             continue
         unique_rows.append((image, reading))
         seen.add(image.sha256)
-    _, validation = split_by_meter(unique_rows)
     samples = []
-    for image, reading in validation:
+    for image, reading in unique_rows:
         polygon = ReadingPolygon.model_validate(reading.reading_polygon_json)
         samples.append(
             {
@@ -113,10 +102,15 @@ def main() -> None:
     )
     parser.add_argument("--parseq-repository", type=Path, default=Path("/opt/parseq"))
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument(
+        "--experimental",
+        action="store_true",
+        help="Diagnostic only; preserves reserved holdout",
+    )
     args = parser.parse_args()
     if args.output.exists():
         parser.error("Output report already exists")
-    samples = load_validation_samples()
+    samples = load_validation_samples(experimental=args.experimental)
     if not samples:
         parser.error("No deterministic validation samples are available")
     initialized = perf_counter()
@@ -169,8 +163,8 @@ def main() -> None:
         "summary": summarize(rows),
         "results": rows,
         "note": (
-            "Diagnostic comparison only: labels were previously used by this project and "
-            "meter identity is unavailable for most samples. Scores are not calibrated probabilities."
+            "Validation comparison only, not an independent holdout. "
+            "Scores are not calibrated probabilities; experimental splits have unverified identities."
         ),
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)

@@ -26,6 +26,7 @@ class MeterReadingPipeline:
         model_version: str | None = None,
         region_model_path: Path | None = None,
         meter_model_path: Path | None = None,
+        parseq_model: dict | None = None,
     ) -> None:
         self.name = "FOUR_STAGE_METER_PIPELINE"
         self.model_version = model_version or "modern-sequence-consensus-v1"
@@ -43,7 +44,8 @@ class MeterReadingPipeline:
         self.image_preprocessor = ImagePreprocessingModel()
         self.meter_locator = MeterLocator(meter_model)
         self.reading_region_locator = ReadingRegionLocator(region_model)
-        self.meter_reader = ConsensusMeterReader()
+        self.meter_reader = ConsensusMeterReader(parseq_model=parseq_model)
+        self.has_fine_tuned_reader = parseq_model is not None
 
     def process(
         self,
@@ -73,12 +75,15 @@ class MeterReadingPipeline:
         # Quality is measured on the bounded image actually consumed downstream;
         # this avoids a full-resolution Laplacian pass on large phone photos.
         quality = assess_image_quality(prepared)
-        lines = read_lines(prepared)
-        scene_ocr_at = perf_counter()
         meter_location = self.meter_locator.locate(prepared)
-        reading_location = self.reading_region_locator.locate(
-            prepared, meter_location, lines
-        )
+        reading_location = self.reading_region_locator.locate(prepared, meter_location)
+        scene_ocr_skipped = reading_location.source.startswith("TRAINED_")
+        lines = [] if scene_ocr_skipped else read_lines(prepared)
+        if not scene_ocr_skipped:
+            reading_location = self.reading_region_locator.locate(
+                prepared, meter_location, lines
+            )
+        scene_ocr_at = perf_counter()
         customer_stats = {}
         customer_x, customer_y, customer_width, customer_height = (
             meter_location.customer_region
@@ -157,16 +162,19 @@ class MeterReadingPipeline:
                     "version": self.model_version,
                     "confidence": meter_confidence,
                     "trained": True,
+                    "fine_tuned_on_project": self.has_fine_tuned_reader,
                 },
             },
             "quality": quality,
             "validation": validation,
             "ocr_lines": len(lines),
+            "scene_ocr_skipped": scene_ocr_skipped,
             "regions": {
                 "meter": meter_location.meter_region,
                 "customer": meter_location.customer_region,
                 "reading": reading_location.reading_region,
                 "reading_polygon": reading_location.reading_polygon,
+                "meter_polygon": meter_location.meter_polygon,
                 "human_reading": None,
             },
             "reader_diagnostics": reader_stats,

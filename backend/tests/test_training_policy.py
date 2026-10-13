@@ -4,6 +4,7 @@ from uuid import uuid4
 
 import pytest
 from fastapi import HTTPException
+from test_dataset_policy import sample
 
 from app.models.audit_log import AuditLog
 from app.models.training_run import TrainingRun
@@ -25,6 +26,10 @@ def _database(monkeypatch, count=37):
         ),
     )
     monkeypatch.setattr(service, "_row", lambda record: record)
+    rows = [sample(i + 1) for i in range(count)]
+    for row in rows:
+        row["annotation"] = {}
+    monkeypatch.setattr(service, "dataset_samples", lambda *_: rows)
 
     def assign_id(record):
         if isinstance(record, TrainingRun):

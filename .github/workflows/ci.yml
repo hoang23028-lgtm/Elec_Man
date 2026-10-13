@@ -104,3 +104,13 @@ jobs:
           DATABASE_URL: postgresql+psycopg://electric_meter_app:ci-only-password@postgres:5432/electric_meter_ai
           SESSION_SECRET: ci-only-session-secret-at-least-32-characters
         run: docker compose config --quiet
+
+  sequence-training-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build isolated CPU reader and trainer
+        run: docker compose --env-file .env.example build reader-parseq trainer
+      - name: Verify optimizer, safetensors reload, checksum rejection and reset offline
+        run: docker run --rm --network none --read-only --tmpfs /tmp:size=256m,mode=1777 --cap-drop ALL --security-opt no-new-privileges:true elec_man-trainer python -m ai.tools.smoke_sequence_training

@@ -2,6 +2,7 @@ from datetime import UTC, datetime
 from hashlib import sha256
 from math import isfinite
 from pathlib import Path
+from uuid import UUID
 
 from fastapi import HTTPException, status
 from sqlalchemy import select, text, update
@@ -10,13 +11,18 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.models.audit_log import AuditLog
+from app.models.meter_reading import MeterReading
 from app.models.model_registry import ModelRecord
+from app.models.training_run import TrainingRun
 from app.models.user import User
 from app.schemas.model_registry import ModelCreate, ModelRow
+from app.services.dataset_policy import sample_issues
+from app.services.dataset_service import dataset_samples, lock_dataset
 
 READING_REGION_MODEL_TYPES = {"reading_region_ridge"}
 METER_LOCATOR_MODEL_TYPES = {"meter_locator_ridge"}
-SUPPORTED_MODEL_TYPES = READING_REGION_MODEL_TYPES | METER_LOCATOR_MODEL_TYPES
+READER_MODEL_TYPES = {"parseq_tiny_finetuned"}
+SUPPORTED_MODEL_TYPES = READING_REGION_MODEL_TYPES | METER_LOCATOR_MODEL_TYPES | READER_MODEL_TYPES
 MODEL_ACTIVATION_LOCK = 73051028
 
 
@@ -27,7 +33,9 @@ def _row(record: ModelRecord) -> ModelRow:
         model_type=record.model_type,
         version=record.version,
         file_path=record.file_path,
-        metrics=record.metrics_json,
+        metrics={
+            key: value for key, value in record.metrics_json.items() if key != "dataset_snapshot"
+        },
         status=record.status,
         sha256=record.sha256,
         created_at=record.created_at,
@@ -65,6 +73,14 @@ def _verified_model_path(relative_path: str, claimed_sha256: str) -> Path:
 
 def _validate_activation_metrics(record: ModelRecord) -> None:
     metrics = record.metrics_json
+    if (
+        metrics.get("independent_holdout") is not True
+        or metrics.get("end_to_end_evaluated") is not True
+        or isinstance(metrics.get("holdout_images"), bool)
+        or not isinstance(metrics.get("holdout_images"), int)
+        or metrics["holdout_images"] < 30
+    ):
+        raise HTTPException(422, "Cần ít nhất 30 ảnh holdout độc lập được đánh giá toàn quy trình.")
     if metrics.get("validation_groups_verified") is not True or (
         not isinstance(metrics.get("validation_images"), int)
         or isinstance(metrics.get("validation_images"), bool)
@@ -83,6 +99,50 @@ def _validate_activation_metrics(record: ModelRecord) -> None:
         if isinstance(value, bool) or not isinstance(value, int | float) or not isfinite(value):
             return 0.0
         return float(value) if 0 <= value <= 1 else 0.0
+
+    e2e = metrics.get("holdout_end_to_end") or {}
+    if not isinstance(e2e, dict):
+        raise HTTPException(422, "Kết quả kiểm định toàn quy trình không hợp lệ.")
+    if record.model_type in READING_REGION_MODEL_TYPES | METER_LOCATOR_MODEL_TYPES:
+        value = e2e.get(
+            "meter_mean_iou"
+            if record.model_type in METER_LOCATOR_MODEL_TYPES
+            else "reading_mean_iou"
+        )
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, int | float)
+            or not isfinite(value)
+            or not 0.8 <= value <= 1
+        ):
+            raise HTTPException(422, "IoU vùng trên holdout toàn quy trình phải đạt ít nhất 0,8.")
+    if record.model_type in READER_MODEL_TYPES:
+        reading = metrics.get("holdout_reader") or {}
+        if not isinstance(reading, dict):
+            raise HTTPException(422, "Kết quả kiểm định bộ đọc không hợp lệ.")
+        for score_key in ("exact_accuracy", "coverage"):
+            value = reading.get(score_key)
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, int | float)
+                or not isfinite(value)
+                or not 0.95 <= value <= 1
+            ):
+                raise HTTPException(
+                    422, "Bộ đọc cần đúng toàn chuỗi và độ phủ ít nhất 95% trên holdout."
+                )
+        for key in ("exact_accuracy", "coverage"):
+            value = e2e.get(key)
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, int | float)
+                or not isfinite(value)
+                or not 0.9 <= value <= 1
+            ):
+                raise HTTPException(
+                    422, "Toàn quy trình cần đúng toàn chuỗi và độ phủ ít nhất 90%."
+                )
+        return
 
     if record.model_type in METER_LOCATOR_MODEL_TYPES:
         meter_accuracy = validated_score("validation_meter_region_accuracy")
@@ -104,6 +164,47 @@ def _validate_activation_metrics(record: ModelRecord) -> None:
         status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
         detail="Loại model này không còn được pipeline hiện tại hỗ trợ.",
     )
+
+
+def _validate_training_provenance(db, record):
+    try:
+        run_id = UUID(record.metrics_json.get("training_run_id", ""))
+    except (ValueError, TypeError, AttributeError):
+        raise HTTPException(
+            422, "Thiếu phiên huấn luyện/kiểm định do hệ thống thực hiện."
+        ) from None
+    run = db.get(TrainingRun, run_id)
+    metrics = run.metrics_json if run and run.status == "COMPLETED" else {}
+    if (
+        str(record.id) not in metrics.get("artifact_ids", [])
+        or metrics.get("artifact_sha256", {}).get(str(record.id)) != record.sha256
+        or not run
+        or run.dataset_hash != record.metrics_json.get("dataset_hash")
+    ):
+        raise HTTPException(422, "Artifact không thuộc kết quả kiểm định đã hoàn tất của hệ thống.")
+    holdout = metrics.get("dataset_snapshot", {}).get("partitions", {}).get("HOLDOUT", [])
+    if len(holdout) < 30:
+        raise HTTPException(422, "Không có snapshot holdout đủ mẫu.")
+    db.scalars(
+        select(MeterReading)
+        .where(MeterReading.image_id.in_([UUID(s["image"]["id"]) for s in holdout]))
+        .order_by(MeterReading.image_id)
+        .with_for_update()
+    ).all()
+    current = {s["image"]["id"]: s for s in dataset_samples(db)}
+    for sample in holdout:
+        now = current.get(sample["image"]["id"])
+        if (
+            not now
+            or sample_issues(now)
+            or now["image"]["sha256"] != sample["image"]["sha256"]
+            or now["reading"]["revision"] != sample["reading"]["revision"]
+            or now["annotation"].get("partition") != "HOLDOUT"
+            or now["annotation"].get("group_key") != sample["annotation"].get("group_key")
+        ):
+            raise HTTPException(
+                422, "Nhãn/nhóm holdout đã thay đổi sau kiểm định. Cần đánh giá lại."
+            )
 
 
 def register_model(
@@ -158,12 +259,39 @@ def activate_model(db: Session, model_id: object, user: User, ip_address: str | 
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy mô hình.")
     _verified_model_path(record.file_path, record.sha256)
     _validate_activation_metrics(record)
+    lock_dataset(db)
+    _validate_training_provenance(db, record)
+    if (
+        record.model_type in READING_REGION_MODEL_TYPES
+        and record.metrics_json.get("coordinate_space") == "meter"
+    ):
+        compatible_meter = db.scalar(
+            select(ModelRecord.id).where(
+                ModelRecord.model_type.in_(METER_LOCATOR_MODEL_TYPES),
+                ModelRecord.version == record.version,
+                ModelRecord.status == "ACTIVE",
+            )
+        )
+        if compatible_meter is None:
+            raise HTTPException(422, "Kích hoạt định vị công tơ cùng phiên bản trước vùng chỉ số.")
     previous_status = record.status
+    if record.model_type in READER_MODEL_TYPES:
+        active = db.scalars(
+            select(ModelRecord).where(
+                ModelRecord.model_type.in_(READING_REGION_MODEL_TYPES | METER_LOCATOR_MODEL_TYPES),
+                ModelRecord.status == "ACTIVE",
+                ModelRecord.version == record.version,
+            )
+        ).all()
+        if {r.model_type for r in active} != READING_REGION_MODEL_TYPES | METER_LOCATOR_MODEL_TYPES:
+            raise HTTPException(422, "Kích hoạt hai bộ định vị cùng phiên bản trước bộ đọc.")
     model_types = (
         READING_REGION_MODEL_TYPES
         if record.model_type in READING_REGION_MODEL_TYPES
         else METER_LOCATOR_MODEL_TYPES
         if record.model_type in METER_LOCATOR_MODEL_TYPES
+        else READER_MODEL_TYPES
+        if record.model_type in READER_MODEL_TYPES
         else {record.model_type}
     )
     db.execute(
@@ -172,6 +300,27 @@ def activate_model(db: Session, model_id: object, user: User, ip_address: str | 
         .values(status="ARCHIVED")
     )
     record.status = "ACTIVE"
+    if record.model_type in METER_LOCATOR_MODEL_TYPES:
+        db.execute(
+            update(ModelRecord)
+            .where(
+                ModelRecord.model_type.in_(READING_REGION_MODEL_TYPES),
+                ModelRecord.status == "ACTIVE",
+                ModelRecord.version != record.version,
+                ModelRecord.metrics_json["coordinate_space"].as_string() == "meter",
+            )
+            .values(status="ARCHIVED")
+        )
+    if record.model_type in METER_LOCATOR_MODEL_TYPES | READING_REGION_MODEL_TYPES:
+        db.execute(
+            update(ModelRecord)
+            .where(
+                ModelRecord.model_type.in_(READER_MODEL_TYPES),
+                ModelRecord.status == "ACTIVE",
+                ModelRecord.version != record.version,
+            )
+            .values(status="ARCHIVED")
+        )
     record.activated_at = datetime.now(UTC)
     db.add(
         AuditLog(

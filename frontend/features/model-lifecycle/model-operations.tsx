@@ -5,6 +5,9 @@ import type { FormEvent } from "react";
 import { useLatestRequest } from "@/hooks/use-latest-request";
 import { useLeaveGuard } from "@/hooks/use-leave-guard";
 import { usePanelActive } from "@/components/section-tabs";
+import { ConfirmationDialog } from "@/components/confirmation-dialog";
+import { useConfirmationDialog } from "@/hooks/use-confirmation-dialog";
+import { activationIssue } from "@/lib/model-activation-gate";
 
 import {
   activateModel,
@@ -24,10 +27,11 @@ const emptyInput: ModelInput = {
   sha256: "",
   metrics: {},
 };
-const supportedModelTypes = new Set(["reading_region_ridge", "meter_locator_ridge"]);
+const supportedModelTypes = new Set(["reading_region_ridge", "meter_locator_ridge", "parseq_tiny_finetuned"]);
 const modelTypeLabels: Record<string, string> = {
   reading_region_ridge: "Định vị vùng chỉ số",
   meter_locator_ridge: "Định vị toàn bộ công tơ",
+  parseq_tiny_finetuned: "Bộ đọc PARSeq-tiny đã học",
 };
 const percent = (value: number | null) =>
   value === null ? "Chưa có dữ liệu" : `${Math.round(value * 1000) / 10}%`;
@@ -39,6 +43,7 @@ const statusLabels: Record<string, string> = {
 
 export function ModelOperations({ csrfToken }: { csrfToken: string }) {
   const request = useLatestRequest();
+  const confirmation = useConfirmationDialog();
   const panelActive = usePanelActive();
   const [models, setModels] = useState<ModelRecord[]>([]);
   const [evaluation, setEvaluation] = useState<Evaluation | null>(null);
@@ -106,12 +111,7 @@ export function ModelOperations({ csrfToken }: { csrfToken: string }) {
 
   async function activate(record: ModelRecord) {
     if (saving) return;
-    if (
-      !window.confirm(
-        `Kích hoạt ${record.model_name} ${record.version}? Worker sẽ kiểm tra checksum và nạp model cho tác vụ tiếp theo.`,
-      )
-    )
-      return;
+    if (!(await confirmation.ask({ title: `Kích hoạt ${record.model_name}?`, description: `Phiên bản ${record.version}. Server sẽ kiểm tra checksum, nguồn phiên huấn luyện và nhãn holdout hiện tại trước khi thay đổi mô hình.`, confirmLabel: "Kiểm tra và kích hoạt" }))) return;
     setSaving(true);
     setError(null);
     try {
@@ -133,6 +133,7 @@ export function ModelOperations({ csrfToken }: { csrfToken: string }) {
 
   return (
     <section className="panel full-span" aria-labelledby="models-title">
+      <ConfirmationDialog confirmation={confirmation} />
       <div className="section-heading">
         <div>
           <p className="eyebrow">Vòng đời mô hình</p>
@@ -217,7 +218,7 @@ export function ModelOperations({ csrfToken }: { csrfToken: string }) {
                     {record.model_type === "meter_digit_hog_softmax" && typeof record.metrics.validation_digit_accuracy ===
                     "number"
                       ? `${Math.round(record.metrics.validation_digit_accuracy * 1000) / 10}% đúng từng chữ số (mô hình cũ)`
-                      : supportedModelTypes.has(record.model_type) ? "Mô hình định vị vùng, không phải bộ đọc số" : "Chưa có đánh giá phù hợp"}
+                      : record.model_type === "parseq_tiny_finetuned" ? "Bộ đọc toàn chuỗi, trọng số safetensors" : supportedModelTypes.has(record.model_type) ? "Mô hình định vị vùng, không phải bộ đọc số" : "Chưa có đánh giá phù hợp"}
                     {record.model_type === "meter_digit_hog_softmax" && <small>
                       {typeof record.metrics.digit_coverage === "number"
                         ? `${Math.round(record.metrics.digit_coverage * 10)}/10 chữ số`
@@ -244,16 +245,18 @@ export function ModelOperations({ csrfToken }: { csrfToken: string }) {
                         {`Điểm vùng công tơ: ${Math.round(record.metrics.validation_meter_region_accuracy * 1000) / 10}/100 (quy đổi từ sai số tọa độ)`}
                       </small>
                     )}
+                    <small>{typeof record.metrics.holdout_images === "number" ? record.metrics.holdout_images : 0} ảnh holdout · {record.metrics.independent_holdout === true && record.metrics.end_to_end_evaluated === true ? "Đã đánh giá toàn quy trình" : "Chưa đủ kiểm định độc lập"}</small>
                   </td>
                   <td>
                     <button
                       type="button"
                       onClick={() => void activate(record)}
-                      disabled={saving || record.status === "ACTIVE" || !supportedModelTypes.has(record.model_type) || record.metrics.validation_groups_verified !== true || typeof record.metrics.validation_images !== "number" || record.metrics.validation_images < 30}
-                      title={!supportedModelTypes.has(record.model_type) ? "Pipeline hiện tại không hỗ trợ kích hoạt loại mô hình này." : undefined}
+                      disabled={saving || record.status === "ACTIVE" || Boolean(activationIssue(record, models))}
+                      title={activationIssue(record, models) ?? "Server kiểm tra checksum, phiên train và nhãn hiện tại."}
                     >
                       {supportedModelTypes.has(record.model_type) ? "Kích hoạt" : "Không hỗ trợ"}
                     </button>
+                    {activationIssue(record, models) && <small>{activationIssue(record, models)}</small>}
                   </td>
                 </tr>
               ))}
@@ -263,6 +266,7 @@ export function ModelOperations({ csrfToken }: { csrfToken: string }) {
       )}
       <details className="registration">
         <summary>Đăng ký gói mô hình đã xác minh</summary>
+        <p className="muted">Đăng ký thủ công chỉ tạo bản thử nghiệm. Điểm JSON tự nhập không thay thế kiểm định và nguồn phiên huấn luyện của hệ thống. Thứ tự kích hoạt: công tơ → vùng số → bộ đọc, cùng phiên bản.</p>
         <form className="settings-form" onSubmit={submit}>
           <fieldset className="editor-fields" disabled={saving}>
           <div className="settings-grid">
@@ -295,6 +299,7 @@ export function ModelOperations({ csrfToken }: { csrfToken: string }) {
               >
                 <option value="reading_region_ridge">Định vị vùng chỉ số</option>
                 <option value="meter_locator_ridge">Định vị toàn bộ công tơ</option>
+                <option value="parseq_tiny_finetuned">Bộ đọc PARSeq-tiny đã học</option>
               </select>
             </div>
             <div className="setting-field">

@@ -36,5 +36,5 @@ Quay về image/commit trước nếu health check thất bại, migration khôn
 - [ ] Chạy starter từ database trống, tạo SUPER_ADMIN, login/import/upload/review/export với dữ liệu giả.
 - [ ] Chạy lần hai giữ secret/mật khẩu; có volume mà thiếu env phải dừng an toàn.
 - [ ] Test đầy đủ, kiểm tài liệu/link và CI trên đúng commit được chia sẻ.
-- [ ] README ghi rõ snapshot nào được phép công khai, loại credential/session, không tự công khai dữ liệu mới; reader chưa tự fine-tune và auto-confirm bị chặn.
+- [ ] README ghi rõ snapshot nào được phép công khai, loại credential/session, không tự công khai dữ liệu mới; fine-tune và kiểm định thực địa là hai việc khác nhau, auto-confirm bị chặn.
 - [ ] Trước Internet: chốt dữ liệu dashboard được công khai, TLS thật, backup ngoài máy và giám sát.

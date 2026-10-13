@@ -11,6 +11,8 @@ from app.models.system_setting import SystemSetting
 from app.models.training_run import TrainingRun
 from app.models.user import User
 from app.schemas.training import DatasetSummary, TrainingOverview, TrainingRunRow
+from app.services.dataset_policy import make_manifest
+from app.services.dataset_service import dataset_samples, lock_dataset, quality_summary
 
 _TRAINING_DEFAULTS = {
     "training_auto_start": 1,
@@ -31,7 +33,7 @@ def _auto_failure_blocked(db: Session) -> bool:
     latest = db.scalar(
         select(TrainingRun.status).order_by(TrainingRun.created_at.desc(), TrainingRun.id).limit(1)
     )
-    return latest == "FAILED"
+    return latest in {"FAILED", "CANCELLED"}
 
 
 def _training_settings(db: Session) -> dict[str, int]:
@@ -68,7 +70,11 @@ def _row(run: TrainingRun) -> TrainingRunRow:
         training_count=run.training_count,
         validation_count=run.validation_count,
         dataset_hash=run.dataset_hash,
-        metrics=run.metrics_json,
+        metrics={
+            key: value
+            for key, value in (run.metrics_json or {}).items()
+            if key != "dataset_snapshot"
+        },
         error_message=run.error_message,
         model_id=run.model_id,
         created_at=run.created_at,
@@ -104,7 +110,9 @@ def dataset_summary(db: Session, training_settings: dict[str, int] | None = None
         or 0
     )
     minimum = max(MINIMUM_TRAINING_SAMPLES, settings["training_min_samples"])
-    new_samples = max(0, eligible - last_count)
+    quality = quality_summary(dataset_samples(db))
+    new_samples = max(0, quality["train"] + quality["validation"] - last_count)
+    policy_ready = quality["train"] >= 2 and quality["validation"] >= 1 and not quality["conflicts"]
     return DatasetSummary(
         uploaded_images=uploaded,
         confirmed_images=confirmed,
@@ -112,7 +120,13 @@ def dataset_summary(db: Session, training_settings: dict[str, int] | None = None
         minimum_samples=minimum,
         new_samples_since_last_run=new_samples,
         auto_start_enabled=bool(settings["training_auto_start"]),
-        ready=eligible >= minimum,
+        ready=quality["train"] + quality["validation"] >= minimum and policy_ready,
+        verified_samples=quality["verified"],
+        training_samples=quality["train"],
+        validation_samples=quality["validation"],
+        holdout_samples=quality["holdout"],
+        unverified_identity_samples=quality["unverified_identity"],
+        data_issues=quality["conflicts"],
     )
 
 
@@ -128,10 +142,12 @@ def enqueue_training(
     ip_address: str | None = None,
     *,
     experimental: bool = False,
+    options: dict | None = None,
 ) -> TrainingRunRow:
     if experimental and trigger != "MANUAL":
         raise ValueError("Huấn luyện thử nghiệm chỉ được khởi chạy thủ công.")
     _lock_training_queue(db)
+    lock_dataset(db)
     active = db.scalar(
         select(TrainingRun).where(TrainingRun.status.in_(("PENDING", "RUNNING"))).limit(1)
     )
@@ -162,18 +178,39 @@ def enqueue_training(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Cần ít nhất ba ảnh đủ nhãn để tách tập huấn luyện và kiểm định.",
         )
+    try:
+        manifest = make_manifest(dataset_samples(db), experimental=experimental)
+    except ValueError as error:
+        raise HTTPException(422, str(error)) from None
+    if len(manifest["partitions"]["TRAIN"]) < 2 or not manifest["partitions"]["VALIDATION"]:
+        raise HTTPException(
+            422,
+            "Cần ít nhất hai ảnh train và một ảnh validation, tách riêng công tơ. "
+            "Kiểm tra nhóm/phân tập trong Dữ liệu huấn luyện.",
+        )
+    learning_count = len(manifest["partitions"]["TRAIN"]) + len(
+        manifest["partitions"]["VALIDATION"]
+    )
+    if not experimental and learning_count < summary.minimum_samples:
+        raise HTTPException(
+            422, f"Cần {summary.minimum_samples} mẫu học đã xác minh; hiện có {learning_count}."
+        )
     run = TrainingRun(
         status="PENDING",
         trigger=trigger,
         stage="QUEUED",
         progress=0,
-        sample_count=summary.eligible_samples,
+        sample_count=len(manifest["partitions"]["TRAIN"])
+        + len(manifest["partitions"]["VALIDATION"]),
         created_at=datetime.now(UTC),
         requested_by=user.id if user else None,
         metrics_json={
             "experimental": experimental,
             "configured_minimum_samples": summary.minimum_samples,
             "below_configured_minimum": not summary.ready,
+            "dataset_snapshot": manifest,
+            "training_options": options
+            or {"fine_tune_reader": True, "epochs": 10, "batch_size": 8, "learning_rate": 0.0001},
         },
     )
     db.add(run)
