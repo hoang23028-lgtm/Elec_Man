@@ -6,7 +6,6 @@ import time
 from pathlib import Path
 from uuid import UUID, uuid4
 
-from ai.model_runtime import current_pipeline
 from app.core.config import get_settings
 from app.core.database import SessionLocal
 from app.core.logging import configure_logging
@@ -18,6 +17,8 @@ from app.services.job_service import (
     mark_job_failure,
     recover_stuck_jobs,
 )
+
+from ai.model_runtime import current_pipeline
 
 running = True
 

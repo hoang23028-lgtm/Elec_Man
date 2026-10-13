@@ -44,6 +44,7 @@ def main() -> int:
         for _ in range(40):
             ready = subprocess.run(
                 ["docker", "exec", name, "pg_isready", "-U", "integration"],
+                check=False,
                 capture_output=True,
                 timeout=10,
             )
@@ -84,6 +85,7 @@ def main() -> int:
                     "-q",
                     *sys.argv[1:],
                 ],
+                check=False,
                 cwd=root / "backend",
                 env=env,
             ).returncode

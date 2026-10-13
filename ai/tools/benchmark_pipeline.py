@@ -5,13 +5,13 @@ import json
 from time import perf_counter
 
 import numpy as np
-from sqlalchemy import select
-
-from ai.model_runtime import current_pipeline
 from app.core.config import get_settings
 from app.core.database import SessionLocal
 from app.models.image import ImageRecord
 from app.models.meter_reading import MeterReading
+from sqlalchemy import select
+
+from ai.model_runtime import current_pipeline
 
 
 def main():

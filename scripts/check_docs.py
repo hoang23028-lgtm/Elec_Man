@@ -15,7 +15,9 @@ def check_links(root: Path = ROOT) -> list[str]:
     for document in documents:
         content = document.read_text(encoding="utf-8-sig")
         # Code snippets can deliberately show illustrative paths, not actual links.
-        content = re.sub(r"^```.*?^```\s*$", "", content, flags=re.M | re.S)
+        content = re.sub(
+            r"^```.*?^```\s*$", "", content, flags=re.MULTILINE | re.DOTALL
+        )
         for match in re.finditer(r"\]\(([^)\n]+)\)", content):
             target = match[1].strip().strip("<>")
             parsed = urlsplit(target)

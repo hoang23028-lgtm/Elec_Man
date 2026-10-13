@@ -2,18 +2,18 @@ from pathlib import Path
 from time import perf_counter
 
 import cv2
+from app.core.config import get_settings
 
 from ai.pipeline.confidence import calculate
 from ai.pipeline.customer_code_reader import CustomerCodeReader
 from ai.pipeline.geometry import normalized_bbox_polygon, perspective_crop
 from ai.pipeline.localization import MeterLocator, ReadingRegionLocator
-from ai.readers.consensus import ConsensusMeterReader
 from ai.pipeline.preprocessing import ImagePreprocessingModel
 from ai.pipeline.quality import assess_image_quality
 from ai.pipeline.scene_ocr import read_lines
 from ai.pipeline.validator import validate
+from ai.readers.consensus import ConsensusMeterReader
 from ai.training.keypoint_regressor import KeypointRegionRegressor
-from app.core.config import get_settings
 
 
 class MeterReadingPipeline:

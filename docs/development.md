@@ -8,6 +8,8 @@ Lấy master mới nhất, tạo nhánh thay đổi riêng, không sửa dữ li
 
 ## Backend
 
+Ruff được cố định phiên bản 0.17.0 trong dependency dev và CI; root ruff.toml áp dụng cho AI/scripts, backend dùng cấu hình riêng trong pyproject.toml. Không dựa vào bộ quy tắc mặc định khác nhau giữa máy local và runner.
+
 Python ≥3.12; tạo virtualenv rồi cài dependency phát triển:
 
 ```text

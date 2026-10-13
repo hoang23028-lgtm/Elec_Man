@@ -8,7 +8,6 @@ from urllib.request import Request, urlopen
 
 import cv2
 import numpy as np
-
 from app.core.config import get_settings
 
 

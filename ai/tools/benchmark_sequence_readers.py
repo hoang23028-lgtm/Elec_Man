@@ -9,22 +9,22 @@ from pathlib import Path
 from time import perf_counter
 
 import numpy as np
-from sqlalchemy import select
-
-from ai.readers.sequence import (
-    PaddleV6SmallReader,
-    ParseqTinyReader,
-    package_version,
-)
-from ai.pipeline.geometry import perspective_crop
-from ai.pipeline.preprocessing import load_prepared_image
-from ai.pipeline.register import integer_register_strip
-from ai.training.dataset import split_by_meter
 from app.core.config import get_settings
 from app.core.database import SessionLocal
 from app.models.image import ImageRecord
 from app.models.meter_reading import MeterReading
 from app.schemas.result import ReadingPolygon
+from sqlalchemy import select
+
+from ai.pipeline.geometry import perspective_crop
+from ai.pipeline.preprocessing import load_prepared_image
+from ai.pipeline.register import integer_register_strip
+from ai.readers.sequence import (
+    PaddleV6SmallReader,
+    ParseqTinyReader,
+    package_version,
+)
+from ai.training.dataset import split_by_meter
 
 
 def edit_distance(left: str, right: str) -> int:

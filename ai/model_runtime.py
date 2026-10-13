@@ -1,11 +1,11 @@
 from hashlib import sha256
 
-from sqlalchemy import select
-
-from ai.pipeline.meter_pipeline import MeterReadingPipeline
 from app.core.config import get_settings
 from app.core.database import SessionLocal
 from app.models.model_registry import ModelRecord
+from sqlalchemy import select
+
+from ai.pipeline.meter_pipeline import MeterReadingPipeline
 
 _cached_ids: tuple[object | None, object | None] | None = None
 _cached_pipeline: MeterReadingPipeline | None = None

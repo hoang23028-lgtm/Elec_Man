@@ -5,14 +5,14 @@ import signal
 import time
 from datetime import UTC, datetime
 
-from sqlalchemy import select
-
-from ai.training.trainer import train_run
 from app.core.database import SessionLocal
 from app.core.logging import configure_logging
 from app.models.audit_log import AuditLog
 from app.models.training_run import TrainingRun
 from app.services.training_service import maybe_enqueue_auto
+from sqlalchemy import select
+
+from ai.training.trainer import train_run
 
 running = True
 

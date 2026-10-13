@@ -20,7 +20,6 @@ from uuid import uuid4
 
 import httpx
 from PIL import Image, ImageDraw
-
 from verification_probe import probe_application
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -204,6 +203,7 @@ def main():
                 if (
                     subprocess.run(
                         ["docker", "exec", postgres, "pg_isready", "-U", "integration"],
+                        check=False,
                         capture_output=True,
                         timeout=10,
                     ).returncode
@@ -359,11 +359,15 @@ def main():
         finally:
             for name in reversed(created):
                 subprocess.run(
-                    ["docker", "rm", "-fv", name], capture_output=True, timeout=60
+                    ["docker", "rm", "-fv", name],
+                    capture_output=True,
+                    timeout=60,
+                    check=False,
                 )
             if network_created:
                 subprocess.run(
                     ["docker", "network", "rm", network],
+                    check=False,
                     capture_output=True,
                     timeout=30,
                 )

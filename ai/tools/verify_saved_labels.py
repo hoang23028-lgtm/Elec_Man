@@ -12,16 +12,16 @@ from pathlib import Path
 from time import perf_counter
 
 import numpy as np
+from app.core.config import get_settings
+from app.core.database import SessionLocal
+from app.models.image import ImageRecord
+from app.models.meter_reading import MeterReading
 from sqlalchemy import select, text
 
 from ai.model_runtime import current_pipeline
 from ai.pipeline.geometry import perspective_crop
 from ai.pipeline.preprocessing import load_prepared_image
 from ai.readers.consensus import ConsensusMeterReader
-from app.core.config import get_settings
-from app.core.database import SessionLocal
-from app.models.image import ImageRecord
-from app.models.meter_reading import MeterReading
 
 
 def summary(rows, field):

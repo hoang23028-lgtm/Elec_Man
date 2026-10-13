@@ -12,8 +12,8 @@ import numpy as np
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
-from ai.readers.sequence import PaddleV6SmallReader, ParseqTinyReader
 from ai.pipeline.register import integer_register_strip
+from ai.readers.sequence import PaddleV6SmallReader, ParseqTinyReader
 
 MAX_ENCODED_BYTES = 8 * 1024 * 1024
 reader: PaddleV6SmallReader | ParseqTinyReader | None = None

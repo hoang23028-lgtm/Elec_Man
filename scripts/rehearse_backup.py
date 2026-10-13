@@ -95,7 +95,7 @@ def restore_archive(path, destination):
 
 def docker(*args, timeout=90):
     result = subprocess.run(
-        ["docker", *args], capture_output=True, text=True, timeout=timeout
+        ["docker", *args], capture_output=True, text=True, timeout=timeout, check=False
     )
     if result.returncode:
         # Commands and SQL diagnostics can contain credentials or personal data.
@@ -130,6 +130,7 @@ def restore_database(directory, user):
         for _ in range(45):
             ready = subprocess.run(
                 ["docker", "exec", name, "pg_isready", "-U", user],
+                check=False,
                 capture_output=True,
                 timeout=10,
             )

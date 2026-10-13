@@ -5,10 +5,6 @@ import json
 import re
 from hashlib import sha256
 
-from sqlalchemy import select
-
-from ai.pipeline.preprocessing import load_prepared_image
-from ai.training.dataset import split_by_meter
 from app.core.config import get_settings
 from app.core.database import SessionLocal
 from app.models.image import ImageRecord
@@ -19,6 +15,10 @@ from app.services.training_service import (
     eligible_clause,
     enqueue_training,
 )
+from sqlalchemy import select
+
+from ai.pipeline.preprocessing import load_prepared_image
+from ai.training.dataset import split_by_meter
 
 
 def main():

@@ -41,6 +41,7 @@ Backup dữ liệu giả và verify manifest/archive đạt. Diễn tập restor
 
 ## Giới hạn
 
+- Lần CI đầu sau push: backend/frontend/AI/Compose và CodeQL đạt, hai bước lint tools/integration lỗi do Ruff runner mới có default rules khác bản local. Đã cố định Ruff 0.17.0, thêm cấu hình root rõ ràng, chuẩn hóa import và check=False cho subprocess được kiểm mã trả về. Kết quả CI của commit sửa phải xem trực tiếp trên GitHub, không dùng trạng thái của commit trước.
 - Không chạy thao tác ghi/nhãn/xác nhận/restore trên dữ liệu thật; localhost đang sử dụng được giữ nguyên.
 - Không chứng minh accuracy trên công tơ thực, tải lớn, Linux/macOS fresh install hoặc DNS/TLS Internet bằng kiểm tra Windows local này.
 - Trọng số reader pretrained được tải khi build; fine-tune deep reader chưa có trong pipeline. Model định vị riêng/ảnh/khách hàng không kèm Git.

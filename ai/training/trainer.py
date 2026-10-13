@@ -2,17 +2,6 @@ from datetime import UTC, datetime
 from hashlib import sha256
 
 import numpy as np
-from sqlalchemy import select
-
-from ai.pipeline.preprocessing import load_prepared_image
-from ai.pipeline.geometry import perspective_crop
-from ai.pipeline.register import integer_register_strip
-from ai.readers.consensus import ConsensusMeterReader
-from ai.training.dataset import export_sequence_dataset, split_by_meter, split_metadata
-from ai.training.keypoint_regressor import (
-    KeypointRegionRegressor,
-    extract_region_features,
-)
 from app.core.config import get_settings
 from app.core.database import SessionLocal
 from app.models.audit_log import AuditLog
@@ -21,6 +10,17 @@ from app.models.meter_reading import MeterReading
 from app.models.model_registry import ModelRecord
 from app.models.training_run import TrainingRun
 from app.services.training_service import eligible_clause
+from sqlalchemy import select
+
+from ai.pipeline.geometry import perspective_crop
+from ai.pipeline.preprocessing import load_prepared_image
+from ai.pipeline.register import integer_register_strip
+from ai.readers.consensus import ConsensusMeterReader
+from ai.training.dataset import export_sequence_dataset, split_by_meter, split_metadata
+from ai.training.keypoint_regressor import (
+    KeypointRegionRegressor,
+    extract_region_features,
+)
 
 
 def _reading_bbox(reading: MeterReading) -> tuple[float, float, float, float]:
