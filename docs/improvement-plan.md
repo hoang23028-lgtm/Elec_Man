@@ -8,7 +8,7 @@ Ngày bắt đầu: 13/10/2026. Yêu cầu: thực hiện toàn bộ các bướ
 4. Đã tích hợp fine-tune PARSeq-tiny/safetensors, giữ PP-OCR đối chứng; optimizer/reload/checksum/reset thực sự đạt smoke test trên ảnh giả.
 5. Đã thêm gate holdout/provenance/checksum/nhãn hiện tại/cùng phiên bản; tự xác nhận vẫn khóa. Chờ đủ dữ liệu độc lập và kết quả đạt gate.
 6. Đã có giám sát, tải hỗn hợp, backup có khóa/verify/watch/retention opt-in, diễn tập phục hồi. **Chờ lựa chọn lịch/supervisor và nơi backup ngoài máy**, chưa tự thay cấu hình toàn máy.
-7. Đã đồng bộ UI, kiểm thử local, migration/backup/cập nhật localhost và tài liệu. Phát hành GitHub/CI được ghi riêng sau khi có kết quả thực tế.
+7. Đã đồng bộ UI, kiểm thử local, migration/backup/cập nhật localhost và tài liệu; source đã phát hành lên `master` tại commit `0ed8516`. Cả workflow kiểm thử/build và CodeQL của commit này đều đạt; xem liên kết bằng chứng trong báo cáo.
 
 Phần người dùng cần làm sau khi có công cụ: xác minh định danh và nhãn của ảnh thật, phân holdout trước huấn luyện, bổ sung ảnh đa dạng. Không tự coi 37 mẫu là đủ sản xuất hoặc bịa tỷ lệ chính xác.
 

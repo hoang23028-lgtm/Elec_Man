@@ -47,4 +47,8 @@ Sau khi chủ dự án đăng nhập lại, đã kiểm tra chỉ đọc trên l
 
 Watch/retention đã có trong phần mềm, nhưng chưa tự cài tác vụ toàn máy hoặc chọn kho backup ngoài máy. Cần chọn giờ bảo trì, supervisor/Task Scheduler, nơi nhận dữ liệu riêng và mã hóa trước production. Xem [hướng dẫn train](../training.md) và [vận hành](../operations-monitoring.md).
 
-CI cho commit mới chỉ được xác nhận sau khi push và workflow hoàn tất; các số test trên là xác minh local, không gán kết quả workflow cũ cho source mới.
+## Phát hành GitHub và kiểm thử tự động
+
+Source đã push lên `master`, commit `0ed8516be4b211cdf8f22efd379e2cbbb85ce41a`. [Kiểm thử và build](https://github.com/hoang23028-lgtm/Elec_Man/actions/runs/38428669673) hoàn tất thành công: backend, integration PostgreSQL, frontend, AI, Compose, secret/docs policy và smoke optimizer PARSeq offline. [CodeQL Python/TypeScript](https://github.com/hoang23028-lgtm/Elec_Man/actions/runs/38428669410) cũng hoàn tất thành công. Đây là kết quả của đúng source mới, không dùng workflow của commit trước làm bằng chứng.
+
+Tổng 938 test local (850 backend + 32 integration + 38 AI + 18 frontend), cộng smoke optimizer thật. CI và scanner đạt không chứng minh tuyệt đối an toàn, độ chính xác ảnh thực hoặc SLA production. Báo cáo này mô tả commit source nêu trên; commit tài liệu bổ sung sau đó không thay thuật toán hoặc dữ liệu.
