@@ -148,7 +148,7 @@ export function TrainingPipeline({ csrfToken }: { csrfToken: string }) {
         <label>Tốc độ học<input type="number" min={0.000001} max={0.01} step={0.00001} value={options.learning_rate} onChange={(event) => setOptions({ ...options, learning_rate: Number(event.target.value) })} /></label>
         <label className="checkbox-label"><input type="checkbox" checked={options.experimental} onChange={(event) => setOptions({ ...options, experimental: event.target.checked })} /> Chạy chẩn đoán với ít dữ liệu (không được kích hoạt)</label>
         <label className="checkbox-label"><input type="checkbox" checked={options.benchmark_deep_locator} onChange={(event) => setOptions({ ...options, benchmark_deep_locator: event.target.checked })} /> Học MobileNetV3 và so sánh định vị với Ridge (không tự thay mô hình)</label>
-        {options.benchmark_deep_locator && <label>Epoch bộ định vị<input type="number" min={1} max={100} value={options.deep_locator_epochs} onChange={(event) => setOptions({ ...options, deep_locator_epochs: Number(event.target.value) })} /><small>Backbone pretrained cố định; học đầu dự đoán bốn góc trên CPU.</small></label>}
+        {options.benchmark_deep_locator && <label>Epoch bộ định vị<input type="number" min={1} max={100} value={options.deep_locator_epochs} onChange={(event) => setOptions({ ...options, deep_locator_epochs: Number(event.target.value) })} /><small>V2: ảnh 320 px, đặc trưng không gian 5×5; backbone cố định, chọn epoch theo IoU validation. Chưa phải kiểm định độc lập.</small></label>}
       </fieldset>
       <h3>Lịch sử huấn luyện & đánh giá</h3>
       <div className="table-wrap training-table" aria-busy={loading}>

@@ -10,6 +10,7 @@ STAGES = {
     "reading_region",
     "scene_ocr",
     "customer_ocr",
+    "customer_wait",
     "crop",
     "read_digits",
     "validation",

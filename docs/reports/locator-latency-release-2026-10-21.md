@@ -40,3 +40,7 @@ Browser: môi trường sandbox ngẫu nhiên, tài khoản và ảnh giả, kh�
 Đo lại 5 ảnh/3 vòng khi máy đồng thời chạy build/test ngày 21/10: p50 16.691 ms, p95 21.966 ms; OCR khách hàng chạm ngân sách 8 giây ở median. Không so tốc độ này với phép đo nhàn rỗi ngày 14/10 để kết luận hồi quy; cần phép đo trước/sau cùng điều kiện. CI/CodeQL phải gắn commit mới trên GitHub, không sử dụng kết quả của commit cũ.
 
 Không thay nhãn thật, mã khách hàng, chỉ số tháng, phân tập hoặc kích hoạt mô hình. Không tái xuất snapshot công khai hay đưa báo cáo/backup riêng lên GitHub.
+
+## Phát hành đã kiểm tra trên GitHub
+
+Commit `4e8aed7089b099c84d9cabb7cc7878f0782810fd` đã được đẩy lên master trước khi thực hiện các tối ưu tiếp theo. [CI/build](https://github.com/hoang23028-lgtm/Elec_Man/actions/runs/39538626576) và [CodeQL](https://github.com/hoang23028-lgtm/Elec_Man/actions/runs/39538626513) đều đạt. Đây là kết quả của bản 4–5, không tự áp dụng cho source thay đổi sau đó.

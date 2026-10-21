@@ -101,6 +101,13 @@ def main():
                             "predicted": result.get("meter_reading_ai"),
                             "exact": result.get("meter_reading_ai") == expected,
                             "timings_ms": result.get("timings_ms", {}),
+                            "customer_found": result.get("customer_id_ai") is not None,
+                            "customer_fallback_attempts": result.get(
+                                "customer_ocr_diagnostics", {}
+                            ).get("fallback_attempts", 0),
+                            "customer_budget_exhausted": result.get(
+                                "customer_ocr_diagnostics", {}
+                            ).get("fallback_budget_exhausted", False),
                             "readers": result.get("reader_diagnostics", {}),
                             "service_unavailable": result.get(
                                 "reader_diagnostics", {}
@@ -124,6 +131,11 @@ def main():
             "samples": len(warm),
             "exact": sum(r["exact"] for r in warm),
             "service_errors": sum(r["service_unavailable"] for r in records),
+            "customer_found_calls": sum(r["customer_found"] for r in warm),
+            "customer_budget_exhausted_calls": sum(
+                r["customer_budget_exhausted"] for r in warm
+            ),
+            "customer_accuracy_evaluated": False,
             "p50_ms": float(np.percentile(values, 50)),
             "p95_ms": float(np.percentile(values, 95)),
             "stages": {

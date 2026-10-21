@@ -23,3 +23,12 @@ def test_profile_rejects_invalid_and_unknown_timing_fields():
     assert summarize_timings(
         [(None, False, "bad"), ({"decode": -1, "scene_ocr": float("inf"), "password": 1}, None, [])]
     ) == {"automatic": {}, "manual": {}}
+
+
+def test_parallel_customer_duration_and_join_wait_are_distinct_not_added():
+    profile = summarize_timings(
+        [({"customer_ocr": 300, "customer_wait": 200, "read_digits": 100}, False, {})]
+    )
+    assert profile["automatic"]["customer_ocr"]["p50_ms"] == 300
+    assert profile["automatic"]["customer_wait"]["p50_ms"] == 200
+    assert "total" not in profile["automatic"]

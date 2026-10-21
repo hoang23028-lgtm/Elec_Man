@@ -19,7 +19,9 @@ _engine: RapidOCR | None = None
 def read_lines(image: np.ndarray) -> list[TextLine]:
     global _engine
     if _engine is None:
-        _engine = RapidOCR()
+        # The worker is CPU-quota bounded. Three default ORT thread pools can
+        # oversubscribe it heavily when reader services run at the same time.
+        _engine = RapidOCR(intra_op_num_threads=1, inter_op_num_threads=1)
     raw_lines, _ = _engine(image)
     if not raw_lines:
         return []

@@ -29,6 +29,7 @@ from ai.training.keypoint_regressor import (
     KeypointRegionRegressor,
     extract_region_features,
 )
+from ai.training.locator_samples import register_samples
 from ai.training.metrics import polygon_iou, reading_metrics
 from ai.training.sequence_finetune import dataset_items, evaluate_reader, fine_tune
 
@@ -296,18 +297,20 @@ def train_run(run_id):
     if options.get("benchmark_deep_locator", False):
         _set_stage(run_id, "TRAINING_DEEP_LOCATORS", 34)
 
-        def samples(rows, relative):
+        def samples(rows, relative, augment=False):
+            rng = np.random.default_rng(42)
             for image, reading in rows:
                 source = _source(settings.storage_root, image)
-                frame = _polygon(reading, "meter")
-                yield (
-                    (
-                        perspective_crop(source, frame),
-                        transform_polygon(_polygon(reading), frame),
+                if relative:
+                    yield from register_samples(
+                        source,
+                        _polygon(reading),
+                        learned[0],
+                        training_frame=_polygon(reading, "meter") if augment else None,
+                        rng=rng,
                     )
-                    if relative
-                    else (source, frame)
-                )
+                else:
+                    yield source, _polygon(reading, "meter")
 
         learned, summaries = [], {}
         for relative, kind in (
@@ -316,7 +319,7 @@ def train_run(run_id):
         ):
             relative_paths[kind] = f"{kind}/{version}/model.onnx"
             model, summary = train_deep_locator(
-                samples(train, relative),
+                samples(train, relative, augment=relative),
                 samples(validation, relative),
                 settings.models_root / relative_paths[kind],
                 coordinate_space="meter" if relative else "image",
@@ -325,6 +328,11 @@ def train_run(run_id):
                 max_seconds=min(900, settings.training_timeout_seconds),
             )
             learned.append(model)
+            summary["frame_policy"] = (
+                "predicted_meter_validation_train_only_frame_jitter"
+                if relative
+                else "full_image"
+            )
             summaries[kind] = summary
         deep_models = tuple(learned)
         deep_metrics = {
@@ -493,6 +501,13 @@ def train_run(run_id):
             if record.model_type.endswith("mobilenetv3"):
                 record.metrics_json.update(
                     locator_family="mobilenetv3",
+                    validation_iou_scope="automatic_localization",
+                    validation_meter_region_iou=deep_metrics["validation"][
+                        "mobilenetv3"
+                    ]["meter_mean_iou"],
+                    validation_region_iou=deep_metrics["validation"]["mobilenetv3"][
+                        "reading_mean_iou"
+                    ],
                     holdout_end_to_end=deep_e2e,
                     end_to_end_evaluated=deep_e2e["evaluation_complete"],
                     validation_meter_region_accuracy=max(

@@ -18,4 +18,4 @@ Xem [báo cáo kiểm chứng](reports/training-pipeline-upgrade-2026-10-13.md),
 
 Đã hoàn tất kiểm thử local đối chứng MobileNetV3/Ridge và đo OCR/encoder ONNX: 969 test, hai smoke offline và browser sandbox. Mặc định encoder Torch, mô hình mới TESTING; chưa có holdout độc lập nên không kích hoạt. Xem [báo cáo và giới hạn](reports/locator-latency-release-2026-10-21.md).
 
-Tiếp theo: giảm fallback OCR khách hàng và chạy song song phần độc lập; cải thiện đặc trưng không gian vùng số, so sánh trên cùng snapshot. Không thay bằng chứng holdout bằng điểm validation.
+Đã giảm fallback OCR khách hàng và chạy song song phần độc lập; v2 định vị vùng số có tăng cường crop, chọn epoch theo IoU. 990 test đạt; IoU vùng số validation 39,4% → 58,2%, latency chẩn đoán 11,8 → 4,3 giây trên 5 ảnh. Không thay bằng chứng holdout bằng điểm validation; 0 ACTIVE, tự xác nhận vẫn khóa. Xem [báo cáo tối ưu và các giới hạn](reports/ocr-localization-optimization-2026-10-21.md).

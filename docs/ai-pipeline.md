@@ -11,7 +11,7 @@
 
 Không có mô hình học sâu tiền xử lý đã fine-tune riêng. Không gọi cả bốn tầng là bốn deep model đã huấn luyện. Chưa có model định vị đã kích hoạt thì vẫn có thể khoanh vùng thủ công để dùng hệ thống.
 
-Mã khách hàng dùng RapidOCR trên ảnh cảnh và Tesseract fallback có ngân sách thời gian, sau đó đối chiếu mã chuẩn trong PostgreSQL. Tesseract không còn là bộ đọc chỉ số điện. Không có HOG từng ô trong luồng đọc chỉ số hiện tại.
+Mã khách hàng tái sử dụng RapidOCR trên ảnh cảnh, hoặc crop riêng nếu định vị học đã bỏ OCR cảnh. Tesseract fallback tối đa bốn lượt trong ngân sách 3 giây. Nhánh mã khách hàng chạy song song với đọc số; kết quả phải đối chiếu mã chuẩn trong PostgreSQL trước xác nhận. Mã mâu thuẫn/hết ngân sách yêu cầu người kiểm tra. Tesseract không còn là bộ đọc chỉ số điện. Không có HOG từng ô trong luồng đọc chỉ số hiện tại. Xem [định vị và hiệu năng](locator-and-latency.md).
 
 ## Đồng thuận và từ chối
 

@@ -13,12 +13,15 @@ import numpy as np
 from ai.training.keypoint_regressor import order_polygon, valid_polygon
 from ai.training.metrics import polygon_iou
 
-SIZE = 192
-ARCHITECTURE = "mobilenet-v3-small-spatial-keypoints-v1"
+ARCHITECTURE = "mobilenet-v3-small-spatial-keypoints-v2"
+ARCHITECTURES = {
+    "mobilenet-v3-small-spatial-keypoints-v1": (192, 2),
+    ARCHITECTURE: (320, 5),
+}
 
 
-def image_tensor(image):
-    rgb = cv2.cvtColor(cv2.resize(image, (SIZE, SIZE)), cv2.COLOR_BGR2RGB)
+def image_tensor(image, size=320):
+    rgb = cv2.cvtColor(cv2.resize(image, (size, size)), cv2.COLOR_BGR2RGB)
     values = rgb.transpose(2, 0, 1).astype(np.float32) / 255
     return (
         values - np.array([0.485, 0.456, 0.406], np.float32)[:, None, None]
@@ -40,8 +43,10 @@ class DeepRegionLocator:
             str(path), sess_options=options, providers=["CPUExecutionProvider"]
         )
         metadata = self.session.get_modelmeta().custom_metadata_map
-        if metadata.get("architecture") != ARCHITECTURE:
+        self.architecture = metadata.get("architecture")
+        if self.architecture not in ARCHITECTURES:
             raise ValueError("Kiến trúc định vị không tương thích.")
+        self.size = ARCHITECTURES[self.architecture][0]
         self.coordinate_space = metadata.get("coordinate_space")
         self.validation_error = float(metadata.get("validation_error", "nan"))
         inputs, outputs = self.session.get_inputs(), self.session.get_outputs()
@@ -51,7 +56,7 @@ class DeepRegionLocator:
             or not 0 <= self.validation_error <= 1
             or len(inputs) != 1
             or inputs[0].name != "image"
-            or inputs[0].shape != [1, 3, SIZE, SIZE]
+            or inputs[0].shape != [1, 3, self.size, self.size]
             or inputs[0].type != "tensor(float)"
             or len(outputs) != 1
             or outputs[0].shape != [1, 8]
@@ -63,7 +68,9 @@ class DeepRegionLocator:
         return cls(path)
 
     def predict(self, image):
-        values = self.session.run(None, {"image": image_tensor(image)[None]})[0]
+        values = self.session.run(
+            None, {"image": image_tensor(image, self.size)[None]}
+        )[0]
         if values.shape != (1, 8) or not np.isfinite(values).all():
             return None
         if np.any(values < 0) or np.any(values > 1):
@@ -97,6 +104,7 @@ def train_deep_locator(
     epochs=40,
     checkpoint=None,
     max_seconds=900,
+    architecture=ARCHITECTURE,
 ):
     """Iterable (image, polygon) rows; select head by validation, never holdout."""
     import onnx
@@ -108,12 +116,15 @@ def train_deep_locator(
         raise ValueError("Không được ghi đè artifact định vị.")
     if coordinate_space not in {"image", "meter"} or not 1 <= epochs <= 100:
         raise ValueError("Cấu hình bộ định vị không hợp lệ.")
+    if architecture not in ARCHITECTURES:
+        raise ValueError("Kiến trúc định vị không tương thích.")
+    size, grid = ARCHITECTURES[architecture]
     deadline = monotonic() + max_seconds
     torch.set_num_threads(1)
     torch.manual_seed(42)
     backbone = nn.Sequential(
         mobilenet_v3_small(weights=MobileNet_V3_Small_Weights.IMAGENET1K_V1).features,
-        nn.AdaptiveAvgPool2d((2, 2)),
+        nn.AdaptiveAvgPool2d((grid, grid)),
         nn.Flatten(),
     ).eval()
     backbone.requires_grad_(False)
@@ -126,7 +137,7 @@ def train_deep_locator(
             if monotonic() > deadline:
                 raise TimeoutError("Định vị học sâu vượt ngân sách thời gian.")
             with torch.inference_mode():
-                feature = backbone(torch.from_numpy(image_tensor(image)[None]))
+                feature = backbone(torch.from_numpy(image_tensor(image, size)[None]))
             encoded.append(feature.clone())
             targets.append(np.asarray(polygon, np.float32).reshape(8))
         if not encoded:
@@ -144,7 +155,16 @@ def train_deep_locator(
         head[2].weight.zero_()
         head[2].bias.copy_(torch.logit(y.mean(0).clamp(0.001, 0.999)))
     optimizer = torch.optim.AdamW(head.parameters(), lr=0.001, weight_decay=0.01)
-    best, history = None, []
+    best, history, iou_history = None, [], []
+    # Thin registers need small vertical errors; normalize each axis by target
+    # extent rather than giving a whole meter and a thin strip the same loss.
+    polygons = y.reshape(-1, 4, 2)
+    extent = (polygons.amax(1) - polygons.amin(1)).clamp(min=0.05)
+    weights = (
+        extent.reciprocal().repeat(1, 4)
+        if architecture == ARCHITECTURE
+        else torch.ones_like(y)
+    )
     for epoch in range(epochs):
         if checkpoint:
             checkpoint()
@@ -155,7 +175,9 @@ def train_deep_locator(
         for start in range(0, len(x), 32):
             batch = order[start : start + 32]
             optimizer.zero_grad(set_to_none=True)
-            loss = nn.functional.smooth_l1_loss(head(x[batch]), y[batch])
+            loss = nn.functional.smooth_l1_loss(
+                head(x[batch]) * weights[batch], y[batch] * weights[batch]
+            )
             if not torch.isfinite(loss):
                 raise ValueError("Loss định vị không hữu hạn.")
             loss.backward()
@@ -163,13 +185,28 @@ def train_deep_locator(
             optimizer.step()
         head.eval()
         with torch.inference_mode():
-            error = float((head(vx) - vy).abs().mean())
+            predicted = head(vx)
+            error = float((predicted - vy).abs().mean())
+            mean_iou = float(
+                np.mean(
+                    [
+                        polygon_iou(order_polygon(p.reshape(4, 2)), t.reshape(4, 2))
+                        for p, t in zip(predicted.numpy(), vy.numpy(), strict=True)
+                    ]
+                )
+            )
         history.append(error)
-        if best is None or error < best[0]:
+        iou_history.append(mean_iou)
+        # Validation selects weights; holdout is never used for this choice.
+        rank = (
+            (mean_iou, -error) if architecture == ARCHITECTURE else (-error, mean_iou)
+        )
+        if best is None or rank > best[3]:
             best = (
                 error,
                 epoch + 1,
                 {k: v.detach().clone() for k, v in head.state_dict().items()},
+                rank,
             )
     head.load_state_dict(best[2])
     model = nn.Sequential(backbone, head).eval()
@@ -177,7 +214,7 @@ def train_deep_locator(
     temporary = artifact.with_suffix(".tmp.onnx")
     torch.onnx.export(
         model,
-        torch.zeros(1, 3, SIZE, SIZE),
+        torch.zeros(1, 3, size, size),
         str(temporary),
         opset_version=17,
         input_names=["image"],
@@ -187,7 +224,7 @@ def train_deep_locator(
     onnx.helper.set_model_props(
         graph,
         {
-            "architecture": ARCHITECTURE,
+            "architecture": architecture,
             "coordinate_space": coordinate_space,
             "validation_error": str(best[0]),
         },
@@ -196,20 +233,29 @@ def train_deep_locator(
     onnx.save(graph, str(temporary))
     runtime = DeepRegionLocator(temporary)
     with torch.inference_mode():
-        reference = model(torch.zeros(1, 3, SIZE, SIZE)).numpy()
+        reference = model(torch.zeros(1, 3, size, size)).numpy()
     exported = runtime.session.run(
-        None, {"image": np.zeros((1, 3, SIZE, SIZE), np.float32)}
+        None, {"image": np.zeros((1, 3, size, size), np.float32)}
     )[0]
     if not np.allclose(reference, exported, rtol=1e-4, atol=1e-5):
         raise ValueError("ONNX định vị không tương đương Torch.")
     temporary.replace(artifact)
     return DeepRegionLocator(artifact), {
-        "architecture": ARCHITECTURE,
+        "architecture": architecture,
+        "input_size": size,
+        "spatial_grid": grid,
+        "selection_metric": "validation_mean_iou"
+        if architecture == ARCHITECTURE
+        else "validation_mae",
         "encoder_frozen": True,
+        "training_examples": len(x),
+        "validation_examples": len(vx),
         "epochs": epochs,
         "best_epoch": best[1],
         "validation_error": best[0],
         "validation_history": history,
+        "validation_iou_history": iou_history,
+        "validation_mean_iou": iou_history[best[1] - 1],
         "onnx_parity": True,
         "score_calibrated": False,
     }

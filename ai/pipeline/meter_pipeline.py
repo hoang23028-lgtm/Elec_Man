@@ -1,3 +1,4 @@
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from time import perf_counter
 
@@ -95,10 +96,6 @@ class MeterReadingPipeline:
             customer_y : customer_y + customer_height,
             customer_x : customer_x + customer_width,
         ]
-        customer_id, customer_confidence = self.customer_code_reader.read(
-            customer_crop, lines, diagnostics=customer_stats
-        )
-        located_at = perf_counter()
         reader_stats = {}
         if reading_location.reading_polygon is not None:
             reading_crop = perspective_crop(prepared, reading_location.reading_polygon)
@@ -106,12 +103,32 @@ class MeterReadingPipeline:
             x, y, width, height = reading_location.reading_region
             reading_crop = prepared[y : y + height, x : x + width]
         cropped_at = perf_counter()
-        meter_reading, meter_confidence = self.meter_reader.read(
-            reading_crop,
-            diagnostics=reader_stats,
-            integer_digits=effective_integer_digits,
-        )
+
+        def customer_ocr():
+            customer_started = perf_counter()
+            value = self.customer_code_reader.read(
+                customer_crop,
+                None if scene_ocr_skipped else lines,
+                diagnostics=customer_stats,
+            )
+            return value, (perf_counter() - customer_started) * 1000
+
+        # No database sessions cross threads; both tasks consume immutable image
+        # views. Join before returning: an unverified code never becomes official.
+        with ThreadPoolExecutor(
+            max_workers=1, thread_name_prefix="customer-ocr"
+        ) as executor:
+            customer_future = executor.submit(customer_ocr)
+            digits_started = perf_counter()
+            meter_reading, meter_confidence = self.meter_reader.read(
+                reading_crop,
+                diagnostics=reader_stats,
+                integer_digits=effective_integer_digits,
+            )
+            digits_at = perf_counter()
+            (customer_id, customer_confidence), customer_ms = customer_future.result()
         read_at = perf_counter()
+        reader_stats["digits_ready_ms"] = round((digits_at - started) * 1000, 2)
         validation = validate(customer_id, meter_reading)
         final_confidence = calculate(
             customer_confidence,
@@ -187,9 +204,10 @@ class MeterReadingPipeline:
                     (region_at - meter_at) * 1000 + region_fallback_ms, 2
                 ),
                 "scene_ocr": round((scene_ocr_at - region_at) * 1000, 2),
-                "customer_ocr": round((located_at - localized_at) * 1000, 2),
-                "crop": round((cropped_at - located_at) * 1000, 2),
-                "read_digits": round((read_at - cropped_at) * 1000, 2),
+                "customer_ocr": round(customer_ms, 2),
+                "customer_wait": round((read_at - digits_at) * 1000, 2),
+                "crop": round((cropped_at - localized_at) * 1000, 2),
+                "read_digits": round((digits_at - digits_started) * 1000, 2),
                 "validation": round((perf_counter() - read_at) * 1000, 2),
             },
             "processing_time_ms": round((perf_counter() - started) * 1000),

@@ -41,5 +41,7 @@ Tài liệu trong thư mục này mô tả **bản mã nguồn hiện hành**. B
 - [Xác minh bản công khai có dữ liệu 13/10](reports/public-data-verification-2026-10-13.md).
 - [Cải tiến độ tin cậy nhập dữ liệu 13/10](reports/seed-reliability-2026-10-13.md).
 - [Pipeline huấn luyện và vận hành mới 13/10](reports/training-pipeline-upgrade-2026-10-13.md).
+- [Kiểm chứng bản 4–5 ngày 21/10](reports/locator-latency-release-2026-10-21.md).
+- [Tối ưu OCR khách hàng và định vị ngày 21/10](reports/ocr-localization-optimization-2026-10-21.md).
 
 Snapshot data/ có khách hàng/ảnh/nhãn và artifact thật đã được phép công khai, không có thông tin xác thực hoặc backup SQL thô. Mẫu examples/customers.json vẫn là giả. Điều kiện AI/HTTPS/privacy còn lại phải đọc trước khi triển khai rộng; không tự công khai dữ liệu mới.
