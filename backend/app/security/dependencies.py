@@ -72,12 +72,12 @@ def require_csrf(
 ) -> AuthContext:
     csrf_token = request.headers.get("X-CSRF-Token")
     cookie = request.cookies.get(get_settings().session_cookie_name)
-    legacy_match = bool(csrf_token) and compare_digest(
+    login_match = bool(csrf_token) and compare_digest(
         hash_token(csrf_token), context.session.csrf_token_hash
     )
     restored_match = bool(csrf_token and cookie) and compare_digest(
         csrf_token, session_csrf_token(cookie)
     )
-    if not (legacy_match or restored_match):
+    if not (login_match or restored_match):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Xác thực CSRF thất bại.")
     return context

@@ -4,7 +4,24 @@ import numpy as np
 import onnxruntime as ort
 import pytest
 
-from ai.training.deep_locator import ARCHITECTURE, DeepRegionLocator, image_tensor
+from ai.training.deep_locator import (
+    ARCHITECTURE,
+    DeepRegionLocator,
+    image_tensor,
+    train_deep_locator,
+)
+
+
+def test_retired_architecture_cannot_be_trained_again(tmp_path):
+    with pytest.raises(TypeError):
+        train_deep_locator(
+            [],
+            [],
+            tmp_path / "retired.onnx",
+            coordinate_space="image",
+            architecture="mobilenet-v3-small-spatial-keypoints-v1",
+        )
+    assert not (tmp_path / "retired.onnx").exists()
 
 
 @pytest.mark.parametrize(

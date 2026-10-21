@@ -55,6 +55,14 @@ Không đổi tên Alembic revision/migration đã phát hành chỉ để đồ
 
 Dùng service tách logic khỏi HTTP, schema validate ở server, parameterized SQLAlchemy, frontend API client thống nhất. Một thay đổi review phải xét cả nhãn, dữ liệu tháng, file, audit, revision và UI invalidation.
 
+## Phiên bản vận hành duy nhất
+
+Định vị học sâu chỉ có một triển khai huấn luyện hiện hành: MobileNetV3 v2, đầu vào 320 px, đặc trưng 5×5, validation theo IoU và tăng cường crop công tơ dự đoán. Nhánh huấn luyện v1 đã bỏ. Một bảng metadata rất nhỏ vẫn cho đọc artifact v1 cũ để truy vết; đó không phải một bản ứng dụng hay pipeline huấn luyện khác.
+
+Ridge là đối chứng cần cho gate kiểm định, không tự thay cho ứng viên học sâu. Hai reader PP-OCR/PARSeq phục vụ đồng thuận, không phải hai phiên bản ứng dụng trùng nhau. Encoder Torch vẫn là mặc định; công cụ ONNX chỉ dùng đối chứng có kiểm soát. Không bỏ các phần này chỉ dựa vào tên hoặc tuổi file. Chưa có holdout độc lập thì không gọi v2 là mô hình sản xuất đã được chứng nhận.
+
+Migrations, báo cáo lịch sử, snapshot đã được phép và dữ liệu/nhãn thật được giữ nguyên. Xem [lần dọn ngày 21/10](reports/source-cleanup-2026-10-21.md).
+
 ## Thành phần không đưa lên GitHub
 
 .env*, credentials, raw database dump, backups/logs riêng, dữ liệu mới chưa được phép, .agents/.codex-tmp, venv, node_modules, .next và binary build. Snapshot trong data/ là ngoại lệ đã được chủ dự án chấp thuận và kiểm tra auth/checksum; xem [dữ liệu chia sẻ](shared-data.md). Không dùng git add -f để bỏ qua chính sách secret.

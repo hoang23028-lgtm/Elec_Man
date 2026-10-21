@@ -87,7 +87,4 @@ def enhanced_variants(image: np.ndarray) -> list[np.ndarray]:
         clahe, 1.7, cv2.GaussianBlur(clahe, (0, 0), 2.0), -0.7, 0
     )
     _, otsu = cv2.threshold(sharpened, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    threshold = cv2.adaptiveThreshold(
-        sharpened, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 31, 9
-    )
-    return [sharpened, otsu, threshold]
+    return [sharpened, otsu]

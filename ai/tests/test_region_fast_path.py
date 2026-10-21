@@ -55,17 +55,21 @@ def test_remote_reader_returns_consensus(monkeypatch):
 
     monkeypatch.setattr("ai.readers.consensus.urlopen", lambda *_, **__: Response())
     stats = {}
-
-    value, confidence = ConsensusMeterReader(
-        "http://ppocr", "http://parseq", timeout=1
-    ).read(
-        np.full((30, 180, 3), 128, dtype=np.uint8),
-        integer_digits=5,
-        diagnostics=stats,
-    )
+    reader = ConsensusMeterReader("http://ppocr", "http://parseq", timeout=1)
+    loads = Mock(wraps=json.loads)
+    monkeypatch.setattr("ai.readers.consensus.json.loads", loads)
+    try:
+        value, confidence = reader.read(
+            np.full((30, 180, 3), 128, dtype=np.uint8),
+            integer_digits=5,
+            diagnostics=stats,
+        )
+    finally:
+        reader.close()
 
     assert (value, confidence) == ("12345", 0.878)
     assert stats["decision"] == "agreement"
+    assert loads.call_count == 2  # Only the two responses, never reparse requests.
 
 
 def test_customer_timeout_is_reviewable_and_never_retried(monkeypatch):

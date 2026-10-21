@@ -39,7 +39,7 @@ class ConsensusMeterReader:
     def close(self) -> None:
         self._executor.shutdown(wait=True, cancel_futures=True)
 
-    def _request(self, endpoint: str, body: bytes):
+    def _request(self, endpoint: str, body: bytes, integer_digits: int):
         started = perf_counter()
         request = Request(
             f"{endpoint}/v1/read",
@@ -59,7 +59,7 @@ class ConsensusMeterReader:
                 and (
                     not isinstance(value, str)
                     or not re.fullmatch(r"[0-9]{4,8}", value)
-                    or len(value) != json.loads(body)["integer_digits"]
+                    or len(value) != integer_digits
                 )
             )
         ):
@@ -126,6 +126,7 @@ class ConsensusMeterReader:
                     json.dumps({**content, **self.parseq_model}).encode()
                     if backend == "parseq" and self.parseq_model
                     else body,
+                    integer_digits,
                 )
                 for backend, endpoint in self.endpoints.items()
             }

@@ -6,7 +6,7 @@ SUPER_ADMIN vào Vòng đời mô hình → Huấn luyện, bật **Học Mobile
 
 MobileNetV3-small pretrained ImageNet là ứng viên CPU nhẹ, không phải tuyên bố detector mới nhất/tốt nhất. Backbone cố định, MLP học tám tọa độ của một công tơ trên ảnh và vùng số trong mặt công tơ chỉnh phối cảnh. Đây là định vị bốn góc một đối tượng, không phải YOLO nhiều đối tượng. Worker chạy ONNX, không cần Torch.
 
-Phiên huấn luyện mới dùng kiến trúc v2: đầu vào 320×320, lưới đặc trưng 5×5, loss chuẩn hóa theo chiều rộng/cao vùng để quan tâm đến dãy số mỏng. Epoch chọn theo IoU validation; không dùng holdout. Runtime vẫn đọc đúng contract v1 192 px của artifact cũ, không đổi nội dung artifact đã lưu.
+Trainer chỉ huấn luyện kiến trúc v2: đầu vào 320×320, lưới đặc trưng 5×5, loss chuẩn hóa theo chiều rộng/cao vùng để quan tâm đến dãy số mỏng. Epoch chọn theo IoU validation; không dùng holdout. Nhánh huấn luyện v1 đã bỏ; runtime vẫn đọc đúng contract v1 192 px của artifact cũ, không đổi nội dung artifact đã lưu.
 
 Bộ vùng số học thêm crop theo khung công tơ dự đoán và hai nhiễu bốn góc nhỏ chỉ trong train. Nhãn vùng số được biến đổi cùng crop; không sửa nhãn trong DB. Validation của bộ vùng số dùng khung công tơ dự đoán, không cung cấp vùng công tơ thật; giảm lệch điều kiện giữa học và chạy. Các crop tăng cường không được đếm thành ảnh/người dùng mới. Benchmark vẫn phải đo IoU toàn luồng trên ảnh gốc; IoU trong mặt phẳng chỉnh phối cảnh không thay thế con số này.
 

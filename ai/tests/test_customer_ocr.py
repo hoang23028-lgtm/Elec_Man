@@ -8,7 +8,18 @@ import pytest
 from ai.pipeline import customer_code_reader as module
 from ai.pipeline import meter_pipeline
 from ai.pipeline.scene_ocr import TextLine
-from ai.pipeline.tesseract_cli import OcrCandidate
+from ai.pipeline.tesseract_cli import OcrCandidate, enhanced_variants
+
+
+def test_preprocessing_only_builds_the_two_variants_actually_consumed(monkeypatch):
+    monkeypatch.setattr(
+        cv2,
+        "adaptiveThreshold",
+        Mock(side_effect=AssertionError("Unused third variant must not be computed")),
+    )
+    variants = enhanced_variants(np.full((40, 200, 3), 128, np.uint8))
+    assert len(variants) == 2
+    assert all(image.ndim == 2 and image.dtype == np.uint8 for image in variants)
 
 
 @pytest.mark.parametrize(

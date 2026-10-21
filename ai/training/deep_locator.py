@@ -10,17 +10,21 @@ from time import monotonic, perf_counter
 import cv2
 import numpy as np
 
+from ai.pipeline.geometry import normalized_bbox_polygon
 from ai.training.keypoint_regressor import order_polygon, valid_polygon
 from ai.training.metrics import polygon_iou
 
 ARCHITECTURE = "mobilenet-v3-small-spatial-keypoints-v2"
-ARCHITECTURES = {
-    "mobilenet-v3-small-spatial-keypoints-v1": (192, 2),
-    ARCHITECTURE: (320, 5),
+INPUT_SIZE = 320
+SPATIAL_GRID = 5
+# Read-only artifact compatibility, not a second training implementation.
+READABLE_INPUT_SIZES = {
+    "mobilenet-v3-small-spatial-keypoints-v1": 192,
+    ARCHITECTURE: INPUT_SIZE,
 }
 
 
-def image_tensor(image, size=320):
+def image_tensor(image, size=INPUT_SIZE):
     rgb = cv2.cvtColor(cv2.resize(image, (size, size)), cv2.COLOR_BGR2RGB)
     values = rgb.transpose(2, 0, 1).astype(np.float32) / 255
     return (
@@ -44,9 +48,9 @@ class DeepRegionLocator:
         )
         metadata = self.session.get_modelmeta().custom_metadata_map
         self.architecture = metadata.get("architecture")
-        if self.architecture not in ARCHITECTURES:
+        if self.architecture not in READABLE_INPUT_SIZES:
             raise ValueError("Kiến trúc định vị không tương thích.")
-        self.size = ARCHITECTURES[self.architecture][0]
+        self.size = READABLE_INPUT_SIZES[self.architecture]
         self.coordinate_space = metadata.get("coordinate_space")
         self.validation_error = float(metadata.get("validation_error", "nan"))
         inputs, outputs = self.session.get_inputs(), self.session.get_outputs()
@@ -104,7 +108,6 @@ def train_deep_locator(
     epochs=40,
     checkpoint=None,
     max_seconds=900,
-    architecture=ARCHITECTURE,
 ):
     """Iterable (image, polygon) rows; select head by validation, never holdout."""
     import onnx
@@ -116,15 +119,12 @@ def train_deep_locator(
         raise ValueError("Không được ghi đè artifact định vị.")
     if coordinate_space not in {"image", "meter"} or not 1 <= epochs <= 100:
         raise ValueError("Cấu hình bộ định vị không hợp lệ.")
-    if architecture not in ARCHITECTURES:
-        raise ValueError("Kiến trúc định vị không tương thích.")
-    size, grid = ARCHITECTURES[architecture]
     deadline = monotonic() + max_seconds
     torch.set_num_threads(1)
     torch.manual_seed(42)
     backbone = nn.Sequential(
         mobilenet_v3_small(weights=MobileNet_V3_Small_Weights.IMAGENET1K_V1).features,
-        nn.AdaptiveAvgPool2d((grid, grid)),
+        nn.AdaptiveAvgPool2d((SPATIAL_GRID, SPATIAL_GRID)),
         nn.Flatten(),
     ).eval()
     backbone.requires_grad_(False)
@@ -137,7 +137,7 @@ def train_deep_locator(
             if monotonic() > deadline:
                 raise TimeoutError("Định vị học sâu vượt ngân sách thời gian.")
             with torch.inference_mode():
-                feature = backbone(torch.from_numpy(image_tensor(image, size)[None]))
+                feature = backbone(torch.from_numpy(image_tensor(image)[None]))
             encoded.append(feature.clone())
             targets.append(np.asarray(polygon, np.float32).reshape(8))
         if not encoded:
@@ -160,11 +160,7 @@ def train_deep_locator(
     # extent rather than giving a whole meter and a thin strip the same loss.
     polygons = y.reshape(-1, 4, 2)
     extent = (polygons.amax(1) - polygons.amin(1)).clamp(min=0.05)
-    weights = (
-        extent.reciprocal().repeat(1, 4)
-        if architecture == ARCHITECTURE
-        else torch.ones_like(y)
-    )
+    weights = extent.reciprocal().repeat(1, 4)
     for epoch in range(epochs):
         if checkpoint:
             checkpoint()
@@ -198,9 +194,7 @@ def train_deep_locator(
         history.append(error)
         iou_history.append(mean_iou)
         # Validation selects weights; holdout is never used for this choice.
-        rank = (
-            (mean_iou, -error) if architecture == ARCHITECTURE else (-error, mean_iou)
-        )
+        rank = (mean_iou, -error)
         if best is None or rank > best[3]:
             best = (
                 error,
@@ -214,7 +208,7 @@ def train_deep_locator(
     temporary = artifact.with_suffix(".tmp.onnx")
     torch.onnx.export(
         model,
-        torch.zeros(1, 3, size, size),
+        torch.zeros(1, 3, INPUT_SIZE, INPUT_SIZE),
         str(temporary),
         opset_version=17,
         input_names=["image"],
@@ -224,7 +218,7 @@ def train_deep_locator(
     onnx.helper.set_model_props(
         graph,
         {
-            "architecture": architecture,
+            "architecture": ARCHITECTURE,
             "coordinate_space": coordinate_space,
             "validation_error": str(best[0]),
         },
@@ -233,20 +227,18 @@ def train_deep_locator(
     onnx.save(graph, str(temporary))
     runtime = DeepRegionLocator(temporary)
     with torch.inference_mode():
-        reference = model(torch.zeros(1, 3, size, size)).numpy()
+        reference = model(torch.zeros(1, 3, INPUT_SIZE, INPUT_SIZE)).numpy()
     exported = runtime.session.run(
-        None, {"image": np.zeros((1, 3, size, size), np.float32)}
+        None, {"image": np.zeros((1, 3, INPUT_SIZE, INPUT_SIZE), np.float32)}
     )[0]
     if not np.allclose(reference, exported, rtol=1e-4, atol=1e-5):
         raise ValueError("ONNX định vị không tương đương Torch.")
     temporary.replace(artifact)
     return DeepRegionLocator(artifact), {
-        "architecture": architecture,
-        "input_size": size,
-        "spatial_grid": grid,
-        "selection_metric": "validation_mean_iou"
-        if architecture == ARCHITECTURE
-        else "validation_mae",
+        "architecture": ARCHITECTURE,
+        "input_size": INPUT_SIZE,
+        "spatial_grid": SPATIAL_GRID,
+        "selection_metric": "validation_mean_iou",
         "encoder_frozen": True,
         "training_examples": len(x),
         "validation_examples": len(vx),
@@ -279,8 +271,6 @@ def benchmark_locators(
             meter = MeterLocator(meter_model).locate(prepared)
             region = ReadingRegionLocator(region_model).locate(prepared, meter)
             times.append((perf_counter() - started) * 1000)
-            from ai.pipeline.geometry import normalized_bbox_polygon
-
             height, width = prepared.shape[:2]
             frame = meter.meter_polygon or normalized_bbox_polygon(
                 tuple(

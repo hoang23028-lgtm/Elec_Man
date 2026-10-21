@@ -187,7 +187,6 @@ def main():
         "database_mutated": False,
     }
     if args.output:
-        args.output.parent.mkdir(parents=True, exist_ok=True)
         with args.output.open("x", encoding="utf-8") as stream:
             json.dump(report, stream, ensure_ascii=False, indent=2)
     print(

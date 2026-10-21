@@ -35,16 +35,6 @@ def main():
         assert model.predict(rows[2][0]) is not None and metrics["onnx_parity"]
         assert metrics["input_size"] == 320 and metrics["spatial_grid"] == 5
         assert metrics["validation_mean_iou"] == max(metrics["validation_iou_history"])
-        legacy, old_metrics = train_deep_locator(
-            rows[:2],
-            rows[2:],
-            Path(directory) / "legacy.onnx",
-            coordinate_space="image",
-            epochs=1,
-            max_seconds=120,
-            architecture="mobilenet-v3-small-spatial-keypoints-v1",
-        )
-        assert legacy.size == 192 and old_metrics["onnx_parity"]
         reader = ParseqTinyReader(Path("/opt/parseq"), Path("/opt/parseq-encoder.onnx"))
         import torch
 

@@ -77,7 +77,7 @@ class CustomerCodeReader:
         fallback_started = perf_counter()
         # Sparse-text mode is the best fit for labels; block mode is a bounded
         # fallback. PSM 12 duplicated PSM 11 work and added avoidable latency.
-        for variant in enhanced_variants(image)[:2]:
+        for variant in enhanced_variants(image):
             for psm in (11, 6):
                 remaining = fallback_budget_seconds - (
                     perf_counter() - fallback_started
@@ -87,7 +87,7 @@ class CustomerCodeReader:
                     return best
                 diagnostics["fallback_attempts"] += 1
                 try:
-                    candidate = read(variant, psm=psm, timeout=min(20.0, remaining))
+                    candidate = read(variant, psm=psm, timeout=remaining)
                 except TimeoutExpired:
                     # Missing customer identity must be reviewable, not fail the job.
                     diagnostics["fallback_budget_exhausted"] = True
