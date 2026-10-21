@@ -44,7 +44,7 @@ def test_remote_reader_returns_consensus(monkeypatch):
             return None
 
         @staticmethod
-        def read():
+        def read(*_):
             return json.dumps(
                 {
                     "value": "12345",
@@ -78,3 +78,40 @@ def test_customer_timeout_is_reviewable_and_never_retried(monkeypatch):
     read.assert_called_once()
     assert 0 < read.call_args.kwargs["timeout"] <= 8
     assert stats["fallback_budget_exhausted"] is True
+
+
+def test_invalid_reader_score_is_abstained_not_promoted(monkeypatch):
+    class Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            return None
+
+        def read(self, *_):
+            return json.dumps({"value": "12345", "confidence": float("nan")}).encode()
+
+    monkeypatch.setattr("ai.readers.consensus.urlopen", lambda *_, **__: Response())
+    reader = ConsensusMeterReader("http://ppocr", "http://parseq")
+    try:
+        stats = {}
+        assert reader.read(
+            np.zeros((30, 180, 3), np.uint8), integer_digits=5, diagnostics=stats
+        ) == (None, 0)
+        assert stats["decision"] == "reader_service_unavailable"
+    finally:
+        reader.close()
+
+
+def test_failed_trained_region_is_not_evaluated_twice_for_ocr_fallback(monkeypatch):
+    from ai.pipeline.localization import MeterLocator, ReadingRegionLocator
+
+    predictor = Mock()
+    predictor.predict_region.return_value = None
+    predictor.coordinate_space = "meter"
+    image = np.zeros((300, 500, 3), np.uint8)
+    meter = MeterLocator().locate(image)
+    locator = ReadingRegionLocator(predictor)
+    locator.locate(image, meter)
+    locator.locate(image, meter, [], predict=False)
+    predictor.predict_region.assert_called_once()

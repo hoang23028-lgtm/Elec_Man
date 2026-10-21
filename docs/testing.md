@@ -79,4 +79,6 @@ Verify manifest + archive safety, diễn tập restore ở resource tạm theo [
 
 CI trên push master/PR kiểm secret, docs/bootstrap, backend, integration, frontend, AI và Compose; CodeQL workflow riêng. Kết quả phải gắn commit cụ thể. Các số test/bộ đo cũ đặt ở docs/reports, không dùng số cũ như số của HEAD.
 
-Xem [checklist](release-checklist.md), [báo cáo ngày 13/10](reports/final-verification-2026-10-13.md).
+CI có thêm smoke định vị/encoder ONNX offline, kiểm tra cache khi XDG trỏ tmpfs. Xem [hướng dẫn và lệnh benchmark](locator-and-latency.md).
+
+Xem [checklist](release-checklist.md), [báo cáo ngày 13/10](reports/final-verification-2026-10-13.md) và [bản 4–5](reports/locator-latency-release-2026-10-21.md).

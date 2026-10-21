@@ -13,3 +13,9 @@ Ngày bắt đầu: 13/10/2026. Yêu cầu: thực hiện toàn bộ các bướ
 Phần người dùng cần làm sau khi có công cụ: xác minh định danh và nhãn của ảnh thật, phân holdout trước huấn luyện, bổ sung ảnh đa dạng. Không tự coi 37 mẫu là đủ sản xuất hoặc bịa tỷ lệ chính xác.
 
 Xem [báo cáo kiểm chứng](reports/training-pipeline-upgrade-2026-10-13.md), [hướng dẫn train](training.md) và [vận hành/backup](operations-monitoring.md).
+
+## Bổ sung bản 4–5, ngày 21/10/2026
+
+Đã hoàn tất kiểm thử local đối chứng MobileNetV3/Ridge và đo OCR/encoder ONNX: 969 test, hai smoke offline và browser sandbox. Mặc định encoder Torch, mô hình mới TESTING; chưa có holdout độc lập nên không kích hoạt. Xem [báo cáo và giới hạn](reports/locator-latency-release-2026-10-21.md).
+
+Tiếp theo: giảm fallback OCR khách hàng và chạy song song phần độc lập; cải thiện đặc trưng không gian vùng số, so sánh trên cùng snapshot. Không thay bằng chứng holdout bằng điểm validation.

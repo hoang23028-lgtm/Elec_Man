@@ -9,8 +9,11 @@ from ai.pipeline.meter_pipeline import MeterReadingPipeline
 
 _cached_ids: tuple[object | None, ...] | None = None
 _cached_pipeline: MeterReadingPipeline | None = None
-SUPPORTED_REGION_MODEL_TYPES = ("reading_region_ridge",)
-SUPPORTED_METER_LOCATOR_MODEL_TYPES = ("meter_locator_ridge",)
+SUPPORTED_REGION_MODEL_TYPES = ("reading_region_ridge", "reading_region_mobilenetv3")
+SUPPORTED_METER_LOCATOR_MODEL_TYPES = (
+    "meter_locator_ridge",
+    "meter_locator_mobilenetv3",
+)
 SUPPORTED_READER_MODEL_TYPES = ("parseq_tiny_finetuned",)
 
 

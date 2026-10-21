@@ -13,7 +13,7 @@ from ai.pipeline.quality import assess_image_quality
 from ai.pipeline.scene_ocr import read_lines
 from ai.pipeline.validator import validate
 from ai.readers.consensus import ConsensusMeterReader
-from ai.training.keypoint_regressor import KeypointRegionRegressor
+from ai.training.deep_locator import load_region_model
 
 
 class MeterReadingPipeline:
@@ -32,13 +32,9 @@ class MeterReadingPipeline:
         self.model_version = model_version or "modern-sequence-consensus-v1"
         self.customer_code_reader = CustomerCodeReader()
         region_model = (
-            KeypointRegionRegressor.load(region_model_path)
-            if region_model_path
-            else None
+            load_region_model(region_model_path) if region_model_path else None
         )
-        meter_model = (
-            KeypointRegionRegressor.load(meter_model_path) if meter_model_path else None
-        )
+        meter_model = load_region_model(meter_model_path) if meter_model_path else None
         self.has_region_model = region_model is not None
         self.has_meter_model = meter_model is not None
         self.image_preprocessor = ImagePreprocessingModel()
@@ -72,18 +68,25 @@ class MeterReadingPipeline:
         prepared, preprocessing_confidence, preprocessing_operations = (
             self.image_preprocessor.process(source)
         )
+        preprocessed_at = perf_counter()
         # Quality is measured on the bounded image actually consumed downstream;
         # this avoids a full-resolution Laplacian pass on large phone photos.
         quality = assess_image_quality(prepared)
+        quality_at = perf_counter()
         meter_location = self.meter_locator.locate(prepared)
+        meter_at = perf_counter()
         reading_location = self.reading_region_locator.locate(prepared, meter_location)
+        region_at = perf_counter()
         scene_ocr_skipped = reading_location.source.startswith("TRAINED_")
         lines = [] if scene_ocr_skipped else read_lines(prepared)
+        scene_ocr_at = perf_counter()
+        region_fallback_ms = 0.0
         if not scene_ocr_skipped:
             reading_location = self.reading_region_locator.locate(
-                prepared, meter_location, lines
+                prepared, meter_location, lines, predict=False
             )
-        scene_ocr_at = perf_counter()
+            region_fallback_ms = (perf_counter() - scene_ocr_at) * 1000
+        localized_at = perf_counter()
         customer_stats = {}
         customer_x, customer_y, customer_width, customer_height = (
             meter_location.customer_region
@@ -99,19 +102,15 @@ class MeterReadingPipeline:
         reader_stats = {}
         if reading_location.reading_polygon is not None:
             reading_crop = perspective_crop(prepared, reading_location.reading_polygon)
-            meter_reading, meter_confidence = self.meter_reader.read(
-                reading_crop,
-                diagnostics=reader_stats,
-                integer_digits=effective_integer_digits,
-            )
         else:
             x, y, width, height = reading_location.reading_region
             reading_crop = prepared[y : y + height, x : x + width]
-            meter_reading, meter_confidence = self.meter_reader.read(
-                reading_crop,
-                diagnostics=reader_stats,
-                integer_digits=effective_integer_digits,
-            )
+        cropped_at = perf_counter()
+        meter_reading, meter_confidence = self.meter_reader.read(
+            reading_crop,
+            diagnostics=reader_stats,
+            integer_digits=effective_integer_digits,
+        )
         read_at = perf_counter()
         validation = validate(customer_id, meter_reading)
         final_confidence = calculate(
@@ -181,11 +180,17 @@ class MeterReadingPipeline:
             "customer_ocr_diagnostics": customer_stats,
             "timings_ms": {
                 "decode": round((decoded_at - started) * 1000),
-                "preprocess_quality_scene_ocr": round(
-                    (scene_ocr_at - decoded_at) * 1000
+                "preprocess": round((preprocessed_at - decoded_at) * 1000, 2),
+                "quality": round((quality_at - preprocessed_at) * 1000, 2),
+                "meter_location": round((meter_at - quality_at) * 1000, 2),
+                "reading_region": round(
+                    (region_at - meter_at) * 1000 + region_fallback_ms, 2
                 ),
-                "localization_customer_ocr": round((located_at - scene_ocr_at) * 1000),
-                "crop_and_read_digits": round((read_at - located_at) * 1000),
+                "scene_ocr": round((scene_ocr_at - region_at) * 1000, 2),
+                "customer_ocr": round((located_at - localized_at) * 1000, 2),
+                "crop": round((cropped_at - located_at) * 1000, 2),
+                "read_digits": round((read_at - cropped_at) * 1000, 2),
+                "validation": round((perf_counter() - read_at) * 1000, 2),
             },
             "processing_time_ms": round((perf_counter() - started) * 1000),
         }

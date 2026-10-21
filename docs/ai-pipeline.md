@@ -5,8 +5,8 @@
 | Tầng | Cách làm hiện tại | Đầu ra |
 |---|---|---|
 | Tiền xử lý | OpenCV, chuẩn hóa/crop/hiệu chỉnh phối cảnh | Ảnh đầu vào reader; ảnh gốc không đổi |
-| Định vị công tơ | Model meter_locator_ridge đã kích hoạt nếu có; phương pháp cơ sở khi chưa có | Bốn góc mặt công tơ |
-| Định vị vùng chỉ số | reading_region_ridge học trong mặt công tơ đã chỉnh phối cảnh; khi chưa có model dùng heuristic/OCR cảnh | Bốn góc vùng số nguyên |
+| Định vị công tơ | Ridge hoặc MobileNetV3 ONNX đã vượt gate/được kích hoạt; phương pháp cơ sở khi chưa có | Bốn góc mặt công tơ |
+| Định vị vùng chỉ số | Cặp Ridge/MobileNetV3 cùng phiên/kiến trúc, học trong mặt công tơ chỉnh phối cảnh; khi chưa có model dùng heuristic/OCR cảnh | Bốn góc vùng số nguyên |
 | Đọc chỉ số | Hai dịch vụ riêng PP-OCRv6 small/PARSeq-tiny; PARSeq dùng safetensors đã fine-tune nếu được kích hoạt | Đề xuất toàn chuỗi số theo đồng thuận |
 
 Không có mô hình học sâu tiền xử lý đã fine-tune riêng. Không gọi cả bốn tầng là bốn deep model đã huấn luyện. Chưa có model định vị đã kích hoạt thì vẫn có thể khoanh vùng thủ công để dùng hệ thống.

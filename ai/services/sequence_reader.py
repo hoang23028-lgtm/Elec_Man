@@ -6,6 +6,8 @@ import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 from threading import Lock
+from time import perf_counter
+from typing import Literal
 
 import cv2
 import numpy as np
@@ -26,6 +28,7 @@ class ReadRequest(BaseModel):
     integer_digits: int = Field(ge=4, le=8)
     model_file: str | None = Field(default=None, max_length=500)
     model_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    encoder_runtime: Literal["torch", "onnx"] | None = None
 
     @model_validator(mode="after")
     def paired_model(self):
@@ -46,7 +49,7 @@ async def lifespan(_: FastAPI):
     if reader_backend == "ppocr":
         reader = PaddleV6SmallReader()
     elif reader_backend == "parseq":
-        reader = ParseqTinyReader(Path("/opt/parseq"))
+        reader = ParseqTinyReader(Path("/opt/parseq"), Path("/opt/parseq-encoder.onnx"))
     else:
         raise RuntimeError("READER_BACKEND phải là ppocr hoặc parseq.")
     yield
@@ -76,6 +79,7 @@ def ready() -> dict[str, str]:
 
 @app.post("/v1/read", response_model=ReadResponse)
 def read_register(payload: ReadRequest) -> ReadResponse:
+    started = perf_counter()
     if reader is None:
         raise HTTPException(status_code=503, detail="Model chưa sẵn sàng.")
     try:
@@ -89,8 +93,11 @@ def read_register(payload: ReadRequest) -> ReadResponse:
     image = cv2.imdecode(np.frombuffer(raw, dtype=np.uint8), cv2.IMREAD_COLOR)
     if image is None or image.size == 0:
         raise HTTPException(status_code=422, detail="Không thể giải mã ảnh.")
+    decoded_at = perf_counter()
     strip = integer_register_strip(image)
+    stripped_at = perf_counter()
     with reader_lock:
+        acquired_at = perf_counter()
         if payload.model_file:
             root = Path("/models").resolve()
             path = (root / payload.model_file).resolve()
@@ -108,9 +115,32 @@ def read_register(payload: ReadRequest) -> ReadResponse:
                 ) from error
         elif isinstance(reader, ParseqTinyReader):
             reader.reset_checkpoint()
+        if isinstance(reader, ParseqTinyReader):
+            try:
+                reader.set_encoder_runtime(
+                    payload.encoder_runtime
+                    or os.getenv("PARSEQ_ENCODER_RUNTIME", "torch")
+                )
+            except ValueError as error:
+                raise HTTPException(
+                    422, "Không có bộ mã hóa tương đương cho runtime đã chọn."
+                ) from error
         value, confidence = reader.predict(strip, payload.integer_digits)
+        predicted_at = perf_counter()
+        if not np.isfinite(confidence) or not 0 <= confidence <= 1:
+            value, confidence = None, 0.0
     return ReadResponse(
         value=value,
         confidence=confidence,
-        diagnostics={"reader": reader.name, "backend": reader_backend},
+        diagnostics={
+            "reader": reader.name,
+            "backend": reader_backend,
+            "timings_ms": {
+                "decode": round((decoded_at - started) * 1000, 2),
+                "strip": round((stripped_at - decoded_at) * 1000, 2),
+                "lock_wait": round((acquired_at - stripped_at) * 1000, 2),
+                "predict": round((predicted_at - acquired_at) * 1000, 2),
+                "total": round((predicted_at - started) * 1000, 2),
+            },
+        },
     )

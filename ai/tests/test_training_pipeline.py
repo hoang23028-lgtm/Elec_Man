@@ -2,6 +2,7 @@ from pathlib import Path
 
 import cv2
 import numpy as np
+import pytest
 
 from ai.pipeline.geometry import perspective_crop
 from ai.pipeline.register import integer_register_strip
@@ -105,3 +106,40 @@ def test_region_regressor_round_trip(tmp_path: Path, monkeypatch) -> None:
     )
     assert result["stage_models"]["reading_region"]["source"] == "TRAINED_KEYPOINTS"
     assert result["meter_reading_ai"] == "01234"
+
+
+@pytest.mark.parametrize("samples,features", [(3, 5), (10, 5)])
+def test_ridge_solves_smaller_system_with_equivalent_weights(
+    samples, features, monkeypatch
+):
+    rng = np.random.default_rng(42)
+    x, y = (
+        rng.normal(size=(samples, features)).astype(np.float32),
+        rng.uniform(size=(samples, 4, 2)).astype(np.float32),
+    )
+    original = np.linalg.solve
+    sizes = []
+
+    def solve(a, b):
+        sizes.append(a.shape[0])
+        return original(a, b)
+
+    monkeypatch.setattr(np.linalg, "solve", solve)
+    model = KeypointRegionRegressor.train(list(x), list(y))
+    normalized = (x - model.mean) / model.scale
+    reference = normalized.T @ original(
+        normalized @ normalized.T + np.eye(samples) * 2,
+        y.reshape(samples, 8) - model.bias,
+    )
+    assert sizes == [min(samples, features)]
+    assert np.allclose(model.weights, reference, atol=1e-5)
+
+
+@pytest.mark.parametrize("value", [0, -1, float("nan"), float("inf")])
+def test_ridge_rejects_invalid_regularization(value):
+    with pytest.raises(ValueError):
+        KeypointRegionRegressor.train(
+            [np.ones(4), np.ones(4)],
+            [np.zeros((4, 2)), np.zeros((4, 2))],
+            regularization=value,
+        )

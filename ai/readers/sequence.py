@@ -65,7 +65,7 @@ class PaddleV6SmallReader:
 class ParseqTinyReader:
     name = "parseq_tiny"
 
-    def __init__(self, repository: Path) -> None:
+    def __init__(self, repository: Path, encoder_path: Path | None = None) -> None:
         sys.path.insert(0, str(repository.resolve()))
         import torch
         from torchvision import transforms
@@ -76,6 +76,14 @@ class ParseqTinyReader:
         ).eval()
         self._base_state = None
         self._checkpoint_signature = None
+        self._encoder_session = None
+        self._encoder_enabled = False
+        self._encoder_hash = None
+        if encoder_path:
+            from ai.readers.encoder_onnx import EncoderSession, encoder_digest
+
+            self._encoder_session = EncoderSession(encoder_path)
+            self._encoder_hash = encoder_digest(self.model)
         self.transform = transforms.Compose(
             [
                 transforms.Resize(
@@ -130,12 +138,30 @@ class ParseqTinyReader:
         self.model.load_state_dict(state, strict=True)
         self.model.eval()
         self._checkpoint_signature = signature
+        self._refresh_encoder_hash()
 
     def reset_checkpoint(self):
         if self._checkpoint_signature is not None and self._base_state is not None:
             self.model.load_state_dict(self._base_state, strict=True)
             self.model.eval()
             self._checkpoint_signature = None
+            self._refresh_encoder_hash()
+
+    def _refresh_encoder_hash(self):
+        if self._encoder_session:
+            from ai.readers.encoder_onnx import encoder_digest
+
+            self._encoder_hash = encoder_digest(self.model)
+
+    def set_encoder_runtime(self, runtime):
+        if runtime not in {"torch", "onnx"}:
+            raise ValueError("Runtime encoder không hợp lệ.")
+        if runtime == "onnx" and (
+            not self._encoder_session
+            or self._encoder_hash != self._encoder_session.encoder_sha256
+        ):
+            raise ValueError("Không có encoder ONNX tương đương trọng số hiện tại.")
+        self._encoder_enabled = runtime == "onnx"
 
     def predict(
         self, image: np.ndarray, integer_digits: int
@@ -144,8 +170,14 @@ class ParseqTinyReader:
 
         rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         tensor = self.transform(Image.fromarray(rgb)).unsqueeze(0)
-        with self.torch.inference_mode():
-            probabilities = self.model(tensor).softmax(-1)
+        original = self.model.model.encode
+        try:
+            if self._encoder_enabled:
+                self.model.model.encode = self._encoder_session.encode
+            with self.torch.inference_mode():
+                probabilities = self.model(tensor).softmax(-1)
+        finally:
+            self.model.model.encode = original
         if not self.torch.isfinite(probabilities).all():
             return None, 0.0
         labels, scores = self.model.tokenizer.decode(probabilities)

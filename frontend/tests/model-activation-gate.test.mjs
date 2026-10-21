@@ -17,3 +17,12 @@ test('reader requires crop and full-chain metrics plus compatible active detecto
   reader.metrics.holdout_end_to_end.exact_accuracy=.89;
   assert.ok(activationIssue(reader,models));
 });
+
+test('deep locator requires matching architecture and a strictly better independent comparison', () => {
+  const model = candidate({coordinate_space:'meter', locator_family:'mobilenetv3', locator_benchmark:{independent_holdout:true,ridge_end_to_end:{evaluation_complete:true,reading_mean_iou:.81,exact_accuracy:.8,coverage:.9}},holdout_end_to_end:{reading_mean_iou:.9,exact_accuracy:.8,coverage:.9},validation_region_accuracy:.9});
+  model.model_type='reading_region_mobilenetv3';
+  assert.ok(activationIssue(model,[{model_type:'meter_locator_ridge',version:'v1',status:'ACTIVE',metrics:{}}]));
+  assert.equal(activationIssue(model,[{model_type:'meter_locator_mobilenetv3',version:'v1',status:'ACTIVE',metrics:{}}]),null);
+  model.metrics.locator_benchmark.ridge_end_to_end.reading_mean_iou=.95;
+  assert.ok(activationIssue(model));
+});

@@ -9,6 +9,7 @@ COPY ai/requirements.shared.txt ./requirements.shared.txt
 RUN mkdir -p app && touch app/__init__.py \
     && pip install --no-compile . -r ai-requirements.txt \
     && pip install --no-compile --no-deps rapidocr-onnxruntime==1.4.4
+RUN python -c "from torchvision.models import MobileNet_V3_Small_Weights; MobileNet_V3_Small_Weights.IMAGENET1K_V1.get_state_dict(progress=False, check_hash=True)"
 COPY backend/app ./app
 COPY ai ./ai
 USER reader

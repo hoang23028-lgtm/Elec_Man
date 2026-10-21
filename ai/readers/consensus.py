@@ -2,7 +2,10 @@
 
 import base64
 import json
+import re
 from concurrent.futures import ThreadPoolExecutor
+from math import isfinite
+from time import perf_counter
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -36,7 +39,8 @@ class ConsensusMeterReader:
     def close(self) -> None:
         self._executor.shutdown(wait=True, cancel_futures=True)
 
-    def _request(self, endpoint: str, body: bytes) -> tuple[str | None, float]:
+    def _request(self, endpoint: str, body: bytes):
+        started = perf_counter()
         request = Request(
             f"{endpoint}/v1/read",
             data=body,
@@ -44,10 +48,46 @@ class ConsensusMeterReader:
             method="POST",
         )
         with urlopen(request, timeout=self.timeout) as response:
-            result = json.loads(response.read())
+            result = json.loads(response.read(65536))
         value = result.get("value")
-        return (str(value) if value is not None else None), float(
-            result.get("confidence") or 0.0
+        score = float(result.get("confidence") or 0.0)
+        if (
+            not isfinite(score)
+            or not 0 <= score <= 1
+            or (
+                value is not None
+                and (
+                    not isinstance(value, str)
+                    or not re.fullmatch(r"[0-9]{4,8}", value)
+                    or len(value) != json.loads(body)["integer_digits"]
+                )
+            )
+        ):
+            raise ValueError("Bộ đọc trả contract không hợp lệ.")
+        diagnostic = result.get("diagnostics")
+        timings = (
+            diagnostic.get("timings_ms", {}) if isinstance(diagnostic, dict) else {}
+        )
+        timings = (
+            {
+                k: v
+                for k, v in timings.items()
+                if k in {"decode", "strip", "lock_wait", "predict", "total"}
+                and isinstance(v, int | float)
+                and not isinstance(v, bool)
+                and isfinite(v)
+                and 0 <= v <= 60000
+            }
+            if isinstance(timings, dict)
+            else {}
+        )
+        return (
+            value,
+            score,
+            {
+                "rpc_ms": round((perf_counter() - started) * 1000, 2),
+                "service_timings_ms": timings,
+            },
         )
 
     def read(
@@ -66,35 +106,45 @@ class ConsensusMeterReader:
             raise ValueError("Số chữ số nguyên phải từ 4 đến 8.")
         # Register cleanup belongs to each inference service. Encoding the crop
         # here avoids duplicate preprocessing and keeps both readers consistent.
-        encoded, payload = cv2.imencode(".png", image)
+        encoded_at = perf_counter()
+        encoded, payload = cv2.imencode(".png", image, [cv2.IMWRITE_PNG_COMPRESSION, 1])
+        stats["encode_ms"] = round((perf_counter() - encoded_at) * 1000, 2)
         if not encoded:
             stats["decision"] = "image_encode_failed"
             return None, 0.0
-        body = json.dumps(
-            {
-                "image_base64": base64.b64encode(payload).decode("ascii"),
-                "integer_digits": integer_digits,
-            }
-        ).encode("utf-8")
+        content = {
+            "image_base64": base64.b64encode(payload).decode("ascii"),
+            "integer_digits": integer_digits,
+        }
+        body = json.dumps(content).encode("utf-8")
         candidates = {}
         try:
             futures = {
                 backend: self._executor.submit(
                     self._request,
                     endpoint,
-                    json.dumps({**json.loads(body), **self.parseq_model}).encode()
+                    json.dumps({**content, **self.parseq_model}).encode()
                     if backend == "parseq" and self.parseq_model
                     else body,
                 )
                 for backend, endpoint in self.endpoints.items()
             }
             for backend, future in futures.items():
-                value, score = future.result()
+                value, score, timing = future.result()
                 candidates[backend] = {
                     "value": value,
                     "score_uncalibrated": round(score, 6),
+                    **timing,
                 }
-        except (HTTPError, URLError, TimeoutError, OSError, json.JSONDecodeError):
+        except (
+            HTTPError,
+            URLError,
+            TimeoutError,
+            OSError,
+            ValueError,
+            TypeError,
+            AttributeError,
+        ):
             stats.update(candidates=candidates, decision="reader_service_unavailable")
             return None, 0.0
         stats["candidates"] = candidates

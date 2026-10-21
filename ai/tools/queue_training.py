@@ -34,6 +34,15 @@ def main():
         action="store_true",
         help="Validate images and saved labels without creating a run",
     )
+    parser.add_argument("--benchmark-deep-locator", action="store_true")
+    parser.add_argument("--no-fine-tune-reader", action="store_true")
+    parser.add_argument(
+        "--deep-locator-epochs",
+        type=int,
+        default=40,
+        choices=range(1, 101),
+        metavar="1..100",
+    )
     args = parser.parse_args()
     root = get_settings().storage_root.resolve()
     with SessionLocal() as db:
@@ -76,7 +85,20 @@ def main():
             flush=True,
         )
         if not args.check_only:
-            run = enqueue_training(db, "MANUAL", None, experimental=args.experimental)
+            run = enqueue_training(
+                db,
+                "MANUAL",
+                None,
+                experimental=args.experimental,
+                options={
+                    "benchmark_deep_locator": args.benchmark_deep_locator,
+                    "deep_locator_epochs": args.deep_locator_epochs,
+                    "fine_tune_reader": not args.no_fine_tune_reader,
+                    "epochs": 10,
+                    "batch_size": 8,
+                    "learning_rate": 0.0001,
+                },
+            )
             print(
                 json.dumps(
                     {"id": str(run.id), "status": run.status}, ensure_ascii=False

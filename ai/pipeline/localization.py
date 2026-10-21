@@ -175,6 +175,8 @@ class ReadingRegionLocator:
         image: np.ndarray,
         meter: MeterLocation,
         lines: list[TextLine] | None = None,
+        *,
+        predict: bool = True,
     ) -> ReadingRegionLocation:
         height, width = image.shape[:2]
         relative = (
@@ -188,10 +190,10 @@ class ReadingRegionLocator:
                 )
             )
         )
-        model_input = perspective_crop(image, frame) if relative else image
+        model_input = perspective_crop(image, frame) if relative and predict else image
         learned = (
             self.region_predictor.predict_region(model_input)
-            if self.region_predictor
+            if self.region_predictor and predict
             else None
         )
         if learned is not None:

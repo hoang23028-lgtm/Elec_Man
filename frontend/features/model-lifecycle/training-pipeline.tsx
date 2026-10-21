@@ -30,12 +30,13 @@ const stageLabels: Record<string, string> = {
   CANCELLED: "Đã hủy",
   FINE_TUNING_SEQUENCE_READER: "Fine-tune PARSeq-tiny",
   EVALUATING_HOLDOUT: "Đánh giá kiểm tra độc lập",
+  TRAINING_DEEP_LOCATORS: "Học và đối chứng định vị MobileNetV3",
 };
 
 export function TrainingPipeline({ csrfToken }: { csrfToken: string }) {
   const panelActive = usePanelActive();
   const confirmation = useConfirmationDialog();
-  const [options, setOptions] = useState<TrainingOptions>({ experimental: false, fine_tune_reader: true, epochs: 10, batch_size: 8, learning_rate: 0.0001 });
+  const [options, setOptions] = useState<TrainingOptions>({ experimental: false, fine_tune_reader: true, epochs: 10, batch_size: 8, learning_rate: 0.0001, benchmark_deep_locator: false, deep_locator_epochs: 40 });
   const request = useLatestRequest();
   const [overview, setOverview] = useState<TrainingOverview | null>(null);
   const [busy, setBusy] = useState(false);
@@ -146,6 +147,8 @@ export function TrainingPipeline({ csrfToken }: { csrfToken: string }) {
         <label>Kích thước lô học<input type="number" min={1} max={64} value={options.batch_size} onChange={(event) => setOptions({ ...options, batch_size: Number(event.target.value) })} /></label>
         <label>Tốc độ học<input type="number" min={0.000001} max={0.01} step={0.00001} value={options.learning_rate} onChange={(event) => setOptions({ ...options, learning_rate: Number(event.target.value) })} /></label>
         <label className="checkbox-label"><input type="checkbox" checked={options.experimental} onChange={(event) => setOptions({ ...options, experimental: event.target.checked })} /> Chạy chẩn đoán với ít dữ liệu (không được kích hoạt)</label>
+        <label className="checkbox-label"><input type="checkbox" checked={options.benchmark_deep_locator} onChange={(event) => setOptions({ ...options, benchmark_deep_locator: event.target.checked })} /> Học MobileNetV3 và so sánh định vị với Ridge (không tự thay mô hình)</label>
+        {options.benchmark_deep_locator && <label>Epoch bộ định vị<input type="number" min={1} max={100} value={options.deep_locator_epochs} onChange={(event) => setOptions({ ...options, deep_locator_epochs: Number(event.target.value) })} /><small>Backbone pretrained cố định; học đầu dự đoán bốn góc trên CPU.</small></label>}
       </fieldset>
       <h3>Lịch sử huấn luyện & đánh giá</h3>
       <div className="table-wrap training-table" aria-busy={loading}>
@@ -176,6 +179,7 @@ export function TrainingPipeline({ csrfToken }: { csrfToken: string }) {
                     <small>Không thể kết nối bộ đọc khi benchmark</small>
                   )}
                   {typeof run.metrics.holdout_images === "number" && <small>{run.metrics.holdout_images} ảnh kiểm tra độc lập · {run.metrics.independent_holdout === true ? "Đã tách theo nhóm" : "Chỉ chẩn đoán"}</small>}
+                  {run.metrics.locator_benchmark != null && <small>Có đối chứng Ridge / MobileNetV3. Xem chi tiết tại Kho mô hình; không tự kích hoạt.</small>}
                 </td>
               </tr>
             ))}

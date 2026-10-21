@@ -7,8 +7,10 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import func, select
 
 from app.core.config import get_settings
+from app.models.ai_result import AiResult
 from app.models.processing_job import ProcessingJob
 from app.models.training_run import TrainingRun
+from app.services.performance_profile import summarize_timings
 
 
 def health_overview(db):
@@ -59,6 +61,17 @@ def health_overview(db):
         )
     )
     durations = sorted(float(value) for value in durations if value is not None and value >= 0)
+    stage_latency = summarize_timings(
+        db.execute(
+            select(
+                AiResult.raw_result_json["timings_ms"],
+                AiResult.raw_result_json["reading_only"],
+                AiResult.raw_result_json["reader_diagnostics"]["candidates"],
+            )
+            .order_by(AiResult.created_at.desc())
+            .limit(500)
+        ).all()
+    )
     run = db.scalar(select(TrainingRun).order_by(TrainingRun.created_at.desc()).limit(1))
     disks = {}
     for key, path in (("images", settings.storage_root), ("models", settings.models_root)):
@@ -140,6 +153,7 @@ def health_overview(db):
         if run
         else None,
         "disks": disks,
+        "stage_latency": stage_latency,
         "backup": backup,
         "alerts": alerts,
         "note": "Trạng thái hàng đợi không thay thế heartbeat của worker; "

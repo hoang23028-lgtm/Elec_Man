@@ -16,6 +16,7 @@ Tài liệu trong thư mục này mô tả **bản mã nguồn hiện hành**. B
 - [Kiến trúc](architecture.md), [tổ chức source](source-structure.md), [phát triển](development.md).
 - [Kho ảnh/database](storage.md), [hàng đợi](jobs.md).
 - [Pipeline AI](ai-pipeline.md), [huấn luyện](training.md), [độ tin cậy](ai-reliability.md).
+- [Định vị học sâu và tốc độ OCR](locator-and-latency.md): đối chứng MobileNetV3/Ridge, encoder ONNX và benchmark thật.
 - [Giám sát, backup định kỳ và cập nhật local](operations-monitoring.md), [kế hoạch cải tiến](improvement-plan.md).
 - [Kiểm thử](testing.md), [checklist phát hành](release-checklist.md).
 

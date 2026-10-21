@@ -17,7 +17,7 @@
 5. Đánh giá riêng các trường hợp có điểm cao nhưng sai. Chọn ngưỡng theo tỷ lệ sai trong nhóm được tự động chấp nhận, không theo tên gọi “độ tin cậy”.
 6. Chạy thử có người kiểm duyệt, lưu phiên bản mô hình và dữ liệu đánh giá. Chỉ xây chính sách tự động xác nhận sau khi có bằng chứng trên tập kiểm thử độc lập.
 
-Unit test và ảnh tổng hợp chỉ xác nhận hợp đồng phần mềm, không chứng minh độ chính xác trên ảnh thực tế. Bộ đọc chuỗi dùng PP-OCR/PARSeq, có chương trình fine-tune PARSeq; tầng định vị học Ridge, chưa thay bằng deep detector được fine-tune riêng và chưa có mô hình được chứng nhận bằng đánh giá thực địa độc lập. Gate yêu cầu holdout xác minh và nguồn phiên train, không chỉ JSON điểm tự nhập.
+Unit test và ảnh tổng hợp chỉ xác nhận hợp đồng phần mềm, không chứng minh độ chính xác trên ảnh thực tế. Bộ đọc chuỗi dùng PP-OCR/PARSeq, có chương trình fine-tune PARSeq. Tầng định vị hỗ trợ Ridge và ứng viên bốn góc MobileNetV3-small, chưa có mô hình được chứng nhận bằng đánh giá thực địa độc lập. MobileNetV3 hiện là đối chứng thử nghiệm, không phải detector nhiều đối tượng. Gate yêu cầu holdout xác minh và nguồn phiên train, không chỉ JSON điểm tự nhập. Xem [đối chứng định vị và tốc độ](locator-and-latency.md).
 
 ## Kiểm thử mã nguồn
 

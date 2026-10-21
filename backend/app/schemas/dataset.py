@@ -27,6 +27,8 @@ class DatasetAnnotationRequest(BaseModel):
 class TrainingStartRequest(BaseModel):
     experimental: bool = False
     fine_tune_reader: bool = True
+    benchmark_deep_locator: bool = False
+    deep_locator_epochs: int = Field(default=40, ge=1, le=100)
     epochs: int = Field(default=10, ge=1, le=100)
     batch_size: int = Field(default=8, ge=1, le=64)
     learning_rate: float = Field(default=0.0001, gt=0, le=0.01)

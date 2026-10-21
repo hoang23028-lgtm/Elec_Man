@@ -33,6 +33,14 @@ def test_reader_service_decodes_and_returns_consensus(monkeypatch):
     assert result.value == "12345"
     assert result.confidence == 0.89
     assert result.diagnostics["reader"] == FakeReader.name
+    assert set(result.diagnostics["timings_ms"]) == {
+        "decode",
+        "strip",
+        "lock_wait",
+        "predict",
+        "total",
+    }
+    assert all(v >= 0 for v in result.diagnostics["timings_ms"].values())
 
 
 def test_reader_service_rejects_invalid_image(monkeypatch):
@@ -45,3 +53,12 @@ def test_reader_service_rejects_invalid_image(monkeypatch):
             )
         )
     assert error.value.status_code == 422
+
+
+def test_runtime_request_rejects_unknown_backend():
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):
+        reader_service.ReadRequest(
+            image_base64="abcdefgh", integer_digits=5, encoder_runtime="arbitrary"
+        )

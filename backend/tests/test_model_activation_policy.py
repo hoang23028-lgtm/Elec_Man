@@ -72,3 +72,50 @@ def test_finetuned_reader_requires_crop_and_full_chain_accuracy():
     record.metrics_json["holdout_end_to_end"]["exact_accuracy"] = 0.5
     with pytest.raises(HTTPException):
         _validate_activation_metrics(record)
+
+
+@pytest.mark.parametrize(
+    "comparison",
+    [
+        None,
+        [],
+        "fake",
+        {"independent_holdout": False},
+        {"independent_holdout": True, "ridge_end_to_end": "fake"},
+        {
+            "independent_holdout": True,
+            "ridge_end_to_end": {
+                "evaluation_complete": True,
+                "reading_mean_iou": 0.95,
+                "exact_accuracy": 0.8,
+                "coverage": 1,
+            },
+        },
+    ],
+)
+def test_deep_locator_cannot_skip_or_lose_to_ridge_comparison(comparison):
+    record = candidate(
+        locator_benchmark=comparison,
+        holdout_end_to_end={"reading_mean_iou": 0.9, "exact_accuracy": 0.8, "coverage": 1},
+    )
+    record.model_type = "reading_region_mobilenetv3"
+    with pytest.raises(HTTPException):
+        _validate_activation_metrics(record)
+
+
+def test_deep_locator_requires_strict_iou_improvement_without_reading_regression():
+    baseline = {
+        "evaluation_complete": True,
+        "reading_mean_iou": 0.81,
+        "exact_accuracy": 0.8,
+        "coverage": 0.9,
+    }
+    record = candidate(
+        locator_benchmark={"independent_holdout": True, "ridge_end_to_end": baseline},
+        holdout_end_to_end={"reading_mean_iou": 0.9, "exact_accuracy": 0.8, "coverage": 0.9},
+    )
+    record.model_type = "reading_region_mobilenetv3"
+    _validate_activation_metrics(record)
+    record.metrics_json["holdout_end_to_end"]["coverage"] = 0.89
+    with pytest.raises(HTTPException):
+        _validate_activation_metrics(record)

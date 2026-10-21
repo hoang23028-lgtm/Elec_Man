@@ -24,6 +24,7 @@ from ai.pipeline.preprocessing import load_prepared_image
 from ai.pipeline.register import integer_register_strip
 from ai.readers.consensus import ConsensusMeterReader
 from ai.training.dataset import export_sequence_dataset
+from ai.training.deep_locator import benchmark_locators, train_deep_locator
 from ai.training.keypoint_regressor import (
     KeypointRegionRegressor,
     extract_region_features,
@@ -258,6 +259,7 @@ def train_run(run_id):
     if len(train) < 2 or not validation:
         raise ValueError("Không đủ mẫu train/validation tách riêng.")
     version = f"{datetime.now(UTC):%Y%m%d-%H%M%S}-{str(run_id)[:8]}"
+    options = metadata.get("training_options", {})
     _set_stage(run_id, "EXTRACTING_FEATURES", 15)
     full_features, region_features, meter_targets, region_targets = [], [], [], []
     for image, reading in train:
@@ -290,12 +292,67 @@ def train_run(run_id):
         path = settings.models_root / relative_paths[kind]
         path.parent.mkdir(parents=True, exist_ok=True)
         model.save(path)
+    deep_metrics, deep_models = None, None
+    if options.get("benchmark_deep_locator", False):
+        _set_stage(run_id, "TRAINING_DEEP_LOCATORS", 34)
+
+        def samples(rows, relative):
+            for image, reading in rows:
+                source = _source(settings.storage_root, image)
+                frame = _polygon(reading, "meter")
+                yield (
+                    (
+                        perspective_crop(source, frame),
+                        transform_polygon(_polygon(reading), frame),
+                    )
+                    if relative
+                    else (source, frame)
+                )
+
+        learned, summaries = [], {}
+        for relative, kind in (
+            (False, "meter_locator_mobilenetv3"),
+            (True, "reading_region_mobilenetv3"),
+        ):
+            relative_paths[kind] = f"{kind}/{version}/model.onnx"
+            model, summary = train_deep_locator(
+                samples(train, relative),
+                samples(validation, relative),
+                settings.models_root / relative_paths[kind],
+                coordinate_space="meter" if relative else "image",
+                epochs=options.get("deep_locator_epochs", 40),
+                checkpoint=lambda: _ensure_running(run_id),
+                max_seconds=min(900, settings.training_timeout_seconds),
+            )
+            learned.append(model)
+            summaries[kind] = summary
+        deep_models = tuple(learned)
+        deep_metrics = {
+            "training": summaries,
+            "validation": benchmark_locators(
+                validation,
+                settings.storage_root,
+                meter_model,
+                region_model,
+                *deep_models,
+                _source,
+                _polygon,
+            ),
+            "holdout": benchmark_locators(
+                holdout,
+                settings.storage_root,
+                meter_model,
+                region_model,
+                *deep_models,
+                _source,
+                _polygon,
+            ),
+        }
     _set_stage(run_id, "BUILDING_SEQUENCE_DATASET", 40)
     dataset_root = settings.models_root / "sequence_datasets" / version
     dataset = export_sequence_dataset(
         train, validation, settings.storage_root, dataset_root, holdout_rows=holdout
     )
-    options = metadata.get("training_options", {})
     fine_metrics, trained_reader = None, None
     if options.get("fine_tune_reader", True):
         _set_stage(run_id, "FINE_TUNING_SEQUENCE_READER", 45)
@@ -345,6 +402,24 @@ def train_run(run_id):
         settings.models_root / relative_paths["meter_locator_ridge"],
         parseq_model,
     )
+    deep_e2e = (
+        _end_to_end(
+            holdout,
+            settings.storage_root,
+            settings.models_root / relative_paths["reading_region_mobilenetv3"],
+            settings.models_root / relative_paths["meter_locator_mobilenetv3"],
+            parseq_model,
+        )
+        if deep_models
+        else None
+    )
+    if deep_metrics:
+        deep_metrics.update(
+            ridge_end_to_end=e2e,
+            mobilenetv3_end_to_end=deep_e2e,
+            independent_holdout=snapshot["independent_holdout"],
+            scope="same_frozen_snapshot_not_automatic_selection",
+        )
     metrics = {
         **metadata,
         "training_run_id": str(run_id),
@@ -363,6 +438,8 @@ def train_run(run_id):
         "sequence_dataset": dataset,
         "sequence_fine_tune": fine_metrics,
         "sequence_baseline": baseline,
+        "locator_benchmark": deep_metrics,
+        "locator_family": "ridge",
         "holdout_reader": reader_holdout,
         "holdout_end_to_end": e2e,
         "validation_reading_exact_accuracy": fine_metrics["validation"][
@@ -413,6 +490,28 @@ def train_run(run_id):
         metrics["artifact_sha256"] = {str(r.id): r.sha256 for r in records}
         for record in records:
             record.metrics_json = dict(metrics)
+            if record.model_type.endswith("mobilenetv3"):
+                record.metrics_json.update(
+                    locator_family="mobilenetv3",
+                    holdout_end_to_end=deep_e2e,
+                    end_to_end_evaluated=deep_e2e["evaluation_complete"],
+                    validation_meter_region_accuracy=max(
+                        0,
+                        1
+                        - deep_metrics["training"]["meter_locator_mobilenetv3"][
+                            "validation_error"
+                        ]
+                        * 4,
+                    ),
+                    validation_region_accuracy=max(
+                        0,
+                        1
+                        - deep_metrics["training"]["reading_region_mobilenetv3"][
+                            "validation_error"
+                        ]
+                        * 4,
+                    ),
+                )
         run.status, run.stage, run.progress = "COMPLETED", "COMPLETED", 100
         run.sample_count = len(train) + len(validation)
         run.training_count, run.validation_count = len(train), len(validation)

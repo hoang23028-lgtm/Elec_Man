@@ -5,7 +5,7 @@ from pathlib import Path
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import select, text, update
+from sqlalchemy import func, select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -19,8 +19,8 @@ from app.schemas.model_registry import ModelCreate, ModelRow
 from app.services.dataset_policy import sample_issues
 from app.services.dataset_service import dataset_samples, lock_dataset
 
-READING_REGION_MODEL_TYPES = {"reading_region_ridge"}
-METER_LOCATOR_MODEL_TYPES = {"meter_locator_ridge"}
+READING_REGION_MODEL_TYPES = {"reading_region_ridge", "reading_region_mobilenetv3"}
+METER_LOCATOR_MODEL_TYPES = {"meter_locator_ridge", "meter_locator_mobilenetv3"}
 READER_MODEL_TYPES = {"parseq_tiny_finetuned"}
 SUPPORTED_MODEL_TYPES = READING_REGION_MODEL_TYPES | METER_LOCATOR_MODEL_TYPES | READER_MODEL_TYPES
 MODEL_ACTIVATION_LOCK = 73051028
@@ -116,6 +116,42 @@ def _validate_activation_metrics(record: ModelRecord) -> None:
             or not 0.8 <= value <= 1
         ):
             raise HTTPException(422, "IoU vùng trên holdout toàn quy trình phải đạt ít nhất 0,8.")
+    if record.model_type.endswith("mobilenetv3"):
+        comparison = metrics.get("locator_benchmark") or {}
+        if not isinstance(comparison, dict):
+            raise HTTPException(422, "Benchmark định vị không hợp lệ.")
+        baseline = comparison.get("ridge_end_to_end") or {}
+        if not isinstance(baseline, dict):
+            raise HTTPException(422, "Đối chứng Ridge không hợp lệ.")
+        key = (
+            "meter_mean_iou"
+            if record.model_type in METER_LOCATOR_MODEL_TYPES
+            else "reading_mean_iou"
+        )
+        if (
+            comparison.get("independent_holdout") is not True
+            or baseline.get("evaluation_complete") is not True
+            or any(
+                isinstance(baseline.get(k), bool)
+                or not isinstance(baseline.get(k), int | float)
+                or not isfinite(baseline[k])
+                or not 0 <= baseline[k] <= 1
+                for k in (key, "exact_accuracy", "coverage")
+            )
+            or e2e.get(key, 0) <= baseline[key]
+            or any(
+                not isinstance(e2e.get(k), int | float)
+                or isinstance(e2e.get(k), bool)
+                or not isfinite(e2e[k])
+                or not baseline[k] <= e2e[k] <= 1
+                for k in ("exact_accuracy", "coverage")
+            )
+        ):
+            raise HTTPException(
+                422,
+                "Ứng viên học sâu phải tăng IoU và không giảm độ chính xác/độ phủ "
+                "so với Ridge trên cùng holdout.",
+            )
     if record.model_type in READER_MODEL_TYPES:
         reading = metrics.get("holdout_reader") or {}
         if not isinstance(reading, dict):
@@ -270,6 +306,12 @@ def activate_model(db: Session, model_id: object, user: User, ip_address: str | 
                 ModelRecord.model_type.in_(METER_LOCATOR_MODEL_TYPES),
                 ModelRecord.version == record.version,
                 ModelRecord.status == "ACTIVE",
+                ModelRecord.model_type
+                == (
+                    "meter_locator_mobilenetv3"
+                    if record.model_type.endswith("mobilenetv3")
+                    else "meter_locator_ridge"
+                ),
             )
         )
         if compatible_meter is None:
@@ -283,7 +325,11 @@ def activate_model(db: Session, model_id: object, user: User, ip_address: str | 
                 ModelRecord.version == record.version,
             )
         ).all()
-        if {r.model_type for r in active} != READING_REGION_MODEL_TYPES | METER_LOCATOR_MODEL_TYPES:
+        family = record.metrics_json.get("locator_family", "ridge")
+        if {r.model_type for r in active} != {
+            f"meter_locator_{family}",
+            f"reading_region_{family}",
+        }:
             raise HTTPException(422, "Kích hoạt hai bộ định vị cùng phiên bản trước bộ đọc.")
     model_types = (
         READING_REGION_MODEL_TYPES
@@ -306,7 +352,17 @@ def activate_model(db: Session, model_id: object, user: User, ip_address: str | 
             .where(
                 ModelRecord.model_type.in_(READING_REGION_MODEL_TYPES),
                 ModelRecord.status == "ACTIVE",
-                ModelRecord.version != record.version,
+                (
+                    (ModelRecord.version != record.version)
+                    | (
+                        ModelRecord.model_type
+                        != (
+                            "reading_region_mobilenetv3"
+                            if record.model_type.endswith("mobilenetv3")
+                            else "reading_region_ridge"
+                        )
+                    )
+                ),
                 ModelRecord.metrics_json["coordinate_space"].as_string() == "meter",
             )
             .values(status="ARCHIVED")
@@ -317,7 +373,15 @@ def activate_model(db: Session, model_id: object, user: User, ip_address: str | 
             .where(
                 ModelRecord.model_type.in_(READER_MODEL_TYPES),
                 ModelRecord.status == "ACTIVE",
-                ModelRecord.version != record.version,
+                (
+                    (ModelRecord.version != record.version)
+                    | (
+                        func.coalesce(
+                            ModelRecord.metrics_json["locator_family"].as_string(), "ridge"
+                        )
+                        != ("mobilenetv3" if record.model_type.endswith("mobilenetv3") else "ridge")
+                    )
+                ),
             )
             .values(status="ARCHIVED")
         )

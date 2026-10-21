@@ -2,6 +2,8 @@
 
 ## Những gì đã tích hợp
 
+Có thêm tùy chọn đối chứng định vị MobileNetV3-small với Ridge trong cùng phiên, xuất ONNX và khóa kích hoạt khi chưa tăng chất lượng trên holdout. Xem [định vị và hiệu năng](locator-and-latency.md); phiên tự động mặc định không chạy thêm ứng viên.
+
 SUPER_ADMIN có thể chuẩn bị phân tập, chạy phiên học, fine-tune PARSeq-tiny, xem tiến trình/hủy và kích hoạt ứng viên đạt gate. ADMIN làm nghiệp vụ và gắn nhãn; VIEWER chỉ xem. Upload ảnh **không** tự tạo nhãn đúng hoặc bảo đảm mô hình chính xác.
 
 Trainer học hai bộ định vị Ridge (không phải deep detector): mặt công tơ trên toàn ảnh, vùng số trong mặt công tơ đã chỉnh phối cảnh. Bộ đọc PARSeq-tiny được học có giám sát bằng teacher forcing tự hồi quy, cập nhật decoder/head và giữ encoder pretrained. Đây là một cách thích nghi dùng ít tài nguyên, không phải bản sao toàn bộ thuật toán huấn luyện permutation của bài PARSeq. PP-OCRv6 small và PARSeq pretrained vẫn làm đối chứng.

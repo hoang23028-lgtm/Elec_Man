@@ -8,6 +8,7 @@ import { usePanelActive } from "@/components/section-tabs";
 import { ConfirmationDialog } from "@/components/confirmation-dialog";
 import { useConfirmationDialog } from "@/hooks/use-confirmation-dialog";
 import { activationIssue } from "@/lib/model-activation-gate";
+import { LocatorBenchmark } from "./locator-benchmark";
 
 import {
   activateModel,
@@ -27,11 +28,13 @@ const emptyInput: ModelInput = {
   sha256: "",
   metrics: {},
 };
-const supportedModelTypes = new Set(["reading_region_ridge", "meter_locator_ridge", "parseq_tiny_finetuned"]);
+const supportedModelTypes = new Set(["reading_region_ridge", "meter_locator_ridge", "reading_region_mobilenetv3", "meter_locator_mobilenetv3", "parseq_tiny_finetuned"]);
 const modelTypeLabels: Record<string, string> = {
   reading_region_ridge: "Định vị vùng chỉ số",
   meter_locator_ridge: "Định vị toàn bộ công tơ",
   parseq_tiny_finetuned: "Bộ đọc PARSeq-tiny đã học",
+  meter_locator_mobilenetv3: "MobileNetV3 · định vị công tơ",
+  reading_region_mobilenetv3: "MobileNetV3 · định vị vùng số",
 };
 const percent = (value: number | null) =>
   value === null ? "Chưa có dữ liệu" : `${Math.round(value * 1000) / 10}%`;
@@ -246,6 +249,7 @@ export function ModelOperations({ csrfToken }: { csrfToken: string }) {
                       </small>
                     )}
                     <small>{typeof record.metrics.holdout_images === "number" ? record.metrics.holdout_images : 0} ảnh holdout · {record.metrics.independent_holdout === true && record.metrics.end_to_end_evaluated === true ? "Đã đánh giá toàn quy trình" : "Chưa đủ kiểm định độc lập"}</small>
+                    <LocatorBenchmark value={record.metrics.locator_benchmark} />
                   </td>
                   <td>
                     <button
@@ -300,6 +304,8 @@ export function ModelOperations({ csrfToken }: { csrfToken: string }) {
                 <option value="reading_region_ridge">Định vị vùng chỉ số</option>
                 <option value="meter_locator_ridge">Định vị toàn bộ công tơ</option>
                 <option value="parseq_tiny_finetuned">Bộ đọc PARSeq-tiny đã học</option>
+                <option value="meter_locator_mobilenetv3">MobileNetV3 · định vị công tơ</option>
+                <option value="reading_region_mobilenetv3">MobileNetV3 · định vị vùng số</option>
               </select>
             </div>
             <div className="setting-field">

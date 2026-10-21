@@ -116,6 +116,8 @@ class KeypointRegionRegressor:
     ) -> "KeypointRegionRegressor":
         if len(features) < 2 or len(features) != len(targets):
             raise ValueError("Dữ liệu vùng chỉ số không đủ để huấn luyện.")
+        if not np.isfinite(regularization) or regularization <= 0:
+            raise ValueError("Hệ số regularization phải hữu hạn và dương.")
         matrix = np.stack(features).astype(np.float32)
         target_matrix = np.stack(targets).astype(np.float32).reshape(-1, 8)
         mean = matrix.mean(axis=0)
@@ -124,12 +126,21 @@ class KeypointRegionRegressor:
         normalized = (matrix - mean) / scale
         bias = target_matrix.mean(axis=0)
         centered_targets = target_matrix - bias
-        # Dual ridge regression keeps the solve bounded by the number of images,
-        # not by the feature count. Keeping the output mean separate prevents
-        # regularization from pulling every predicted corner towards (0, 0).
-        kernel = normalized @ normalized.T
-        kernel.flat[:: kernel.shape[0] + 1] += regularization
-        weights = normalized.T @ np.linalg.solve(kernel, centered_targets)
+        if (
+            matrix.ndim != 2
+            or not np.isfinite(matrix).all()
+            or not np.isfinite(target_matrix).all()
+        ):
+            raise ValueError("Đặc trưng/nhãn định vị không hợp lệ.")
+        # Solve the smaller system: memory O(min(samples, features)^2).
+        if normalized.shape[0] <= normalized.shape[1]:
+            kernel = normalized @ normalized.T
+            kernel.flat[:: kernel.shape[0] + 1] += regularization
+            weights = normalized.T @ np.linalg.solve(kernel, centered_targets)
+        else:
+            kernel = normalized.T @ normalized
+            kernel.flat[:: kernel.shape[0] + 1] += regularization
+            weights = np.linalg.solve(kernel, normalized.T @ centered_targets)
         distances = np.linalg.norm(normalized, axis=1) / np.sqrt(normalized.shape[1])
         threshold = max(0.25, float(np.quantile(distances, 0.95)))
         return cls(
